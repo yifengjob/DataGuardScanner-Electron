@@ -1,3 +1,4 @@
+
 {
   "name": "DataGuardScanner",
   "version": "1.0.5",
@@ -20,7 +21,10 @@
     "scanner",
     "sensitive-data"
   ],
-  "author": "YiFeng",
+  "author": {
+    "name": "YiFeng",
+    "email": "yifengjob@qq.com"
+  },
   "license": "AGPL-3.0",
   "packageManager": "pnpm@10.33.0",
   "build": {
