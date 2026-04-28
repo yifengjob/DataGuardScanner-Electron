@@ -76,10 +76,9 @@ export async function startScan(
             if (shouldStop || scanState.cancelFlag) {
                 if (!shouldStop) {
                     shouldStop = true;
-                    walker.stop(); // 停止遍历
                     log('扫描已取消，正在停止...');
                 }
-                return;
+                return false; // 返回 false 停止遍历
             }
 
             // 如果是目录，检查是否应该忽略
