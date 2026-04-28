@@ -111,6 +111,9 @@
     "jszip": "^3.10.1",
     "pdf-parse": "^1.1.4",
     "readable-stream": "^3.6.2",
+    "buffer": "^6.0.3",
+    "process": "^0.11.10",
+    "events": "^3.3.0",
     "setimmediate": "^1.0.5",
     "trash": "^9.0.0",
     "walkdir": "^0.4.1"
