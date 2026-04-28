@@ -64,19 +64,26 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64", "ia32", "arm64"]
+          "arch": ["x64", "arm64"]
         },
         {
           "target": "deb",
-          "arch": ["x64", "ia32", "arm64"]
+          "arch": ["x64", "arm64"]
         },
         {
           "target": "rpm",
-          "arch": ["x64", "ia32", "arm64"]
+          "arch": ["x64", "arm64"]
         }
       ],
       "category": "Development",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "desktop": {
+        "StartupNotify": "false",
+        "Encoding": "UTF-8",
+        "MimeType": ""
+      },
+      "afterInstall": "build/linux-after-install.sh",
+      "afterRemove": "build/linux-after-remove.sh"
     }
   },
   "dependencies": {
