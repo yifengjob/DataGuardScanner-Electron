@@ -46,4 +46,5 @@ electron-builder.yml
 coverage/
 
 
-CLEANUP_SUMMARY.md
+/CLEANUP_SUMMARY.md
+/WINDOWS_7_COMPATIBILITY.md
