@@ -85,10 +85,31 @@ function createWindow() {
         });
         mainWindow.webContents.openDevTools();
     } else {
-        console.log('加载本地文件:', path.join(__dirname, '../frontend/dist/index.html'));
-        mainWindow.loadFile(path.join(__dirname, '../frontend/dist/index.html')).catch((err) => {
-            console.error('加载前端文件失败:', err);
-        });
+        // 生产模式：使用 app.getAppPath() 获取正确的路径
+        const appPath = app.getAppPath();
+        const indexPath = path.join(appPath, 'frontend', 'dist', 'index.html');
+        console.log('应用路径:', appPath);
+        console.log('加载本地文件:', indexPath);
+        
+        // 检查文件是否存在
+        const fs = require('fs');
+        if (!fs.existsSync(indexPath)) {
+            console.error('前端文件不存在:', indexPath);
+            // 尝试其他可能的路径
+            const altPath = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+            console.log('尝试备用路径:', altPath);
+            if (fs.existsSync(altPath)) {
+                mainWindow.loadFile(altPath).catch((err) => {
+                    console.error('加载备用路径失败:', err);
+                });
+            } else {
+                console.error('所有路径都失败，请检查打包配置');
+            }
+        } else {
+            mainWindow.loadFile(indexPath).catch((err) => {
+                console.error('加载前端文件失败:', err);
+            });
+        }
     }
 
     mainWindow.on('closed', () => {

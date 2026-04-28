@@ -18,6 +18,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  base: './',  // 使用相对路径，适配 Electron
   clearScreen: false,
   server: {
     port: 1420,
@@ -28,5 +29,7 @@ export default defineConfig({
     target: process.env.TAURI_PLATFORM == 'windows' ? 'chrome105' : 'safari13',
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_DEBUG,
+    outDir: 'dist',
+    assetsDir: 'assets',
   },
 })
