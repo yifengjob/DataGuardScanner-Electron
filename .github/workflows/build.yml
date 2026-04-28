@@ -105,7 +105,7 @@ jobs:
 
       # Build Electron app
       - name: Build Electron app
-        run: pnpm exec electron-builder --${{ matrix.target }}
+        run: pnpm exec electron-builder --${{ matrix.target }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
