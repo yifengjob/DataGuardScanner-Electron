@@ -57,17 +57,24 @@
           ]
         }
       ],
-      "artifactName": "${name}-${platform}-${version}-${arch}-${target}.${ext}",
       "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "artifactName": "${name}-${platform}-${version}-${arch}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${name}-${platform}-${version}-${arch}-Portable.${ext}"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "artifactName": "${name}-${platform}-${version}-${arch}-${target}.${ext}",
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns"
+    },
+    "dmg": {
+      "artifactName": "${name}-${platform}-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -95,16 +102,22 @@
       ],
       "category": "Development",
       "icon": "build/icon.png",
-      "artifactName": "${name}-${platform}-${version}-${arch}-${target}.${ext}",
       "desktop": {
         "StartupNotify": "false",
         "Encoding": "UTF-8",
         "MimeType": ""
       }
     },
+    "appImage": {
+      "artifactName": "${name}-${platform}-${version}-${arch}.${ext}"
+    },
     "deb": {
+      "artifactName": "${name}-${platform}-${version}-${arch}.${ext}",
       "afterInstall": "build/linux-after-install.sh",
       "afterRemove": "build/linux-after-remove.sh"
+    },
+    "rpm": {
+      "artifactName": "${name}-${platform}-${version}-${arch}.${ext}"
     }
   },
   "dependencies": {
