@@ -84,22 +84,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Upload artifacts
-      - name: Upload Windows Setup artifacts
+      - name: Upload Windows artifacts
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v7
         with:
-          name: dataguard-scanner-${{ matrix.platform }}-setup
+          name: dataguard-scanner-${{ matrix.platform }}
           path: |
-            release/*Setup*.exe
-          if-no-files-found: error
-
-      - name: Upload Windows Portable artifacts
-        if: matrix.platform == 'windows'
-        uses: actions/upload-artifact@v7
-        with:
-          name: dataguard-scanner-${{ matrix.platform }}-portable
-          path: |
-            release/*Portable*.exe
+            release/*.exe
           if-no-files-found: error
 
       - name: Upload Linux artifacts
