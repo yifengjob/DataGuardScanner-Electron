@@ -57,6 +57,7 @@
           ]
         }
       ],
+      "artifactName": "${productName}-windows-${version}-${arch}.${ext}",
       "icon": "build/icon.ico"
     },
     "mac": {
@@ -64,6 +65,7 @@
         "dmg",
         "zip"
       ],
+      "artifactName": "${productName}-mac-${version}-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns"
     },
@@ -93,6 +95,7 @@
       ],
       "category": "Development",
       "icon": "build/icon.png",
+      "artifactName": "${productName}-linux-${version}-${arch}.${ext}",
       "desktop": {
         "StartupNotify": "false",
         "Encoding": "UTF-8",
