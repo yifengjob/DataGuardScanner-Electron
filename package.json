@@ -38,10 +38,19 @@
       "frontend/dist/**/*",
       "node_modules/**/*"
     ],
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32", "arm64"],
+          "artifactName": "${productName}-${version}-windows-${arch}-Setup.${ext}"
+        },
+        {
+          "target": "portable",
+          "arch": ["x64", "ia32", "arm64"],
+          "artifactName": "${productName}-${version}-windows-${arch}-Portable.${ext}"
+        }
       ],
       "icon": "build/icon.ico"
     },
@@ -51,13 +60,26 @@
         "zip"
       ],
       "category": "public.app-category.developer-tools",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "artifactName": "${productName}-${version}-macos-${arch}.${ext}"
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb",
-        "rpm"
+        {
+          "target": "AppImage",
+          "arch": ["x64", "ia32", "arm64"],
+          "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+        },
+        {
+          "target": "deb",
+          "arch": ["x64", "ia32", "arm64"],
+          "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+        },
+        {
+          "target": "rpm",
+          "arch": ["x64", "ia32", "arm64"],
+          "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+        }
       ],
       "category": "Development",
       "icon": "build/icon.png"
@@ -68,6 +90,7 @@
     "chrono-node": "^2.9.0",
     "exceljs": "^4.4.0",
     "extract-zip": "^2.0.1",
+    "jszip": "^3.10.1",
     "pdf-parse": "^1.1.4",
     "trash": "^9.0.0",
     "walkdir": "^0.4.1"
