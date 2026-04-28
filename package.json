@@ -80,7 +80,9 @@
         "StartupNotify": "false",
         "Encoding": "UTF-8",
         "MimeType": ""
-      },
+      }
+    },
+    "deb": {
       "afterInstall": "build/linux-after-install.sh",
       "afterRemove": "build/linux-after-remove.sh"
     }

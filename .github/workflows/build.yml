@@ -31,7 +31,7 @@ jobs:
             target: mac
           
           # macOS Apple Silicon
-          - os: macos-15
+          - os: macos-latest
             platform: macos-arm
             target: mac
 
