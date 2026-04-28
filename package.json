@@ -1,0 +1,80 @@
+{
+  "name": "DataGuardScanner",
+  "version": "1.0.5",
+  "description": "个人敏感信息扫描工具",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"pnpm dev:renderer\" \"pnpm dev:main-watcher\" \"wait-on http://localhost:1420 && cross-env NODE_ENV=development electron .\"",
+    "dev:renderer": "cd frontend && pnpm dev",
+    "dev:main-watcher": "tsc -w -p tsconfig.main.json",
+    "dev:electron": "wait-on http://localhost:1420 && cross-env NODE_ENV=development electron .",
+    "build": "pnpm build:renderer && tsc -p tsconfig.main.json && electron-builder",
+    "build:renderer": "cd frontend && pnpm build",
+    "generate-icons": "node scripts/generate-icons.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "security",
+    "privacy",
+    "scanner",
+    "sensitive-data"
+  ],
+  "author": "YiFeng",
+  "license": "AGPL-3.0",
+  "packageManager": "pnpm@10.33.0",
+  "build": {
+    "appId": "com.dataguard.scanner",
+    "productName": "DataGuard Scanner",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "frontend/dist/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "icon": "build/icon.png"
+    }
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "chrono-node": "^2.9.0",
+    "exceljs": "^4.4.0",
+    "extract-zip": "^2.0.1",
+    "pdf-parse": "^1.1.4",
+    "trash": "^9.0.0",
+    "walkdir": "^0.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/pdf-parse": "^1.1.5",
+    "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
+    "electron": "^22.3.27",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.9.3",
+    "wait-on": "^9.0.5"
+  }
+}

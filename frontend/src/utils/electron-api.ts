@@ -1,0 +1,163 @@
+import type { 
+  DirectoryNode, 
+  ScanConfig, 
+  ScanResultItem, 
+  PreviewResult,
+  AppConfig 
+} from '../types'
+
+// 声明全局Window接口
+declare global {
+  interface Window {
+    electronAPI: {
+      getDirectoryTree: (path: string, showHidden: boolean) => Promise<any>;
+      scanStart: (config: any) => Promise<any>;
+      scanCancel: () => Promise<any>;
+      previewFile: (filePath: string) => Promise<any>;
+      cancelPreview: () => Promise<any>;
+      openFile: (filePath: string) => Promise<any>;
+      openFileLocation: (filePath: string) => Promise<any>;
+      deleteFile: (filePath: string, toTrash: boolean) => Promise<any>;
+      exportReport: (results: any[], format: string, filePath?: string) => Promise<any>;
+      getLogs: () => Promise<any>;
+      getSensitiveRules: () => Promise<any>;
+      saveConfig: (config: any) => Promise<any>;
+      loadConfig: () => Promise<any>;
+      checkSystemEnvironment: () => Promise<any>;
+      showSaveDialog: (options?: any) => Promise<any>;
+      onScanProgress: (callback: (data: any) => void) => () => void;
+      onScanResult: (callback: (data: any) => void) => () => void;
+      onScanFinished: (callback: () => void) => () => void;
+      onScanError: (callback: (error: string) => void) => () => void;
+      onScanLog: (callback: (msg: string) => void) => () => void;
+    };
+  }
+}
+
+// 获取目录树
+export async function getDirectoryTree(path: string, showHidden = true): Promise<DirectoryNode[]> {
+  const result = await window.electronAPI.getDirectoryTree(path, showHidden)
+  if (result.error) throw new Error(result.error)
+  return result
+}
+
+// 开始扫描
+export async function startScan(config: ScanConfig): Promise<void> {
+  const result = await window.electronAPI.scanStart(config)
+  if (result.error) throw new Error(result.error)
+}
+
+// 取消扫描
+export async function cancelScan(): Promise<boolean> {
+  const result = await window.electronAPI.scanCancel()
+  return result.success
+}
+
+// 预览文件
+export async function previewFile(filePath: string): Promise<PreviewResult> {
+  const result = await window.electronAPI.previewFile(filePath)
+  if (result.error) throw new Error(result.error)
+  return result
+}
+
+// 取消预览
+export async function cancelPreview(): Promise<boolean> {
+  const result = await window.electronAPI.cancelPreview()
+  return result.success
+}
+
+// 打开文件
+export async function openFile(filePath: string): Promise<void> {
+  const result = await window.electronAPI.openFile(filePath)
+  if (result.error) throw new Error(result.error)
+}
+
+// 打开文件所在目录
+export async function openFileLocation(filePath: string): Promise<void> {
+  const result = await window.electronAPI.openFileLocation(filePath)
+  if (result.error) throw new Error(result.error)
+}
+
+// 删除文件
+export async function deleteFile(filePath: string, toTrash: boolean = false): Promise<void> {
+  const result = await window.electronAPI.deleteFile(filePath, toTrash)
+  if (result.error) throw new Error(result.error)
+}
+
+// 导出报告
+export async function exportReport(
+  results: ScanResultItem[],
+  format: 'csv' | 'json' | 'excel',
+  filePath?: string  // 可选的文件路径
+): Promise<void> {
+  const result = await window.electronAPI.exportReport(results, format, filePath)
+  if (result.error) throw new Error(result.error)
+}
+
+// 获取日志
+export async function getLogs(): Promise<string[]> {
+  const result = await window.electronAPI.getLogs()
+  return result.logs || []
+}
+
+// 获取敏感规则
+export async function getSensitiveRules(): Promise<any[]> {
+  const result = await window.electronAPI.getSensitiveRules()
+  return result || []
+}
+
+// 保存配置
+export async function saveConfig(config: AppConfig): Promise<void> {
+  const result = await window.electronAPI.saveConfig(config)
+  if (result.error) throw new Error(result.error)
+}
+
+// 加载配置
+export async function loadConfig(): Promise<AppConfig> {
+  const result = await window.electronAPI.loadConfig()
+  if (result.error) throw new Error(result.error)
+  return result
+}
+
+// 检查系统环境
+export async function checkSystemEnvironment(): Promise<any> {
+  return await window.electronAPI.checkSystemEnvironment()
+}
+
+// 监听扫描进度事件
+export async function onScanProgress(callback: (data: any) => void): Promise<() => void> {
+  return window.electronAPI.onScanProgress(callback)
+}
+
+// 监听扫描结果事件
+export async function onScanResult(callback: (data: ScanResultItem) => void): Promise<() => void> {
+  return window.electronAPI.onScanResult(callback)
+}
+
+// 监听扫描完成事件
+export async function onScanFinished(callback: () => void): Promise<() => void> {
+  return window.electronAPI.onScanFinished(callback)
+}
+
+// 监听扫描错误事件
+export async function onScanError(callback: (error: string) => void): Promise<() => void> {
+  return window.electronAPI.onScanError(callback)
+}
+
+// 监听扫描日志事件
+export async function onScanLog(callback: (log: string) => void): Promise<() => void> {
+  return window.electronAPI.onScanLog(callback)
+}
+
+// 显示消息对话框
+export async function showMessage(message: string, options?: { title?: string; type?: 'info' | 'warning' | 'error' }): Promise<void> {
+  // Electron中可以使用alert或自定义dialog
+  alert(`${options?.title || '提示'}\n\n${message}`)
+}
+
+// 保存文件对话框
+export async function showSaveDialog(options?: { filters?: Array<{ name: string; extensions: string[] }> }): Promise<string | null> {
+  // 这里需要通过IPC调用主进程的dialog
+  const result = await window.electronAPI.showSaveDialog(options)
+  return result.filePath || null
+}

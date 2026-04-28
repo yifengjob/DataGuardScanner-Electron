@@ -1,0 +1,152 @@
+name: Build and Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:  # 允许手动触发
+
+# 允许 GITHUB_TOKEN 创建 Release
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows 64-bit
+          - os: windows-latest
+            platform: windows-x64
+            target: win
+          
+          # Linux x86_64
+          - os: ubuntu-22.04
+            platform: linux-x64
+            target: linux
+          
+          # macOS Intel
+          - os: macos-13
+            platform: macos-intel
+            target: mac
+          
+          # macOS Apple Silicon (ARM)
+          - os: macos-latest
+            platform: macos-arm
+            target: mac
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # Install pnpm first
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.0
+          run_install: false
+
+      # Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      # Cache pnpm store
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pnpm install
+
+      # Build frontend
+      - name: Build frontend
+        run: pnpm build:renderer
+
+      # Compile TypeScript
+      - name: Compile TypeScript
+        run: npx tsc -p tsconfig.main.json
+
+      # Build Electron app
+      - name: Build Electron app
+        run: pnpm exec electron-builder --${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload artifacts
+      - name: Upload Windows artifacts
+        if: startsWith(matrix.platform, 'windows')
+        uses: actions/upload-artifact@v7
+        with:
+          name: dataguard-scanner-${{ matrix.platform }}
+          path: |
+            release/*Setup*.exe
+            release/*portable*.exe
+          if-no-files-found: error
+
+      - name: Upload Linux artifacts
+        if: startsWith(matrix.platform, 'linux')
+        uses: actions/upload-artifact@v7
+        with:
+          name: dataguard-scanner-${{ matrix.platform }}
+          path: |
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+
+      - name: Upload macOS artifacts
+        if: startsWith(matrix.platform, 'macos')
+        uses: actions/upload-artifact@v7
+        with:
+          name: dataguard-scanner-${{ matrix.platform }}
+          path: |
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: find artifacts -type f | head -50
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
+            artifacts/**/*.dmg
+            artifacts/**/*.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

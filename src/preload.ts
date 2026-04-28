@@ -1,0 +1,112 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  // 目录树
+  getDirectoryTree: (path: string, showHidden: boolean) =>
+    ipcRenderer.invoke('get-directory-tree', path, showHidden),
+  
+  // 扫描
+  scanStart: (config: any) =>
+    ipcRenderer.invoke('scan-start', config),
+  scanCancel: () =>
+    ipcRenderer.invoke('scan-cancel'),
+  
+  // 预览
+  previewFile: (filePath: string) =>
+    ipcRenderer.invoke('preview-file', filePath),
+  cancelPreview: () =>
+    ipcRenderer.invoke('cancel-preview'),
+  
+  // 文件操作
+  openFile: (filePath: string) =>
+    ipcRenderer.invoke('open-file', filePath),
+  openFileLocation: (filePath: string) =>
+    ipcRenderer.invoke('open-file-location', filePath),
+  deleteFile: (filePath: string, toTrash: boolean) =>
+    ipcRenderer.invoke('delete-file', filePath, toTrash),
+  
+  // 报告导出
+  exportReport: (results: any[], format: string, filePath?: string) =>
+    ipcRenderer.invoke('export-report', results, format, filePath),
+  
+  // 日志
+  getLogs: () =>
+    ipcRenderer.invoke('get-logs'),
+  
+  // 敏感规则
+  getSensitiveRules: () =>
+    ipcRenderer.invoke('get-sensitive-rules'),
+  
+  // 配置
+  saveConfig: (config: any) =>
+    ipcRenderer.invoke('save-config', config),
+  loadConfig: () =>
+    ipcRenderer.invoke('load-config'),
+  
+  // 环境检查
+  checkSystemEnvironment: () =>
+    ipcRenderer.invoke('check-system-environment'),
+  
+  // 事件监听
+  onScanProgress: (callback: (data: any) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('scan-progress', listener);
+    return () => ipcRenderer.removeListener('scan-progress', listener);
+  },
+  
+  onScanResult: (callback: (data: any) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('scan-result', listener);
+    return () => ipcRenderer.removeListener('scan-result', listener);
+  },
+  
+  onScanFinished: (callback: () => void) => {
+    const listener = (_event: any) => callback();
+    ipcRenderer.on('scan-finished', listener);
+    return () => ipcRenderer.removeListener('scan-finished', listener);
+  },
+  
+  onScanError: (callback: (error: string) => void) => {
+    const listener = (_event: any, error: string) => callback(error);
+    ipcRenderer.on('scan-error', listener);
+    return () => ipcRenderer.removeListener('scan-error', listener);
+  },
+  
+  onScanLog: (callback: (msg: string) => void) => {
+    const listener = (_event: any, msg: string) => callback(msg);
+    ipcRenderer.on('scan-log', listener);
+    return () => ipcRenderer.removeListener('scan-log', listener);
+  },
+  
+  // 保存文件对话框
+  showSaveDialog: (options?: any) =>
+    ipcRenderer.invoke('show-save-dialog', options)
+});
+
+// 声明全局类型
+declare global {
+  interface Window {
+    electronAPI: {
+      getDirectoryTree: (path: string, showHidden: boolean) => Promise<any>;
+      scanStart: (config: any) => Promise<any>;
+      scanCancel: () => Promise<any>;
+      previewFile: (filePath: string) => Promise<any>;
+      cancelPreview: () => Promise<any>;
+      openFile: (filePath: string) => Promise<any>;
+      openFileLocation: (filePath: string) => Promise<any>;
+      deleteFile: (filePath: string, toTrash: boolean) => Promise<any>;
+      exportReport: (results: any[], format: string, filePath?: string) => Promise<any>;
+      getLogs: () => Promise<any>;
+      getSensitiveRules: () => Promise<any>;
+      saveConfig: (config: any) => Promise<any>;
+      loadConfig: () => Promise<any>;
+      checkSystemEnvironment: () => Promise<any>;
+      onScanProgress: (callback: (data: any) => void) => () => void;
+      onScanResult: (callback: (data: any) => void) => () => void;
+      onScanFinished: (callback: () => void) => () => void;
+      onScanError: (callback: (error: string) => void) => () => void;
+      onScanLog: (callback: (msg: string) => void) => () => void;
+      showSaveDialog: (options?: any) => Promise<any>;
+    };
+  }
+}
