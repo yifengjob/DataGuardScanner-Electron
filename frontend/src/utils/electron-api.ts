@@ -25,6 +25,7 @@ declare global {
       loadConfig: () => Promise<any>;
       checkSystemEnvironment: () => Promise<any>;
       showSaveDialog: (options?: any) => Promise<any>;
+      clearCache: () => Promise<{ success: boolean; cleanedSize?: number; error?: string }>;
       onScanProgress: (callback: (data: any) => void) => () => void;
       onScanResult: (callback: (data: any) => void) => () => void;
       onScanFinished: (callback: () => void) => () => void;
@@ -125,7 +126,7 @@ export async function checkSystemEnvironment(): Promise<any> {
 }
 
 // 清理缓存
-export async function clearCache(): Promise<{ success: boolean; cleanedSize?: number }> {
+export async function clearCache(): Promise<{ success: boolean; cleanedSize?: number; error?: string }> {
   const result = await window.electronAPI.clearCache()
   if (result.error) throw new Error(result.error)
   return result
