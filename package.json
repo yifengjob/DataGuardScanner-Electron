@@ -94,6 +94,7 @@
     "extract-zip": "^2.0.1",
     "jszip": "^3.10.1",
     "pdf-parse": "^1.1.4",
+    "setimmediate": "^1.0.5",
     "trash": "^9.0.0",
     "walkdir": "^0.4.1"
   },
