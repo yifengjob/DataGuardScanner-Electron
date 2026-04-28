@@ -48,3 +48,4 @@ coverage/
 
 /CLEANUP_SUMMARY.md
 /WINDOWS_7_COMPATIBILITY.md
+/.github/**/*.md
