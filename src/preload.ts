@@ -80,7 +80,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 保存文件对话框
   showSaveDialog: (options?: any) =>
-    ipcRenderer.invoke('show-save-dialog', options)
+    ipcRenderer.invoke('show-save-dialog', options),
+  
+  // 清理缓存
+  clearCache: () =>
+    ipcRenderer.invoke('clear-cache')
 });
 
 // 声明全局类型
@@ -107,6 +111,7 @@ declare global {
       onScanError: (callback: (error: string) => void) => () => void;
       onScanLog: (callback: (msg: string) => void) => () => void;
       showSaveDialog: (options?: any) => Promise<any>;
+      clearCache: () => Promise<{ success: boolean; cleanedSize?: number }>;
     };
   }
 }
