@@ -72,12 +72,15 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       # Install dependencies
-      - name: Install dependencies
+      - name: Install root dependencies
         run: pnpm install
+
+      - name: Install frontend dependencies
+        run: cd frontend && pnpm install
 
       # Build frontend
       - name: Build frontend
-        run: pnpm build:renderer
+        run: cd frontend && pnpm build
 
       # Compile TypeScript
       - name: Compile TypeScript
