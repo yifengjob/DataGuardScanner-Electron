@@ -26,12 +26,12 @@ jobs:
             target: linux
           
           # macOS Intel
-          - os: macos-13
+          - os: macos-15-intel
             platform: macos-intel
             target: mac
           
           # macOS Apple Silicon
-          - os: macos-latest
+          - os: macos-15
             platform: macos-arm
             target: mac
 
