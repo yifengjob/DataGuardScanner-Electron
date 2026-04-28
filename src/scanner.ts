@@ -61,7 +61,8 @@ export async function startScan(
 
         // 使用walkdir遍历目录
         const walker = walkdir(rootPath, {
-            follow_symlinks: false
+            follow_symlinks: false,
+            no_recurse: false
         });
 
         let shouldStop = false;
@@ -71,8 +72,13 @@ export async function startScan(
         const pathPromises: Promise<void>[] = [];
 
         walker.on('path', (filePath: string, stat: any) => {
+            // 立即检查取消标志，尽早退出
             if (shouldStop || scanState.cancelFlag) {
-                log('扫描已取消');
+                if (!shouldStop) {
+                    shouldStop = true;
+                    walker.stop(); // 停止遍历
+                    log('扫描已取消，正在停止...');
+                }
                 return;
             }
 
@@ -136,10 +142,20 @@ export async function startScan(
 
             // 将异步处理包装成Promise并保存
             const processPromise = (async () => {
+                // 在处理前再次检查取消标志
+                if (scanState.cancelFlag) {
+                    return;
+                }
+                
                 processedCount++;
                 // 提取文本并检测敏感数据
                 try {
                     const {text, unsupportedPreview} = await extractTextFromFile(filePath);
+
+                    // 如果在解析过程中被取消，直接返回
+                    if (scanState.cancelFlag) {
+                        return;
+                    }
 
                     if (unsupportedPreview) {
                         return;
@@ -166,7 +182,10 @@ export async function startScan(
                         mainWindow.webContents.send('scan-result', result);
                     }
                 } catch (error: any) {
-                    log(`处理文件失败 ${filePath}: ${error.message}`);
+                    // 如果是取消导致的错误，不记录日志
+                    if (!scanState.cancelFlag) {
+                        log(`处理文件失败 ${filePath}: ${error.message}`);
+                    }
                 }
             })();
             
@@ -176,12 +195,24 @@ export async function startScan(
         // 等待所有文件处理完成
         await new Promise<void>((resolve) => {
             walker.on('end', async () => {
+                // 如果被取消，不等待剩余任务，直接退出
+                if (scanState.cancelFlag) {
+                    log(`扫描已取消: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
+                    resolve();
+                    return;
+                }
+                
                 // 等待所有异步处理完成
                 await Promise.all(pathPromises);
                 log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
                 resolve();
             });
         });
+        
+        // 如果在循环中被取消，跳出外层循环
+        if (scanState.cancelFlag) {
+            break;
+        }
     }
 
     scanState.isScanning = false;
@@ -199,8 +230,12 @@ function shouldIgnoreDirectory(dirName: string, dirPath: string, config: ScanCon
         return true;
     }
 
-    // 检查是否是系统目录
-    return config.systemDirs.some(sysDir => dirPath.startsWith(sysDir));
-
-
+    // 检查是否是系统目录（不区分大小写，处理路径分隔符）
+    const normalizedDirPath = path.normalize(dirPath).toLowerCase();
+    return config.systemDirs.some(sysDir => {
+        const normalizedSysDir = path.normalize(sysDir).toLowerCase();
+        // 确保匹配完整目录，而不是前缀（例如 C:\Windows 不应匹配 C:\WindowsABC）
+        return normalizedDirPath === normalizedSysDir || 
+               normalizedDirPath.startsWith(normalizedSysDir + path.sep);
+    });
 }
