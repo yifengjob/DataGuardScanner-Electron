@@ -57,7 +57,7 @@
           ]
         }
       ],
-      "artifactName": "${productName}-windows-${version}-${arch}.${ext}",
+      "artifactName": "${name}-${platform}-${version}-${arch}-${target}.${ext}",
       "icon": "build/icon.ico"
     },
     "mac": {
@@ -65,7 +65,7 @@
         "dmg",
         "zip"
       ],
-      "artifactName": "${productName}-mac-${version}-${arch}.${ext}",
+      "artifactName": "${name}-${platform}-${version}-${arch}-${target}.${ext}",
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns"
     },
@@ -95,7 +95,7 @@
       ],
       "category": "Development",
       "icon": "build/icon.png",
-      "artifactName": "${productName}-linux-${version}-${arch}.${ext}",
+      "artifactName": "${name}-${platform}-${version}-${arch}-${target}.${ext}",
       "desktop": {
         "StartupNotify": "false",
         "Encoding": "UTF-8",
