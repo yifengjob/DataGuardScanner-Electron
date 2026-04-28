@@ -14,16 +14,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-22.04, macos-latest]
         include:
+          # Windows
           - os: windows-latest
             platform: windows
             target: win
+          
+          # Linux
           - os: ubuntu-22.04
             platform: linux
             target: linux
+          
+          # macOS Intel
+          - os: macos-13
+            platform: macos-intel
+            target: mac
+          
+          # macOS Apple Silicon
           - os: macos-latest
-            platform: macos
+            platform: macos-arm
             target: mac
 
     runs-on: ${{ matrix.os }}
@@ -105,7 +114,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload macOS artifacts
-        if: matrix.platform == 'macos'
+        if: startsWith(matrix.platform, 'macos')
         uses: actions/upload-artifact@v7
         with:
           name: dataguard-scanner-${{ matrix.platform }}
