@@ -65,6 +65,13 @@
             />
             <span class="hint">（取消勾选则永久删除）</span>
           </div>
+          
+          <div class="setting-item">
+            <button class="btn-clear-cache" @click="handleClearCache">
+              🗑️ 清理应用缓存
+            </button>
+            <span class="hint">（清理 Chromium 缓存和临时文件）</span>
+          </div>
         </div>
         
         <div class="settings-section">
@@ -134,7 +141,7 @@
 import { ref, onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
-import { saveConfig, getSensitiveRules } from '../utils/electron-api'
+import { saveConfig, getSensitiveRules, clearCache } from '../utils/electron-api'
 import { applyTheme } from '../utils/theme'
 
 const emit = defineEmits<{
@@ -206,6 +213,21 @@ const handleSave = async () => {
   } catch (error) {
     console.error('保存配置失败:', error)
     alert('保存配置失败')
+  }
+}
+
+const handleClearCache = async () => {
+  if (!confirm('确定要清理应用缓存吗？\n这将删除 Chromium 缓存和临时文件。')) {
+    return
+  }
+  
+  try {
+    const result = await clearCache()
+    const sizeMB = Math.round((result.cleanedSize || 0) / 1024 / 1024)
+    alert(`缓存清理完成！\n释放空间: ${sizeMB} MB`)
+  } catch (error) {
+    console.error('清理缓存失败:', error)
+    alert('清理缓存失败')
   }
 }
 </script>
@@ -428,5 +450,21 @@ const handleSave = async () => {
 
 .btn-primary:hover {
   background-color: #40a9ff;
+}
+
+.btn-clear-cache {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-clear-cache:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--primary-color);
 }
 </style>

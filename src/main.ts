@@ -10,6 +10,7 @@ import {exportReport} from './report-exporter';
 import {loadConfig, saveConfig} from './config-manager';
 import {checkEnvironment} from './environment-check';
 import {getSensitiveRules} from './sensitive-detector';
+import {log} from "node:util";
 
 // 抑制pdf-parse的字体警告
 const originalWarn = console.warn;
@@ -144,6 +145,30 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
+
+// 计算目录大小（字节）
+function getDirectorySize(dirPath: string): number {
+    const fs = require('fs');
+    let totalSize = 0;
+    
+    try {
+        const files = fs.readdirSync(dirPath);
+        for (const file of files) {
+            const filePath = path.join(dirPath, file);
+            const stat = fs.statSync(filePath);
+            
+            if (stat.isDirectory()) {
+                totalSize += getDirectorySize(filePath);
+            } else {
+                totalSize += stat.size;
+            }
+        }
+    } catch (e) {
+        // 忽略无法访问的文件
+    }
+    
+    return totalSize;
+}
 
 function setupIpcHandlers() {
     // 获取目录树
@@ -286,5 +311,57 @@ function setupIpcHandlers() {
         return await dialog.showSaveDialog(mainWindow!, {
             filters: options?.filters || []
         });
+    });
+
+    // 清理应用缓存
+    ipcMain.handle('clear-cache', async () => {
+        try {
+            const fs = require('fs');
+            const os = require('os');
+            const userDataPath = app.getPath('userData');
+            
+            // 清理 Chromium 缓存
+            const cacheDirs = [
+                path.join(userDataPath, 'Cache'),
+                path.join(userDataPath, 'GPUCache'),
+                path.join(userDataPath, 'Code Cache'),
+                path.join(userDataPath, 'Service Worker'),
+            ];
+            
+            let cleanedSize = 0;
+            for (const cacheDir of cacheDirs) {
+                if (fs.existsSync(cacheDir)) {
+                    const size = getDirectorySize(cacheDir);
+                    fs.rmSync(cacheDir, { recursive: true, force: true });
+                    cleanedSize += size;
+                }
+            }
+            
+            // 清理系统临时目录中的本应用相关文件
+            const tempDir = os.tmpdir();
+            if (fs.existsSync(tempDir)) {
+                const files = fs.readdirSync(tempDir);
+                for (const file of files) {
+                    // 清理超过7天的临时文件
+                    const filePath = path.join(tempDir, file);
+                    try {
+                        const stat = fs.statSync(filePath);
+                        const daysOld = (Date.now() - stat.mtimeMs) / (1000 * 60 * 60 * 24);
+                        if (daysOld > 7 && stat.isFile()) {
+                            fs.unlinkSync(filePath);
+                            cleanedSize += stat.size;
+                        }
+                    } catch (e) {
+                        // 忽略无法删除的文件
+                    }
+                }
+            }
+            
+            console.log(`缓存清理完成，释放 ${Math.round(cleanedSize / 1024 / 1024)} MB 空间`);
+            return { success: true, cleanedSize };
+        } catch (error: any) {
+            console.error('清理缓存失败:', error);
+            return { error: error.message };
+        }
     });
 }

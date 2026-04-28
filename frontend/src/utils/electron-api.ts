@@ -124,6 +124,13 @@ export async function checkSystemEnvironment(): Promise<any> {
   return await window.electronAPI.checkSystemEnvironment()
 }
 
+// 清理缓存
+export async function clearCache(): Promise<{ success: boolean; cleanedSize?: number }> {
+  const result = await window.electronAPI.clearCache()
+  if (result.error) throw new Error(result.error)
+  return result
+}
+
 // 监听扫描进度事件
 export async function onScanProgress(callback: (data: any) => void): Promise<() => void> {
   return window.electronAPI.onScanProgress(callback)
