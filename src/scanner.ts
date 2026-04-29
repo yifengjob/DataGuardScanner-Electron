@@ -235,7 +235,13 @@ export async function startScan(
     function tryDispatch() {
         for (const consumer of consumers) {
             if (!consumer.busy && taskQueue.length > 0) {
-                dispatchNextTask(consumer);
+                // 处理 Promise rejection，避免未捕获的错误
+                const promise = dispatchNextTask(consumer);
+                if (promise) {
+                    promise.catch((error) => {
+                        console.error(`[TaskQueue] 任务分发失败:`, error.message);
+                    });
+                }
             }
         }
     }
