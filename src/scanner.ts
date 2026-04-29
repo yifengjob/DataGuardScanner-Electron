@@ -143,9 +143,9 @@ export async function startScan(
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
 
-            // 【优化】节流发送进度更新（每 200ms 最多一次）
+            // 【优化】节流发送进度更新（每 500ms 最多一次，减少 IPC 开销）
             const now = Date.now();
-            if (!lastProgressTime || now - lastProgressTime >= 200) {
+            if (!lastProgressTime || now - lastProgressTime >= 500) {
                 mainWindow.webContents.send('scan-progress', {
                     currentFile: result.filePath || '',
                     scannedCount: consumerProcessedCount,
@@ -330,9 +330,9 @@ export async function startScan(
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
             
-            // 更新进度
+            // 更新进度（与 Consumer 保持一致，每 500ms 最多一次）
             const now = Date.now();
-            if (!lastProgressTime || now - lastProgressTime >= 200) {
+            if (!lastProgressTime || now - lastProgressTime >= 500) {
                 mainWindow.webContents.send('scan-progress', {
                     currentFile: message.filePath,
                     scannedCount: consumerProcessedCount,
