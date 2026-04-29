@@ -332,8 +332,8 @@ function setupIpcHandlers() {
             const workerPath = pathModule.join(__dirname, 'file-worker.js');
             const worker = new Worker(workerPath, {
                 resourceLimits: {
-                    maxOldGenerationSizeMb: 512,
-                    maxYoungGenerationSizeMb: 64,
+                    maxOldGenerationSizeMb: 256, // 【修复】降低内存限制
+                    maxYoungGenerationSizeMb: 32,
                 }
             });
             

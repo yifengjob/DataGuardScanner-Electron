@@ -91,7 +91,6 @@ export async function startScan(
 
     let nextTaskId = 0;
     const taskQueue: Array<{ filePath: string; fileSize: number; fileMtime: string }> = [];
-    const MAX_QUEUE_SIZE = 1000; // 【修复】限制队列大小，防止内存泄漏
     
     // IPC 节流
     let lastProgressTime = 0;
@@ -107,8 +106,8 @@ export async function startScan(
         try {
             worker = new Worker(workerPath, {
                 resourceLimits: {
-                    maxOldGenerationSizeMb: 512,
-                    maxYoungGenerationSizeMb: 64,
+                    maxOldGenerationSizeMb: 256, // 【修复】降低内存限制，防止内存泄漏导致崩溃
+                    maxYoungGenerationSizeMb: 32,
                 }
             });
         } catch (error: any) {
@@ -394,22 +393,15 @@ export async function startScan(
                 lastProgressTime = now;
             }
 
-            // 添加到任务队列（【修复】限制队列大小）
-            if (taskQueue.length < MAX_QUEUE_SIZE) {
-                taskQueue.push({
-                    filePath: message.filePath,
-                    fileSize: message.stat.size,
-                    fileMtime: message.stat.mtime
-                });
+            // 添加到任务队列
+            taskQueue.push({
+                filePath: message.filePath,
+                fileSize: message.stat.size,
+                fileMtime: message.stat.mtime
+            });
 
-                // 尝试调度
-                tryDispatch();
-            } else {
-                // 【修复】队列已满，跳过这个文件并记录
-                if (process.env.NODE_ENV === 'development') {
-                    console.warn(`[Walker] 任务队列已满 (${MAX_QUEUE_SIZE})，跳过文件: ${message.filePath}`);
-                }
-            }
+            // 尝试调度
+            tryDispatch();
         }
 
         if (message.type === 'walking-complete') {
