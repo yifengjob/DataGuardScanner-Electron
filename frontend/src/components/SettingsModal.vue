@@ -150,7 +150,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
-import { saveConfig, getSensitiveRules, clearCache } from '../utils/electron-api'
+import { saveConfig, getSensitiveRules, clearCache, getRecommendedConcurrency } from '../utils/electron-api'
 import { applyTheme } from '../utils/theme'
 
 const emit = defineEmits<{
@@ -174,6 +174,13 @@ onMounted(async () => {
     const rules = await getSensitiveRules()
     // 后端返回的是 [id, name] 元组数组
     sensitiveTypes.value = rules.map(([id, name]: [string, string]) => ({ id, name }))
+    
+    // 如果配置中的并发数为 0，则使用系统推荐的值
+    if (config.value.scanConcurrency === 0) {
+      const recommended = await getRecommendedConcurrency()
+      config.value.scanConcurrency = recommended
+      console.log(`[设置] 使用系统推荐的并发数: ${recommended}`)
+    }
   } catch (error) {
     console.error('获取敏感规则失败:', error)
   }

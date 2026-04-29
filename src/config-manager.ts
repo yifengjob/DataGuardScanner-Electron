@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { app } from 'electron';
-import { AppConfig } from './types';
+import * as os from 'os';
+import {app} from 'electron';
+import {AppConfig} from './types';
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
 
@@ -108,7 +109,8 @@ export function getDefaultConfig(): AppConfig {
     // 'tmp', 'temp', '.temp'
   ];
   
-  // scanConcurrency 设置为 0，表示使用动态计算（在 scanner.ts 中根据 CPU 和内存自动计算）
+  // scanConcurrency: 0 表示使用动态计算（根据 CPU 和内存自动调整）
+  // 默认设置为 4，这是一个平衡性能和资源消耗的保守值
   return {
     selectedPaths: [],
     selectedExtensions: ['*'],
@@ -120,7 +122,7 @@ export function getDefaultConfig(): AppConfig {
     systemDirs: generateSystemDirs(false), // 默认只忽略C盘系统目录
     maxFileSizeMb: 50,
     maxPdfSizeMb: 100,
-    scanConcurrency: 0, // 0 表示动态计算
+    scanConcurrency: 4, // 默认并发数，scanner.ts 会根据硬件智能调整
     theme: 'system',
     language: 'zh-CN',
     enableExperimentalParsers: false,
@@ -158,4 +160,51 @@ export async function saveConfig(config: AppConfig): Promise<void> {
     console.error('保存配置失败:', error);
     throw error;
   }
+}
+
+/**
+ * 根据系统硬件资源智能计算推荐的并发数
+ */
+export function calculateRecommendedConcurrency(): number {
+  const cpuCount = os.cpus().length;
+  const freeMemoryGB = os.freemem() / (1024 * 1024 * 1024);
+  const memoryPerWorker = 0.4; // GB
+  const maxByMemory = Math.floor(freeMemoryGB * 0.4 / memoryPerWorker);
+  const absoluteMax = 6;
+  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, absoluteMax);
+  return Math.max(calculatedMaxConcurrency, 2);
+}
+
+/**
+ * 根据配置和系统资源计算实际使用的并发数
+ * @param configuredConcurrency 配置的并发数（0 表示自动）
+ * @returns 实际应该使用的并发数
+ */
+export function calculateActualConcurrency(configuredConcurrency: number): { 
+  actualConcurrency: number;
+  maxAllowedConcurrency: number;
+  cpuCount: number;
+  freeMemoryGB: number;
+} {
+  const cpuCount = os.cpus().length;
+  const freeMemoryGB = os.freemem() / (1024 * 1024 * 1024);
+  const memoryPerWorker = 0.4; // GB
+  const maxByMemory = Math.floor(freeMemoryGB * 0.4 / memoryPerWorker);
+  const absoluteMax = 6;
+  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, absoluteMax);
+  const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, 2);
+  
+  let actualConcurrency: number;
+  if (configuredConcurrency && configuredConcurrency > 0) {
+    actualConcurrency = Math.min(configuredConcurrency, maxAllowedConcurrency);
+  } else {
+    actualConcurrency = Math.min(Math.max(cpuCount, 2), 4);
+  }
+  
+  return {
+    actualConcurrency,
+    maxAllowedConcurrency,
+    cpuCount,
+    freeMemoryGB
+  };
 }

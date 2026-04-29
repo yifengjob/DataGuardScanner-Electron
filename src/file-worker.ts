@@ -3,7 +3,6 @@
  * 负责在后台线程中执行 CPU 密集型的文件解析和敏感数据检测
  */
 import { parentPort } from 'worker_threads';
-import * as path from 'path';
 import { extractTextFromFile } from './file-parser';
 import { detectSensitiveData } from './sensitive-detector';
 

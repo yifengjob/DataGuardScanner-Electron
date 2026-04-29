@@ -31,7 +31,7 @@ export const useAppStore = defineStore('app', () => {
     systemDirs: [], // 会在加载配置时从后端获取
     maxFileSizeMb: 50,
     maxPdfSizeMb: 100,
-    scanConcurrency: 0, // 0 表示使用默认值（根据 CPU 动态计算）
+    scanConcurrency: 4, // 默认并发数，后端会根据硬件智能调整
     theme: 'system',
     language: 'zh-CN',
     enableExperimentalParsers: false,

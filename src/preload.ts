@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('save-config', config),
   loadConfig: () =>
     ipcRenderer.invoke('load-config'),
+  getRecommendedConcurrency: () =>
+    ipcRenderer.invoke('get-recommended-concurrency'),
   
   // 环境检查
   checkSystemEnvironment: () =>
@@ -108,6 +110,7 @@ declare global {
       getSensitiveRules: () => Promise<any>;
       saveConfig: (config: any) => Promise<any>;
       loadConfig: () => Promise<any>;
+      getRecommendedConcurrency: () => Promise<number>;
       checkSystemEnvironment: () => Promise<any>;
       onScanProgress: (callback: (data: any) => void) => () => void;
       onScanResult: (callback: (data: any) => void) => () => void;

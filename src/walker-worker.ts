@@ -185,7 +185,13 @@ async function startWalking(config: WalkerConfig) {
 // 监听主线程消息
 parentPort?.on('message', (message: any) => {
   if (message.type === 'start-walking') {
-    startWalking(message.config);
+    // 处理 Promise，捕获可能的错误
+    startWalking(message.config).catch((error: any) => {
+      parentPort?.postMessage({
+        type: 'walking-error',
+        error: error.message || String(error)
+      });
+    });
   }
 });
 

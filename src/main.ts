@@ -6,7 +6,7 @@ import {getDirectoryTree} from './directory-tree';
 import {cancelScan, startScan} from './scanner';
 import {deleteFile, openFile, openFileLocation} from './file-operations';
 import {exportReport} from './report-exporter';
-import {loadConfig, saveConfig} from './config-manager';
+import {loadConfig, saveConfig, calculateRecommendedConcurrency} from './config-manager';
 import {checkEnvironment} from './environment-check';
 import {getSensitiveRules} from './sensitive-detector';
 
@@ -466,6 +466,11 @@ function setupIpcHandlers() {
         } catch (error: any) {
             return {error: error.message};
         }
+    });
+
+    // 获取推荐的并发数（根据系统硬件智能计算）
+    ipcMain.handle('get-recommended-concurrency', () => {
+        return calculateRecommendedConcurrency();
     });
 
     // 检查系统环境

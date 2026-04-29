@@ -1,11 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { BrowserWindow } from 'electron';
 import { Worker } from 'worker_threads';
 import { ScanConfig, ScanResultItem } from './types';
 import { ScanState } from './scan-state';
 import { addAllowedPath, clearAllowedPaths } from './file-operations';
+import { calculateActualConcurrency } from './config-manager';
 
 export async function startScan(
     config: ScanConfig,
@@ -55,28 +55,15 @@ export async function startScan(
     log('---');
 
     // 计算并发数
-    const cpuCount = os.cpus().length;
-    const freeMemoryGB = os.freemem() / (1024 * 1024 * 1024);
-    const memoryPerWorker = 0.4; // GB
-    const maxByMemory = Math.floor(freeMemoryGB * 0.4 / memoryPerWorker);
-    const absoluteMax = 6;
-    const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, absoluteMax);
-    const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, 2);
+    const concurrencyInfo = calculateActualConcurrency(config.scanConcurrency);
+    const poolSize = concurrencyInfo.actualConcurrency;
     
-    let configuredConcurrency: number;
-    if (config.scanConcurrency && config.scanConcurrency > 0) {
-        configuredConcurrency = Math.min(config.scanConcurrency, maxAllowedConcurrency);
-    } else {
-        configuredConcurrency = Math.min(Math.max(cpuCount, 2), 4);
+    if (config.scanConcurrency && config.scanConcurrency > concurrencyInfo.maxAllowedConcurrency) {
+        log(`警告: 配置的并发数 ${config.scanConcurrency} 超过最大值 ${concurrencyInfo.maxAllowedConcurrency}，已自动调整`);
+        log(`提示: 系统可用内存 ${concurrencyInfo.freeMemoryGB.toFixed(1)} GB, CPU ${concurrencyInfo.cpuCount} 核, 建议不超过 ${concurrencyInfo.maxAllowedConcurrency}`);
     }
 
-    if (config.scanConcurrency && config.scanConcurrency > maxAllowedConcurrency) {
-        log(`警告: 配置的并发数 ${config.scanConcurrency} 超过最大值 ${maxAllowedConcurrency}，已自动调整`);
-        log(`提示: 系统可用内存 ${freeMemoryGB.toFixed(1)} GB, CPU ${cpuCount} 核, 建议不超过 ${maxAllowedConcurrency}`);
-    }
-
-    const poolSize = configuredConcurrency;
-    log(`使用 ${poolSize} 个 Consumer Workers (CPU: ${cpuCount}核, 可用内存: ${freeMemoryGB.toFixed(1)}GB)`);
+    log(`使用 ${poolSize} 个 Consumer Workers (CPU: ${concurrencyInfo.cpuCount}核, 可用内存: ${concurrencyInfo.freeMemoryGB.toFixed(1)}GB)`);
 
     // 统计信息
     let walkerTotalCount = 0;      // Walker 找到的文件总数

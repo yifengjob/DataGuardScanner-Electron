@@ -23,6 +23,7 @@ declare global {
       getSensitiveRules: () => Promise<any>;
       saveConfig: (config: any) => Promise<any>;
       loadConfig: () => Promise<any>;
+      getRecommendedConcurrency: () => Promise<number>;
       checkSystemEnvironment: () => Promise<any>;
       showSaveDialog: (options?: any) => Promise<any>;
       clearCache: () => Promise<{ success: boolean; cleanedSize?: number; error?: string }>;
@@ -118,6 +119,11 @@ export async function loadConfig(): Promise<AppConfig> {
   const result = await window.electronAPI.loadConfig()
   if (result.error) throw new Error(result.error)
   return result
+}
+
+// 获取推荐的并发数（根据系统硬件智能计算）
+export async function getRecommendedConcurrency(): Promise<number> {
+  return await window.electronAPI.getRecommendedConcurrency()
 }
 
 // 检查系统环境

@@ -166,7 +166,7 @@ import LogsModal from './components/LogsModal.vue'
 import AboutModal from './components/AboutModal.vue'
 import ExportModal from './components/ExportModal.vue'
 import EnvironmentCheck from './components/EnvironmentCheck.vue'
-import { startScan, cancelScan, loadConfig, onScanProgress, onScanResult, onScanFinished, onScanError, onScanLog } from './utils/electron-api'
+import { startScan, cancelScan, loadConfig, getRecommendedConcurrency, onScanProgress, onScanResult, onScanFinished, onScanError, onScanLog } from './utils/electron-api'
 import { applyTheme, loadTheme, watchSystemTheme } from './utils/theme'
 import type { ThemeMode } from './utils/theme'
 
@@ -191,6 +191,13 @@ onMounted(async () => {
   try {
     const loadedConfig = await loadConfig()
     Object.assign(config.value, loadedConfig)
+    
+    // 如果配置中的并发数为 0，则使用系统推荐的值
+    if (config.value.scanConcurrency === 0) {
+      const recommended = await getRecommendedConcurrency()
+      config.value.scanConcurrency = recommended
+      console.log(`[配置] 使用系统推荐的并发数: ${recommended}`)
+    }
   } catch (error) {
     console.error('加载配置失败:', error)
   }

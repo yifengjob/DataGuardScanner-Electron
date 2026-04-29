@@ -31,6 +31,7 @@ interface ElectronAPI {
   getSensitiveRules: () => Promise<any[]>
   saveConfig: (config: any) => Promise<any>
   loadConfig: () => Promise<any>
+  getRecommendedConcurrency: () => Promise<number>
   checkSystemEnvironment: () => Promise<any>
   showSaveDialog: (options?: any) => Promise<any>
   
