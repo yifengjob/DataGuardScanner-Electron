@@ -153,15 +153,19 @@ async function extractExcel(filePath: string): Promise<{ text: string; unsupport
     
     return { text, unsupportedPreview: false };
   } catch (error: any) {
-    // Excel解析失败，尝试二进制文本提取（静默处理）
+    // 【修复】Windows 文件锁定或其他读取错误，静默处理
+    console.error(`Excel解析失败 ${filePath}:`, error.message);
+    
+    // 尝试二进制文本提取作为备选
     try {
       const data = await fs.promises.readFile(filePath);
       const text = extractTextFromBinary(data);
       if (text.trim()) {
         return { text, unsupportedPreview: false };
       }
-    } catch (e) {
+    } catch (e: any) {
       // 忽略二级错误
+      console.error(`Excel二进制提取也失败 ${filePath}:`, e.message);
     }
     return { text: '', unsupportedPreview: true };
   }
@@ -170,7 +174,7 @@ async function extractExcel(filePath: string): Promise<{ text: string; unsupport
 // 提取 docx/pptx 文件内容
 async function extractDocxPptx(filePath: string, ext: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    // 读取文件到内存
+    // 【修复】读取文件到内存，添加错误处理
     const zipBuffer = await fs.promises.readFile(filePath);
     
     // 使用 adm-zip 在内存中解压
@@ -215,16 +219,18 @@ async function extractDocxPptx(filePath: string, ext: string): Promise<{ text: s
     
     return { text, unsupportedPreview: false };
   } catch (error: any) {
-    // ZIP解析失败，尝试二进制文本提取（静默处理，不显示错误）
+    // 【修复】ZIP解析失败，记录错误并尝试二进制提取
+    console.error(`${ext.toUpperCase()}解析失败 ${filePath}:`, error.message);
+    
     try {
       const data = await fs.promises.readFile(filePath);
       const text = extractTextFromBinary(data);
       if (text.trim()) {
         return { text, unsupportedPreview: false };
       }
-    } catch (e) {
+    } catch (e: any) {
       // 只有在二进制提取也失败时才记录错误
-      console.error(`${ext.toUpperCase()} 文件解析完全失败`);
+      console.error(`${ext.toUpperCase()}二进制提取也失败 ${filePath}:`, e.message);
     }
     return { text: '', unsupportedPreview: true };
   }
@@ -241,8 +247,9 @@ async function extractOldOffice(filePath: string, ext: string): Promise<{ text: 
     }
     
     return { text, unsupportedPreview: false };
-  } catch (error) {
-    console.error(`${ext.toUpperCase()}解析失败:`, error);
+  } catch (error: any) {
+    // 【修复】Windows 文件锁定或其他读取错误
+    console.error(`${ext.toUpperCase()}解析失败 ${filePath}:`, error.message);
     return { text: '', unsupportedPreview: true };
   }
 }
