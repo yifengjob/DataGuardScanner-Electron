@@ -108,22 +108,46 @@ export async function startScan(
             continue;
         }
 
-        // 使用walkdir遍历目录
+        // 预处理：构建快速查找的忽略目录集合（normalized + lowercase）
+        const ignoredDirsNormalized = new Set<string>();
+        config.systemDirs.forEach(dir => {
+            ignoredDirsNormalized.add(path.normalize(dir).toLowerCase());
+        });
+        
+        // 使用walkdir遍历目录，添加 filter 选项优化性能
         const walker = walkdir(rootPath, {
             follow_symlinks: false,
-            no_recurse: false
+            no_recurse: false,
+            // 【优化】在 readdir 阶段就过滤掉忽略的目录，避免进入这些目录
+            filter: (directory: string, files: string[]) => {
+                const dirName = path.basename(directory);
+                
+                // 检查是否应该忽略这个目录
+                if (shouldIgnoreDirectory(dirName, directory, config)) {
+                    return []; // 返回空数组，跳过整个目录
+                }
+                
+                // 检查当前目录是否在系统目录的子目录下
+                const normalizedDir = path.normalize(directory).toLowerCase();
+                for (const sysDir of ignoredDirsNormalized) {
+                    if (normalizedDir.startsWith(sysDir + path.sep) || normalizedDir === sysDir) {
+                        return []; // 跳过系统目录及其子目录
+                    }
+                }
+                
+                // 返回所有文件，让 walkdir 继续遍历
+                return files;
+            }
         });
 
         let shouldStop = false;
-        // 记录应该跳过的目录
-        const ignoredDirs = new Set<string>();
         
         // 并发控制：限制同时处理的文件数
         const maxConcurrency = poolSize * 2;  // 允许队列中的任务数是 Worker 数的 2 倍
         let activeTasks = 0;
         const taskQueue: Array<{filePath: string, stat: any}> = [];
         
-        // IPC 节流
+        // IPC 节流 - 【优化】从 100ms 改为 200ms，减少主线程压力
         let lastProgressTime = 0;
         
         // 使用 Worker 池处理文件
@@ -208,32 +232,8 @@ export async function startScan(
                 return false; // 返回 false 停止遍历
             }
 
-            // 如果是目录，检查是否应该忽略
-            if (stat.isDirectory()) {
-                const dirName = path.basename(filePath);
-                if (shouldIgnoreDirectory(dirName, filePath, config)) {
-                    // 标记该目录为忽略，后续其子文件会被跳过
-                    ignoredDirs.add(filePath);
-                    return;
-                }
-                
-                // 检查当前目录是否在忽略目录的子目录下
-                const isInIgnoredDir = Array.from(ignoredDirs).some(ignoredDir => 
-                    filePath.startsWith(ignoredDir + path.sep)
-                );
-                if (isInIgnoredDir) {
-                    return; // 跳过忽略目录的子目录
-                }
-            }
-
-            // 检查文件是否在忽略目录中
-            const isInIgnoredDir = Array.from(ignoredDirs).some(ignoredDir => 
-                filePath.startsWith(ignoredDir + path.sep)
-            );
-            if (isInIgnoredDir) {
-                return; // 跳过忽略目录中的文件
-            }
-
+            // 【优化】由于已在 filter 中处理，这里不再需要检查忽略目录
+            // 只需处理非文件类型
             if (!stat.isFile()) return;
 
             // 检查扩展名
@@ -265,7 +265,8 @@ export async function startScan(
 
             // 发送进度（遍历阶段，使用 scannedCount）
             const now = Date.now();
-            const shouldThrottle = lastProgressTime && (now - lastProgressTime < 100);
+            // 【优化】IPC 节流从 100ms 改为 200ms，减少主线程和渲染进程通信开销
+            const shouldThrottle = lastProgressTime && (now - lastProgressTime < 200);
             
             if (!shouldThrottle) {
                 mainWindow.webContents.send('scan-progress', {
