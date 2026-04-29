@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-// 【修复】移除 exceljs 导入，避免原生 C++ 段错误导致闪退
-// import * as ExcelJS from 'exceljs';
+import * as ExcelJS from 'exceljs';
 import pdfParse from 'pdf-parse';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
@@ -105,21 +104,98 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
 }
 
 async function extractExcel(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
-  // 【修复】完全禁用 exceljs，避免原生 C++ 段错误导致闪退
-  // 所有 Excel 文件统一使用二进制文本提取
-  try {
-    const data = await fs.promises.readFile(filePath);
-    const text = extractTextFromBinary(data);
+  // 【修复】使用 ExcelJS 流式读取，降低内存占用，避免崩溃
+  return new Promise((resolve) => {
+    const textParts: string[] = [];
+    let hasContent = false;
     
-    if (!text.trim()) {
-      return { text: '', unsupportedPreview: true };
+    try {
+      const workbook = new ExcelJS.stream.xlsx.WorkbookReader(filePath, {
+        worksheets: 'emit',
+        sharedStrings: 'cache',
+        hyperlinks: 'ignore',
+        entries: 'ignore'
+      }) as any; // 类型断言，因为 TypeScript 定义不完整
+      
+      (workbook as any).on('worksheet', (worksheet: any) => {
+        worksheet.on('row', (row: any) => {
+          const cells: string[] = [];
+          row.eachCell({ includeEmpty: true }, (cell: any, colNumber: number) => {
+            let cellValue = '';
+            
+            if (cell.value) {
+              if (typeof cell.value === 'object') {
+                // 富文本类型
+                if ((cell.value as any).richText) {
+                  cellValue = (cell.value as any).richText
+                    .map((r: any) => r.text || '')
+                    .join('');
+                }
+                // 公式结果
+                else if ((cell.value as any).result !== undefined) {
+                  cellValue = String((cell.value as any).result);
+                }
+                // 其他对象类型
+                else if ((cell.value as any).text) {
+                  cellValue = String((cell.value as any).text);
+                }
+                else {
+                  cellValue = String(cell.value);
+                }
+              } else {
+                cellValue = String(cell.value);
+              }
+            }
+            
+            cells.push(cellValue);
+          });
+          
+          if (cells.some((c: string) => c.trim())) {
+            textParts.push(cells.join('\t'));
+            hasContent = true;
+          }
+        });
+      });
+      
+      (workbook as any).on('end', () => {
+        const text = textParts.join('\n');
+        resolve({ 
+          text: text || '', 
+          unsupportedPreview: !hasContent 
+        });
+      });
+      
+      (workbook as any).on('error', (error: any) => {
+        console.error(`Excel流式读取失败 ${filePath}:`, error.message);
+        
+        // 降级到二进制提取
+        fs.promises.readFile(filePath)
+          .then(data => {
+            const text = extractTextFromBinary(data);
+            resolve({ text: text || '', unsupportedPreview: !text.trim() });
+          })
+          .catch(() => {
+            resolve({ text: '', unsupportedPreview: true });
+          });
+      });
+      
+      // 启动读取
+      workbook.read();
+      
+    } catch (error: any) {
+      console.error(`Excel流式读取初始化失败 ${filePath}:`, error.message);
+      
+      // 降级到二进制提取
+      fs.promises.readFile(filePath)
+        .then(data => {
+          const text = extractTextFromBinary(data);
+          resolve({ text: text || '', unsupportedPreview: !text.trim() });
+        })
+        .catch(() => {
+          resolve({ text: '', unsupportedPreview: true });
+        });
     }
-    
-    return { text, unsupportedPreview: false };
-  } catch (error: any) {
-    console.error(`Excel文件读取失败 ${filePath}:`, error.message);
-    return { text: '', unsupportedPreview: true };
-  }
+  });
 }
 
 // 提取 docx/pptx 文件内容
