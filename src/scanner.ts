@@ -27,8 +27,18 @@ export async function startScan(
     config.selectedPaths.forEach(p => addAllowedPath(p));
 
     const log = (msg: string) => {
-        scanState.logs.push(msg);
-        mainWindow.webContents.send('scan-log', msg);
+        // 【新增】添加时间戳
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('zh-CN', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        const logWithTime = `[${timeStr}] ${msg}`;
+        
+        scanState.logs.push(logWithTime);
+        mainWindow.webContents.send('scan-log', logWithTime);
     };
 
     log('开始扫描...');
@@ -404,8 +414,12 @@ export async function startScan(
                         return;
                     }
                     
-                    // 【修复】只有当没有活动任务、队列为空、且所有文件都已处理时才完成
-                    if (currentActive === 0 && currentQueue === 0 && currentProcessed >= scannedCount) {
+                    // 【修复】只有当没有活动任务且队列为空时才完成
+                    // 不需要检查 processedCount >= scannedCount，因为：
+                    // 1. processedCount 在 processFileWithWorker 开头就增加了
+                    // 2. 即使处理失败，finally 块也会执行，计数已增加
+                    // 3. activeTasks === 0 && queue.length === 0 说明所有任务都结束了
+                    if (currentActive === 0 && currentQueue === 0) {
                         log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${currentProcessed} 个, 发现 ${resultCount} 个敏感文件`);
                         pathScanCompleted = true;
                         resolve();
