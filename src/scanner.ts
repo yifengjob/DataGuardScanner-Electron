@@ -302,16 +302,16 @@ export async function startScan(
         await new Promise<void>((resolve) => {
             let pathScanCompleted = false;
             
-            // 路径级超时保护（3分钟）
+            // 路径级超时保护（10分钟）
             const pathTimeout = setTimeout(() => {
                 if (!pathScanCompleted) {
-                    log(`警告: 路径 ${rootPath} 扫描超时（3分钟），强制结束`);
+                    log(`警告: 路径 ${rootPath} 扫描超时（10分钟），强制结束`);
                     shouldStop = true;
                     scanState.cancelFlag = true;
                     pathScanCompleted = true;
                     resolve();
                 }
-            }, 180000); // 3分钟超时
+            }, 600000); // 10分钟超时
             
             walker.on('end', async () => {
                 // 如果被取消，直接退出
@@ -323,8 +323,8 @@ export async function startScan(
                     return;
                 }
                 
-                // 等待所有活动任务完成（最多等待 30 秒）
-                const maxWaitTime = 30000; // 30秒
+                // 等待所有活动任务完成（最多等待 2 分钟）
+                const maxWaitTime = 120000; // 2分钟
                 const startTime = Date.now();
                 
                 const checkCompletion = () => {
