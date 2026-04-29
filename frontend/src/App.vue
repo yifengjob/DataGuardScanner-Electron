@@ -22,11 +22,11 @@
               导出报告
             </div>
             <div class="dropdown-item" @click="showLogs = true">
-              <svg class="item-icon"><use href="#icon-log" /></svg>
+              <svg class="item-icon"><use href="#icon-logger" /></svg>
               查看日志
             </div>
             <div class="dropdown-item" @click="showAbout = true">
-              <svg class="item-icon"><use href="#icon-info" /></svg>
+              <svg class="item-icon"><use href="#icon-about" /></svg>
               关于
             </div>
           </div>
