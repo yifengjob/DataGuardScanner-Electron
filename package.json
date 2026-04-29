@@ -122,18 +122,19 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.17",
+    "buffer": "^6.0.3",
     "chrono-node": "^2.9.0",
+    "events": "^3.3.0",
     "exceljs": "^4.4.0",
     "extract-zip": "^2.0.1",
     "jszip": "^3.10.1",
     "pdf-parse": "^1.1.4",
-    "readable-stream": "^3.6.2",
-    "buffer": "^6.0.3",
     "process": "^0.11.10",
-    "events": "^3.3.0",
+    "readable-stream": "^3.6.2",
     "setimmediate": "^1.0.5",
     "trash": "^9.0.0",
-    "walkdir": "^0.4.1"
+    "walkdir": "^0.4.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
