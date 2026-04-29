@@ -18,6 +18,56 @@ export const SUPPORTED_EXTENSIONS = [
   'doc', 'wps', 'ppt', 'dps',  // 旧版 Office/WPS
 ];
 
+// 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
+type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
+
+const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
+  // 文本文件
+  'txt': extractTextFile,
+  'log': extractTextFile,
+  'md': extractTextFile,
+  'ini': extractTextFile,
+  'conf': extractTextFile,
+  'cfg': extractTextFile,
+  'env': extractTextFile,
+  'js': extractTextFile,
+  'ts': extractTextFile,
+  'py': extractTextFile,
+  'java': extractTextFile,
+  'c': extractTextFile,
+  'cpp': extractTextFile,
+  'go': extractTextFile,
+  'rs': extractTextFile,
+  'php': extractTextFile,
+  'rb': extractTextFile,
+  'swift': extractTextFile,
+  'html': extractTextFile,
+  'htm': extractTextFile,
+  'sh': extractTextFile,
+  'cmd': extractTextFile,
+  'bat': extractTextFile,
+  'csv': extractTextFile,
+  'json': extractTextFile,
+  'xml': extractTextFile,
+  'yaml': extractTextFile,
+  'yml': extractTextFile,
+  'properties': extractTextFile,
+  'toml': extractTextFile,
+  // PDF
+  'pdf': extractPdf,
+  // Office 文档（新版）
+  'xlsx': extractExcel,
+  'xls': extractExcel,
+  'et': extractExcel,
+  'docx': (filePath: string) => extractDocxPptx(filePath, 'docx'),
+  'pptx': (filePath: string) => extractDocxPptx(filePath, 'pptx'),
+  // Office 文档（旧版）
+  'doc': (filePath: string) => extractOldOffice(filePath, 'doc'),
+  'wps': (filePath: string) => extractOldOffice(filePath, 'wps'),
+  'ppt': (filePath: string) => extractOldOffice(filePath, 'ppt'),
+  'dps': (filePath: string) => extractOldOffice(filePath, 'dps'),
+};
+
 export async function extractTextFromFile(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   const ext = path.extname(filePath).toLowerCase().substring(1); // 移除开头的点
   
@@ -27,64 +77,14 @@ export async function extractTextFromFile(filePath: string): Promise<{ text: str
       return { text: '', unsupportedPreview: true };
     }
     
-    switch (ext) {
-      // 文本文件
-      case 'txt':
-      case 'log':
-      case 'md':
-      case 'ini':
-      case 'conf':
-      case 'cfg':
-      case 'env':
-      case 'js':
-      case 'ts':
-      case 'py':
-      case 'java':
-      case 'c':
-      case 'cpp':
-      case 'go':
-      case 'rs':
-      case 'php':
-      case 'rb':
-      case 'swift':
-      case 'html':
-      case 'htm':
-      case 'sh':
-      case 'cmd':
-      case 'bat':
-      case 'csv':
-      case 'json':
-      case 'xml':
-      case 'yaml':
-      case 'yml':
-      case 'properties':
-      case 'toml':
-        return await extractTextFile(filePath);
-      
-      // PDF文件
-      case 'pdf':
-        return await extractPdf(filePath);
-      
-      // Office文档（新版）
-      case 'xlsx':
-      case 'xls':
-      case 'et':  // WPS表格
-        return await extractExcel(filePath);
-      
-      case 'docx':
-      case 'pptx':
-        return await extractDocxPptx(filePath, ext);
-      
-      // Office文档（旧版）- 简化处理
-      case 'doc':
-      case 'wps':  // WPS文字
-      case 'ppt':
-      case 'dps':  // WPS演示
-        return await extractOldOffice(filePath, ext);
-      
-      default:
-        return { text: '', unsupportedPreview: true };
+    // 【优化】使用映射表查找处理函数，避免冗长的 switch 语句
+    const extractor = EXTRACTOR_MAP[ext];
+    if (extractor) {
+      return await extractor(filePath);
     }
+    
+    // 不支持的文件类型
+    return { text: '', unsupportedPreview: true };
   } catch (error: any) {
     console.error(`解析文件失败 ${filePath}:`, error);
     throw new Error(`文件解析失败: ${error.message}`);
