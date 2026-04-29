@@ -365,43 +365,60 @@ export async function startScan(
                     return;
                 }
                 
-                // 【优化】只在最后一个路径时等待所有任务完成
-                // 中间路径遍历完成后立即开始下一个路径，提高并发效率
-                if (isLastPath) {
-                    // 最后一个路径：等待所有任务完成（最多等待 2 分钟）
-                    const maxWaitTime = 120000; // 2分钟
-                    const startTime = Date.now();
+                // 【优化】智能等待：动态监控任务完成情况，无固定超时限制
+                // 只有当长时间（5分钟）没有任何进展时才判定为卡住
+                let lastProgressCheck = Date.now();
+                let lastProcessedCount = processedCount;
+                let lastActiveTasks = activeTasks;
+                let lastQueueLength = taskQueue.length;
+                
+                const maxIdleTime = 300000; // 5分钟无进展才超时
+                
+                const checkCompletion = () => {
+                    const now = Date.now();
+                    const currentProcessed = processedCount;
+                    const currentActive = activeTasks;
+                    const currentQueue = taskQueue.length;
                     
-                    const checkCompletion = () => {
-                        // 超时保护
-                        if (Date.now() - startTime > maxWaitTime) {
-                            log(`警告: 等待任务完成超时，强制结束（活动任务: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}）`);
-                            pathScanCompleted = true;
-                            resolve();
-                            return;
+                    // 检查是否有进展
+                    const hasProgress = (
+                        currentProcessed > lastProcessedCount ||
+                        currentActive !== lastActiveTasks ||
+                        currentQueue !== lastQueueLength
+                    );
+                    
+                    if (hasProgress) {
+                        // 有进展，重置计时器
+                        lastProgressCheck = now;
+                        lastProcessedCount = currentProcessed;
+                        lastActiveTasks = currentActive;
+                        lastQueueLength = currentQueue;
+                    }
+                    
+                    // 检查是否超时（长时间无任何进展）
+                    const idleTime = now - lastProgressCheck;
+                    if (idleTime > maxIdleTime && !scanState.cancelFlag) {
+                        log(`警告: 扫描停滞超过5分钟，强制结束（活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}）`);
+                        pathScanCompleted = true;
+                        resolve();
+                        return;
+                    }
+                    
+                    // 【修复】只有当没有活动任务、队列为空、且所有文件都已处理时才完成
+                    if (currentActive === 0 && currentQueue === 0 && currentProcessed >= scannedCount) {
+                        log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${currentProcessed} 个, 发现 ${resultCount} 个敏感文件`);
+                        pathScanCompleted = true;
+                        resolve();
+                    } else {
+                        // 继续等待（每 10 秒输出一次状态，便于诊断）
+                        const elapsed = Math.floor((now - lastProgressCheck) / 1000);
+                        if (elapsed % 30 === 0 && elapsed > 0 && hasProgress === false) {
+                            console.log(`等待任务完成... 活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}, 无进展时间: ${elapsed}秒`);
                         }
-                        
-                        // 【修复】只有当没有活动任务、队列为空、且所有文件都已处理时才完成
-                        if (activeTasks === 0 && taskQueue.length === 0 && processedCount >= scannedCount) {
-                            log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
-                            pathScanCompleted = true;
-                            resolve();
-                        } else {
-                            // 继续等待（每 10 秒输出一次状态，便于诊断）
-                            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                            if (elapsed % 10 === 0 && elapsed > 0) {
-                                console.log(`等待任务完成... 活动: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}, 已等待: ${elapsed}秒`);
-                            }
-                            setTimeout(checkCompletion, 50);
-                        }
-                    };
-                    checkCompletion();
-                } else {
-                    // 中间路径：遍历完成后立即开始下一个路径
-                    log(`路径 ${rootPath} 遍历完成: ${scannedCount} 个文件，Worker 继续后台处理`);
-                    pathScanCompleted = true;
-                    resolve();
-                }
+                        setTimeout(checkCompletion, 50);
+                    }
+                };
+                checkCompletion();
             });
         });
         
