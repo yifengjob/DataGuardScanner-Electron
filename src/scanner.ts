@@ -276,9 +276,16 @@ export async function startScan(
                 }
             }
 
-            // 检查文件大小
+            // 【新增】检查文件大小（跳过 0 字节文件）
             try {
                 const fileSize = stat.size;
+                
+                // 跳过 0 字节文件
+                if (fileSize === 0) {
+                    skippedCount++;
+                    return;
+                }
+                
                 const maxSize = filePath.toLowerCase().endsWith('.pdf')
                     ? config.maxPdfSizeMb * 1024 * 1024
                     : config.maxFileSizeMb * 1024 * 1024;
