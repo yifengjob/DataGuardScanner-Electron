@@ -371,19 +371,13 @@ export async function startScan(
                         return;
                     }
                     
-                    if (activeTasks === 0 && taskQueue.length === 0) {
+                    // 【修复】只有当没有活动任务、队列为空、且所有文件都已处理时才完成
+                    if (activeTasks === 0 && taskQueue.length === 0 && processedCount >= scannedCount) {
                         log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
-                        
-                        // 确保 processedCount 等于 scannedCount（所有文件都已处理）
-                        if (processedCount < scannedCount) {
-                            log(`警告: 还有 ${scannedCount - processedCount} 个文件未处理完成，继续等待...`);
-                            setTimeout(checkCompletion, 100);
-                            return;
-                        }
-                        
                         pathScanCompleted = true;
                         resolve();
                     } else {
+                        // 继续等待
                         setTimeout(checkCompletion, 50);
                     }
                 };
