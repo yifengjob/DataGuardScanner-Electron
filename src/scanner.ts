@@ -161,15 +161,9 @@ export async function startScan(
                 }
                 
                 // 使用 Worker 池处理文件（不阻塞主线程！）
-                // 添加超时保护，防止 Worker 卡住
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('处理超时 (30秒)')), 30000);
-                });
-                
-                const result = await Promise.race([
-                    workerPool.processFile(filePath, config.enabledSensitiveTypes),
-                    timeoutPromise
-                ]) as any;
+                // 【优化】移除这里的超时，Worker 内部已有 60 秒超时保护
+                // 避免排队时间计入超时导致误判
+                const result = await workerPool.processFile(filePath, config.enabledSensitiveTypes) as any;
                 
                 if (result.unsupportedPreview) {
                     return;
