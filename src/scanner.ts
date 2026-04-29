@@ -365,7 +365,7 @@ export async function startScan(
                 const checkCompletion = () => {
                     // 超时保护
                     if (Date.now() - startTime > maxWaitTime) {
-                        log(`警告: 等待任务完成超时，强制结束（活动任务: ${activeTasks}, 队列: ${taskQueue.length}）`);
+                        log(`警告: 等待任务完成超时，强制结束（活动任务: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}）`);
                         pathScanCompleted = true;
                         resolve();
                         return;
@@ -377,7 +377,11 @@ export async function startScan(
                         pathScanCompleted = true;
                         resolve();
                     } else {
-                        // 继续等待
+                        // 继续等待（每 10 秒输出一次状态，便于诊断）
+                        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                        if (elapsed % 10 === 0 && elapsed > 0) {
+                            console.log(`等待任务完成... 活动: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}, 已等待: ${elapsed}秒`);
+                        }
                         setTimeout(checkCompletion, 50);
                     }
                 };
