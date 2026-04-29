@@ -329,18 +329,18 @@ export async function startScan(
                 }
             }, 5000); // 每5秒检查一次
             
-            // 【修复】绝对超时保护（10分钟）- 仅针对 walkdir 遍历阶段
+            // 【修复】绝对超时保护（20分钟）- 仅针对 walkdir 遍历阶段
             // 遍历结束后会清除此定时器，不影响 Worker 处理时间
             const walkerTimeout = setTimeout(() => {
                 if (!pathScanCompleted && !walkerEnded) {
-                    log(`警告: 路径 ${rootPath} 遍历超时（10分钟未完成的目录树），强制结束`);
+                    log(`警告: 路径 ${rootPath} 遍历超时（20分钟未完成的目录树），强制结束`);
                     shouldStop = true;
                     scanState.cancelFlag = true;
                     pathScanCompleted = true;
                     clearInterval(idleCheckInterval);
                     resolve();
                 }
-            }, 600000); // 10分钟
+            }, 1200000); // 10分钟
             
             walker.on('end', async () => {
                 // 标记遍历已结束，停止空闲检测和绝对超时
