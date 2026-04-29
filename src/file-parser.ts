@@ -3,6 +3,21 @@ import * as path from 'path';
 import * as ExcelJS from 'exceljs';
 import pdfParse from 'pdf-parse';
 
+// 【新增】导出支持的文件类型列表（用于扫描时过滤）
+export const SUPPORTED_EXTENSIONS = [
+  // 文本文件
+  'txt', 'log', 'md', 'ini', 'conf', 'cfg', 'env',
+  'js', 'ts', 'py', 'java', 'c', 'cpp', 'go', 'rs', 'php', 'rb', 'swift',
+  'html', 'htm', 'sh', 'cmd', 'bat',
+  'csv', 'json', 'xml', 'yaml', 'yml', 'properties', 'toml',
+  // PDF
+  'pdf',
+  // Office 文档
+  'xlsx', 'xls', 'et',  // Excel/WPS表格
+  'docx', 'pptx',       // Word/PPT
+  'doc', 'wps', 'ppt', 'dps',  // 旧版 Office/WPS
+];
+
 export async function extractTextFromFile(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   const ext = path.extname(filePath).toLowerCase().substring(1); // 移除开头的点
   

@@ -7,6 +7,7 @@ import {ScanConfig, ScanResultItem} from './types';
 import {ScanState} from './scan-state';
 import {WorkerPool} from './worker-pool';
 import {addAllowedPath, clearAllowedPaths} from './file-operations';
+import {SUPPORTED_EXTENSIONS} from './file-parser'; // 【新增】导入支持的文件类型
 
 export async function startScan(
     config: ScanConfig,
@@ -232,9 +233,20 @@ export async function startScan(
 
             // 检查扩展名
             const ext = path.extname(filePath).toLowerCase().replace('.', '');
-            if (!config.selectedExtensions.includes('*') && !config.selectedExtensions.includes(ext)) {
-                skippedCount++;  // ← 增加跳过计数
-                return;
+            
+            // 【优化】如果用户选择了 '*'，只扫描支持的文件类型
+            if (config.selectedExtensions.includes('*')) {
+                // '*' 表示所有支持的类型，过滤掉不支持的文件
+                if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+                    skippedCount++;
+                    return; // 跳过不支持的文件类型
+                }
+            } else {
+                // 用户指定了具体类型，按指定类型过滤
+                if (!config.selectedExtensions.includes(ext)) {
+                    skippedCount++;
+                    return;
+                }
             }
 
             // 检查文件大小
