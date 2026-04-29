@@ -123,6 +123,7 @@ export async function startScan(
                 }
                 consumer.busy = false;
                 consumer.taskId = undefined;
+                consumerProcessedCount++; // 即使任务已删除也要计数，避免死锁
                 tryDispatch();
                 return;
             }
@@ -366,8 +367,6 @@ export async function startScan(
     function waitForCompletion() {
         let lastProgressCheck = Date.now();
         let lastProcessedCount = consumerProcessedCount;
-        let lastQueueLength = taskQueue.length;
-        let lastActiveCount = consumers.filter(c => c.busy).length;
 
         const maxIdleTime = 120000; // 2分钟无进展才超时
 
@@ -380,19 +379,11 @@ export async function startScan(
             const now = Date.now();
             const currentProcessed = consumerProcessedCount;
             const currentQueue = taskQueue.length;
-            const currentActive = consumers.filter(c => c.busy).length;
-
-            const hasProgress = (
-                currentProcessed > lastProcessedCount ||
-                currentActive !== lastActiveCount ||
-                currentQueue !== lastQueueLength
-            );
-
-            if (hasProgress) {
+            
+            // 【优化】只在有进展时更新检查时间
+            if (currentProcessed > lastProcessedCount || currentQueue !== taskQueue.length) {
                 lastProgressCheck = now;
                 lastProcessedCount = currentProcessed;
-                lastActiveCount = currentActive;
-                lastQueueLength = currentQueue;
             }
 
             const idleTime = now - lastProgressCheck;
@@ -402,11 +393,13 @@ export async function startScan(
                 return;
             }
 
+            // 【优化】增加检查间隔到 100ms，减少 CPU 占用
+            const currentActive = consumers.filter(c => c.busy).length;
             if (currentActive === 0 && currentQueue === 0) {
                 log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
                 cleanup();
             } else {
-                setTimeout(checkCompletion, 50);
+                setTimeout(checkCompletion, 100); // 从 50ms 增加到 100ms
             }
         };
 
