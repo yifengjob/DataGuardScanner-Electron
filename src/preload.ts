@@ -84,7 +84,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 清理缓存
   clearCache: () =>
-    ipcRenderer.invoke('clear-cache')
+    ipcRenderer.invoke('clear-cache'),
+  
+  // 【新增】打开开发者工具
+  openDevTools: () =>
+    ipcRenderer.invoke('open-dev-tools')
 });
 
 // 声明全局类型
@@ -112,6 +116,7 @@ declare global {
       onScanLog: (callback: (msg: string) => void) => () => void;
       showSaveDialog: (options?: any) => Promise<any>;
       clearCache: () => Promise<{ success: boolean; cleanedSize?: number }>;
+      openDevTools: () => Promise<void>;
     };
   }
 }

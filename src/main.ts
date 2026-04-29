@@ -471,4 +471,13 @@ function setupIpcHandlers() {
             return { error: error.message };
         }
     });
+    
+    // 【新增】打开开发者工具
+    ipcMain.handle('open-dev-tools', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.openDevTools();
+            return { success: true };
+        }
+        return { error: '窗口未初始化' };
+    });
 }

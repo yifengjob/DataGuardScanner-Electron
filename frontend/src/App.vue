@@ -25,6 +25,10 @@
               <svg class="item-icon"><use href="#icon-logger" /></svg>
               查看日志
             </div>
+            <div class="dropdown-item" @click="handleOpenDevTools">
+              <svg class="item-icon"><use href="#icon-dev-tools" /></svg>
+              打开开发者工具
+            </div>
             <div class="dropdown-item" @click="showAbout = true">
               <svg class="item-icon"><use href="#icon-about" /></svg>
               关于
@@ -305,6 +309,16 @@ const handleExportReport = async () => {
     return
   }
   showExport.value = true
+}
+
+// 【新增】打开开发者工具
+const handleOpenDevTools = () => {
+  // 通过 window.electronAPI 调用主进程的 openDevTools
+  if ((window as any).electronAPI?.openDevTools) {
+    (window as any).electronAPI.openDevTools()
+  } else {
+    console.warn('electronAPI.openDevTools 不可用')
+  }
 }
 
 // 预览文件
