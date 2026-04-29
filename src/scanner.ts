@@ -142,6 +142,7 @@ export async function startScan(
         });
 
         let shouldStop = false;
+        let lastActivityTime = Date.now(); // 【优化】最后一次发现文件的时间
         
         // 并发控制：限制同时处理的文件数
         const maxConcurrency = poolSize * 2;  // 允许队列中的任务数是 Worker 数的 2 倍
@@ -218,6 +219,9 @@ export async function startScan(
         };
 
         walker.on('path', (filePath: string, stat: any) => {
+            // 【优化】更新活动时间，重置空闲计时器
+            lastActivityTime = Date.now();
+            
             // 立即检查取消标志，尽早退出
             if (shouldStop || scanState.cancelFlag) {
                 if (!shouldStop) {
@@ -298,25 +302,49 @@ export async function startScan(
             log(`walkdir 错误: ${err.message}`);
         });
 
-        // 【修复】添加超时保护，避免扫描卡死
+        // 【优化】智能超时检测：监控扫描活动，超过指定时间无新文件则判定为卡住
         await new Promise<void>((resolve) => {
             let pathScanCompleted = false;
             
-            // 路径级超时保护（10分钟）
-            const pathTimeout = setTimeout(() => {
-                if (!pathScanCompleted) {
-                    log(`警告: 路径 ${rootPath} 扫描超时（10分钟），强制结束`);
+            // 空闲超时检查（30秒无新文件即判定为卡住）
+            const idleCheckInterval = setInterval(() => {
+                if (pathScanCompleted) {
+                    clearInterval(idleCheckInterval);
+                    return;
+                }
+                
+                const idleTime = Date.now() - lastActivityTime;
+                const idleTimeout = 30000; // 30秒空闲超时
+                
+                if (idleTime > idleTimeout && !scanState.cancelFlag) {
+                    log(`警告: 路径 ${rootPath} 扫描停滞（${Math.round(idleTime/1000)}秒无新文件），强制结束`);
                     shouldStop = true;
                     scanState.cancelFlag = true;
                     pathScanCompleted = true;
+                    clearInterval(idleCheckInterval);
                     resolve();
                 }
-            }, 600000); // 10分钟超时
+            }, 5000); // 每5秒检查一次
+            
+            // 绝对超时保护（30分钟，防止极端情况）
+            const absoluteTimeout = setTimeout(() => {
+                if (!pathScanCompleted) {
+                    log(`警告: 路径 ${rootPath} 扫描超过30分钟，强制结束`);
+                    shouldStop = true;
+                    scanState.cancelFlag = true;
+                    pathScanCompleted = true;
+                    clearInterval(idleCheckInterval);
+                    resolve();
+                }
+            }, 1800000); // 30分钟
             
             walker.on('end', async () => {
+                // 清理定时器
+                clearInterval(idleCheckInterval);
+                clearTimeout(absoluteTimeout);
+                
                 // 如果被取消，直接退出
                 if (scanState.cancelFlag) {
-                    clearTimeout(pathTimeout);
                     pathScanCompleted = true;
                     log(`扫描已取消: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
                     resolve();
@@ -331,7 +359,6 @@ export async function startScan(
                     // 超时保护
                     if (Date.now() - startTime > maxWaitTime) {
                         log(`警告: 等待任务完成超时，强制结束（活动任务: ${activeTasks}, 队列: ${taskQueue.length}）`);
-                        clearTimeout(pathTimeout);
                         pathScanCompleted = true;
                         resolve();
                         return;
@@ -347,7 +374,6 @@ export async function startScan(
                             return;
                         }
                         
-                        clearTimeout(pathTimeout);
                         pathScanCompleted = true;
                         resolve();
                     } else {
