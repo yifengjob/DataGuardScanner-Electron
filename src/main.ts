@@ -10,14 +10,51 @@ import {loadConfig, saveConfig} from './config-manager';
 import {checkEnvironment} from './environment-check';
 import {getSensitiveRules} from './sensitive-detector';
 
-// 抑制pdf-parse的字体警告
-const originalWarn = console.warn;
-console.warn = function(...args) {
-  if (args[0] && typeof args[0] === 'string' && args[0].includes('Warning: TT: undefined function')) {
-    return; // 忽略pdf-parse的字体警告
+// 【新增】设置日志文件
+function setupLogFile() {
+  const logDir = path.join(app.getPath('userData'), 'logs');
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
   }
-  originalWarn.apply(console, args);
-};
+  
+  const logFile = path.join(logDir, `app-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+  const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+  
+  // 重定向 console 输出到文件
+  const originalLog = console.log;
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  
+  console.log = function(...args) {
+    const timestamp = new Date().toISOString();
+    const message = `[${timestamp}] [INFO] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
+    logStream.write(message);
+    originalLog.apply(console, args);
+  };
+  
+  console.error = function(...args) {
+    const timestamp = new Date().toISOString();
+    const message = `[${timestamp}] [ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
+    logStream.write(message);
+    originalError.apply(console, args);
+  };
+  
+  console.warn = function(...args) {
+    // 抑制pdf-parse的字体警告
+    if (args[0] && typeof args[0] === 'string' && args[0].includes('Warning: TT: undefined function')) {
+      return;
+    }
+    const timestamp = new Date().toISOString();
+    const message = `[${timestamp}] [WARN] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
+    logStream.write(message);
+    originalWarn.apply(console, args);
+  };
+  
+  console.log(`日志文件已创建: ${logFile}`);
+}
+
+// 在应用启动时设置日志文件
+setupLogFile();
 
 let mainWindow: BrowserWindow | null = null;
 const scanState = new ScanState();
