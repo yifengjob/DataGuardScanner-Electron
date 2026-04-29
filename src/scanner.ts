@@ -34,9 +34,12 @@ export async function startScan(
         });
         const logWithTime = `[${timeStr}] ${msg}`;
 
-        // 【优化】异步添加到日志数组，避免阻塞
+        // 【修复】限制日志数组大小，防止内存泄漏（最多保留 1000 条）
         setImmediate(() => {
             scanState.logs.push(logWithTime);
+            if (scanState.logs.length > 1000) {
+                scanState.logs.shift(); // 移除最旧的日志
+            }
         });
         
         // 【优化】异步发送日志到前端，避免阻塞主线程
@@ -88,6 +91,7 @@ export async function startScan(
 
     let nextTaskId = 0;
     const taskQueue: Array<{ filePath: string; fileSize: number; fileMtime: string }> = [];
+    const MAX_QUEUE_SIZE = 1000; // 【修复】限制队列大小，防止内存泄漏
     
     // IPC 节流
     let lastProgressTime = 0;
@@ -390,15 +394,22 @@ export async function startScan(
                 lastProgressTime = now;
             }
 
-            // 添加到任务队列
-            taskQueue.push({
-                filePath: message.filePath,
-                fileSize: message.stat.size,
-                fileMtime: message.stat.mtime
-            });
+            // 添加到任务队列（【修复】限制队列大小）
+            if (taskQueue.length < MAX_QUEUE_SIZE) {
+                taskQueue.push({
+                    filePath: message.filePath,
+                    fileSize: message.stat.size,
+                    fileMtime: message.stat.mtime
+                });
 
-            // 尝试调度
-            tryDispatch();
+                // 尝试调度
+                tryDispatch();
+            } else {
+                // 【修复】队列已满，跳过这个文件并记录
+                if (process.env.NODE_ENV === 'development') {
+                    console.warn(`[Walker] 任务队列已满 (${MAX_QUEUE_SIZE})，跳过文件: ${message.filePath}`);
+                }
+            }
         }
 
         if (message.type === 'walking-complete') {
