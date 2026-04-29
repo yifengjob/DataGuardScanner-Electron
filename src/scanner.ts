@@ -362,6 +362,9 @@ export async function startScan(
                 // 标记遍历已结束，停止空闲检测和绝对超时
                 walkerEnded = true;
 
+                // 【调试】输出 walker.on('end') 时的状态
+                log(`walker.on('end') 触发: activeTasks=${activeTasks}, queue=${taskQueue.length}, scanned=${scannedCount}, processed=${processedCount}`);
+
                 // 清理遍历阶段的定时器
                 clearInterval(idleCheckInterval);
                 clearTimeout(walkerTimeout);
@@ -402,6 +405,9 @@ export async function startScan(
                         lastProcessedCount = currentProcessed;
                         lastActiveTasks = currentActive;
                         lastQueueLength = currentQueue;
+                        
+                        // 【调试】输出进展信息
+                        console.log(`[checkCompletion] 进展: active=${currentActive}, queue=${currentQueue}, processed=${currentProcessed}/${scannedCount}`);
                     }
 
                     // 检查是否超时（长时间无任何进展）
