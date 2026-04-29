@@ -65,24 +65,10 @@ process.on('uncaughtException', (error) => {
   console.error('[全局错误] 未捕获的异常:', error);
 });
 
-// 【新增】监听进程退出，记录最后的状态
+// 【新增】监听进程退出，帮助诊断闪退原因
+// 如果闪退时看不到这条日志，说明进程被外部强制终止（如杀毒软件、段错误）
 process.on('exit', (code) => {
   console.log(`[进程退出] 代码: ${code}, 时间: ${new Date().toISOString()}`);
-});
-
-process.on('beforeExit', (code) => {
-  console.log(`[即将退出] 代码: ${code}, 时间: ${new Date().toISOString()}`);
-});
-
-// 【新增】监听致命信号（Windows 上可能不生效，但 macOS/Linux 有用）
-process.on('SIGINT', () => {
-  console.log('[信号] 收到 SIGINT (Ctrl+C)');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  console.log('[信号] 收到 SIGTERM');
-  process.exit(0);
 });
 
 let mainWindow: BrowserWindow | null = null;
