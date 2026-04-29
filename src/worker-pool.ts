@@ -63,7 +63,7 @@ export class WorkerPool {
       // 找到对应的任务并 resolve
       const taskId = result.taskId;
       
-      // 清除任务超时定时器
+      // 【修复】先清除任务超时定时器
       if (workerInfo.currentTaskId !== undefined) {
         const timeoutId = this.taskTimeouts.get(workerInfo.currentTaskId);
         if (timeoutId) {
@@ -71,6 +71,26 @@ export class WorkerPool {
           this.taskTimeouts.delete(workerInfo.currentTaskId);
         }
       }
+      
+      // 从 Map 中查找任务
+      const pending = this.pendingTasks.get(taskId);
+      
+      if (!pending) {
+        // 【修复】如果任务已被超时处理删除，忽略此消息
+        console.warn(`[WorkerPool] 任务 ${taskId} 已被超时处理或删除，忽略 Worker 返回的结果`);
+        
+        // 标记 Worker 为空闲
+        workerInfo.busy = false;
+        workerInfo.currentTaskId = undefined;
+        workerInfo.taskStartTime = undefined;
+        
+        // 调度下一个任务
+        this.dispatchNextTask(workerInfo);
+        return;
+      }
+      
+      // 从 Map 中删除
+      this.pendingTasks.delete(taskId);
       
       // 标记 Worker 为空闲
       workerInfo.busy = false;
@@ -80,22 +100,9 @@ export class WorkerPool {
       // 处理结果
       if (result.error) {
         console.error(`Worker 任务 ${taskId} 失败:`, result.error);
-      }
-
-      // 从 Map 中查找任务（而不是队列）
-      const pending = this.pendingTasks.get(taskId);
-      
-      if (pending) {
-        // 从 Map 中删除
-        this.pendingTasks.delete(taskId);
-        
-        if (result.error) {
-          pending.reject(new Error(result.error));
-        } else {
-          pending.resolve(result);
-        }
+        pending.reject(new Error(result.error));
       } else {
-        console.error(`[WorkerPool] 未找到任务 ${taskId} 的 Promise!`);
+        pending.resolve(result);
       }
 
       // 调度下一个任务
@@ -204,27 +211,27 @@ export class WorkerPool {
   }
 
   /**
-   * 【新增】根据文件大小计算动态超时时间
-   * - 小文件 (< 10MB): 60 秒
-   * - 中文件 (10-50MB): 120 秒
-   * - 大文件 (50-100MB): 180 秒
-   * - 超大文件 (> 100MB): 300 秒
+   * 【优化】根据文件大小计算动态超时时间
+   * - 小文件 (< 1MB): 30 秒（快速失败）
+   * - 中文件 (1-10MB): 60 秒
+   * - 大文件 (10-50MB): 120 秒
+   * - 超大文件 (> 50MB): 180 秒
    */
   private calculateTimeout(fileSize?: number): number {
     if (!fileSize) {
-      return 180000; // 默认 3 分钟
+      return 60000; // 默认 1 分钟
     }
     
     const sizeMB = fileSize / 1024 / 1024;
     
-    if (sizeMB < 10) {
+    if (sizeMB < 1) {
+      return 30000; // 30 秒（小文件应该很快）
+    } else if (sizeMB < 10) {
       return 60000; // 1 分钟
     } else if (sizeMB < 50) {
       return 120000; // 2 分钟
-    } else if (sizeMB < 100) {
-      return 180000; // 3 分钟
     } else {
-      return 300000; // 5 分钟
+      return 180000; // 3 分钟
     }
   }
 
