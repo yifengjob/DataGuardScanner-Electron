@@ -93,7 +93,8 @@
     <!-- 状态栏 -->
     <div class="status-bar">
       <span>{{ isScanning ? '扫描中...' : '就绪' }}</span>
-      <span>已扫描 {{ scannedCount }} 个文件</span>
+      <span v-if="totalCount > 0">已扫描 {{ scannedCount }} / {{ totalCount }} 个文件</span>
+      <span v-else>已扫描 {{ scannedCount }} 个文件</span>
       <span>非文档类型文件 {{ errorCount }} 个</span>
       <span>敏感文件 {{ sensitiveFilesCount }} 个</span>
       <span>敏感信息 {{ totalSensitiveItems.toLocaleString() }} 条</span>
@@ -149,7 +150,7 @@ import type { ThemeMode } from './utils/theme'
 // 插件会自动将 src/assets 下的 SVG 转换为 sprite
 
 const appStore = useAppStore()
-const { isScanning, scannedCount, sensitiveFilesCount, errorCount, totalSensitiveItems, config, scanResults } = storeToRefs(appStore)
+const { isScanning, scannedCount, totalCount, sensitiveFilesCount, errorCount, totalSensitiveItems, config, scanResults } = storeToRefs(appStore)
 
 const showPreview = ref(false)
 const previewFilePath = ref('')
@@ -183,7 +184,14 @@ onMounted(async () => {
   // 监听扫描事件
   await onScanProgress((data) => {
     scannedCount.value = data.scannedCount
+    if (data.totalCount !== undefined) {
+      totalCount.value = data.totalCount  // ← 更新总数
+    }
     appStore.currentFile = data.currentFile
+    // ← 新增：更新跳过文件数
+    if (data.skippedCount !== undefined) {
+      appStore.errorCount = data.skippedCount
+    }
   })
   
   await onScanResult((item) => {
@@ -314,6 +322,8 @@ const getThemeTooltip = () => {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
+  will-change: auto;                 /* ← 优化整体布局 */
+  contain: layout style;             /* ← 限制重排范围 */
 }
 
 .menu-bar {
@@ -322,6 +332,7 @@ const getThemeTooltip = () => {
   padding: 0.375em 1em;              /* 6px 16px - 紧凑的菜单栏 */
   background-color: var(--menu-bg);
   border-bottom: var(--border-width) solid var(--border-color);
+  contain: layout style;             /* ← 限制重排范围 */
 }
 
 .menu-item {
@@ -348,6 +359,7 @@ const getThemeTooltip = () => {
   padding: 0.5em 1em;                /* 8px 16px - 工具栏内边距 */
   background-color: var(--toolbar-bg);
   border-bottom: var(--border-width) solid var(--border-color);
+  contain: layout style;             /* ← 限制重排范围 */
 }
 
 .btn {
@@ -443,6 +455,7 @@ const getThemeTooltip = () => {
   display: flex;
   flex: 1;
   overflow: hidden;
+  contain: layout style;             /* ← 限制重排范围 */
 }
 
 /* 左侧区域容器 */
@@ -451,7 +464,7 @@ const getThemeTooltip = () => {
   flex-shrink: 0;
   position: relative; /* 为按钮提供定位上下文 */
   width: 300px; /* 固定宽度，与侧边栏一致 */
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);  /* ← 恢复动画 */
 }
 
 .sidebar-area.collapsed {
@@ -471,7 +484,7 @@ const getThemeTooltip = () => {
   position: absolute; /* 绝对定位，脱离文档流 */
   left: 0;
   top: 0;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);  /* ← 恢复动画 */
   transform: translateX(0);
 }
 
@@ -498,8 +511,9 @@ const getThemeTooltip = () => {
   user-select: none;
   font-size: 0.75em;                 /* 12px */
   color: var(--text-secondary);
-  transition: all 0.2s ease;
+  transition: all 0.2s ease;  /* ← 恢复动画 */
   z-index: 100;                      /* 高于所有表格固定列 */
+  contain: layout style;             /* ← 限制重排范围 */
 }
 
 .sidebar-toggle:hover {
@@ -511,6 +525,7 @@ const getThemeTooltip = () => {
 .results-panel {
   flex: 1;
   overflow: hidden;
+  contain: layout style paint;       /* ← 限制重排范围 */
 }
 
 .status-bar {
@@ -521,6 +536,7 @@ const getThemeTooltip = () => {
   border-top: 1px solid var(--border-color);
   font-size: 13px;
   color: var(--text-secondary);
+  contain: layout style;             /* ← 限制重排范围 */
 }
 
 /* 模态框过渡动画 */

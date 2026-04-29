@@ -87,7 +87,9 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
     const data = await pdfParse(dataBuffer);
     return { text: data.text, unsupportedPreview: false };
   } catch (error) {
-    console.error('PDF解析失败:', error);
+    // PDF 解析失败是正常现象（文件损坏或格式不支持），静默处理
+    // 如果需要调试，可以取消下面的注释
+    // console.error('PDF解析失败:', filePath, error);
     return { text: '', unsupportedPreview: true };
   }
 }

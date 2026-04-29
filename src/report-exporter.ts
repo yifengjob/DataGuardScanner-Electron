@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import { dialog } from 'electron';
 import { ScanResultItem } from './types';
 import * as ExcelJS from 'exceljs';
+import { getSensitiveRules } from './sensitive-detector';
 
 export async function exportReport(
   results: ScanResultItem[],
@@ -50,7 +51,18 @@ export async function exportReport(
 }
 
 async function exportToCsv(filePath: string, results: ScanResultItem[]): Promise<void> {
-  const headers = ['文件路径', '文件大小(MB)', '修改时间', '敏感数据总数', ...Object.keys(results[0]?.counts || {})];
+  // 获取敏感类型规则映射
+  const rules = getSensitiveRules();
+  const typeMap = new Map(rules);
+  
+  // 收集所有出现的敏感类型
+  const allTypes = new Set<string>();
+  results.forEach(r => Object.keys(r.counts).forEach(t => allTypes.add(t)));
+  
+  // 构建表头：使用中文名称，敏感数据总数放在最后
+  const headers = ['文件路径', '文件大小(MB)', '修改时间'];
+  const typeHeaders = Array.from(allTypes).map(typeId => typeMap.get(typeId) || typeId);
+  headers.push(...typeHeaders, '敏感数据总数');
   
   let csvContent = headers.join(',') + '\n';
   
@@ -59,8 +71,8 @@ async function exportToCsv(filePath: string, results: ScanResultItem[]): Promise
       `"${result.filePath}"`,
       (result.fileSize / 1024 / 1024).toFixed(2),
       result.modifiedTime,
-      result.total.toString(),
-      ...Object.values(result.counts).map(c => c.toString())
+      ...Array.from(allTypes).map(t => (result.counts[t] || 0).toString()),
+      result.total.toString()
     ];
     csvContent += row.join(',') + '\n';
   }
@@ -79,13 +91,17 @@ async function exportToExcel(filePath: string, results: ScanResultItem[]): Promi
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('扫描结果');
   
-  // 添加表头
-  const headers = ['文件路径', '文件大小(MB)', '修改时间', '敏感数据总数'];
+  // 获取敏感类型规则映射
+  const rules = getSensitiveRules();
+  const typeMap = new Map(rules);
+  
+  // 收集所有出现的敏感类型
   const allTypes = new Set<string>();
   results.forEach(r => Object.keys(r.counts).forEach(t => allTypes.add(t)));
-  const typeHeaders = Array.from(allTypes);
-  headers.push(...typeHeaders);
+  const typeHeaders = Array.from(allTypes).map(typeId => typeMap.get(typeId) || typeId);
   
+  // 添加表头：敏感数据总数放在最后
+  const headers = ['文件路径', '文件大小(MB)', '修改时间', ...typeHeaders, '敏感数据总数'];
   worksheet.addRow(headers);
   
   // 设置表头样式
@@ -101,17 +117,73 @@ async function exportToExcel(filePath: string, results: ScanResultItem[]): Promi
   for (const result of results) {
     const row = [
       result.filePath,
-      (result.fileSize / 1024 / 1024).toFixed(2),
+      parseFloat((result.fileSize / 1024 / 1024).toFixed(2)), // 数字类型
       result.modifiedTime,
-      result.total.toString(),
-      ...typeHeaders.map(t => (result.counts[t] || 0).toString())
+      ...Array.from(allTypes).map(t => result.counts[t] || 0), // 数字类型
+      result.total // 数字类型
     ];
-    worksheet.addRow(row);
+    const dataRow = worksheet.addRow(row);
+    
+    // 设置数据行样式和格式
+    dataRow.eachCell((cell, colNumber) => {
+      // 第1列：文件路径 - 文本格式
+      if (colNumber === 1) {
+        cell.alignment = { horizontal: 'left', wrapText: true };
+      }
+      
+      // 第2列：文件大小 - 数字格式，保留2位小数
+      if (colNumber === 2) {
+        cell.numFmt = '#,##0.00';
+        cell.alignment = { horizontal: 'right' };
+      }
+      
+      // 第3列：修改时间 - 日期时间格式
+      if (colNumber === 3) {
+        cell.alignment = { horizontal: 'center' };
+        // 尝试解析日期字符串并格式化
+        try {
+          const dateStr = cell.value?.toString() || '';
+          if (dateStr) {
+            // 保持为文本，但居中对齐
+            cell.alignment = { horizontal: 'center' };
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+      
+      // 敏感类型列（第4列到倒数第2列）- 数字格式，千分位分隔
+      if (colNumber >= 4 && colNumber <= headers.length - 1) {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+        
+        // 大于0的值标红加粗
+        const value = Number(cell.value || 0);
+        if (value > 0) {
+          cell.font = { color: { argb: 'FFFF4D4F' }, bold: true };
+        }
+      }
+      
+      // 最后一列：敏感数据总数 - 数字格式，千分位分隔，加粗蓝色
+      if (colNumber === headers.length) {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+        cell.font = { bold: true, color: { argb: 'FF1890FF' } };
+      }
+    });
   }
   
-  // 自动调整列宽
-  worksheet.columns.forEach(column => {
-    column.width = 20;
+  // 设置列宽
+  worksheet.columns.forEach((column, index) => {
+    if (index === 0) {
+      // 文件路径列宽一些
+      column.width = 50;
+    } else if (index === headers.length - 1) {
+      // 总计列
+      column.width = 15;
+    } else {
+      column.width = 20;
+    }
   });
   
   // 先写入到Buffer，然后使用fs.writeFile

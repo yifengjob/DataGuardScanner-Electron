@@ -19,14 +19,20 @@
               包括身份证号、手机号、邮箱地址、银行卡号、地址、IP地址和密码等。
             </p>
             <p>
-              本软件采用先进的正则匹配算法，支持多种文件格式（文本、代码、PDF、Office文档等），
-              提供实时扫描进度显示、敏感内容高亮预览、文件操作和报告导出等功能。
+              本软件采用先进的正则匹配算法和校验机制（Luhn算法、身份证校验码），支持多种文件格式
+              （文本、代码、PDF、Excel、Word、PPT等），提供实时扫描进度显示、敏感内容高亮预览、
+              文件操作和报告导出等功能。
             </p>
             <p>
-              软件采用便携设计，无需安装即可使用（同时提供安装版），支持 Windows 10+、macOS 和 Linux 平台。
+              采用 Worker Threads 多线程技术，将 CPU 密集型的文件解析任务放到后台线程执行，
+              确保主界面始终保持流畅响应。智能并发控制根据 CPU 核心数和可用内存动态调整，
+              在性能和稳定性之间取得最佳平衡。
             </p>
-            <p style="color: var(--error-color); font-weight: 500;">
-              ⚠️ 注意：不支持 Windows 7/8/8.1，请使用 Windows 10 (版本 1809+) 或更高版本。
+            <p>
+              软件采用便携设计，无需安装即可使用（同时提供安装版），支持 Windows 7/10/11、macOS 和 Linux 平台。
+            </p>
+            <p style="color: var(--success-color); font-weight: 500;">
+              ✅ 完全兼容 Windows 7 SP1+ (需要 .NET Framework 4.5+)
             </p>
           </div>
           
@@ -40,14 +46,16 @@
           <div class="features">
             <h4>主要功能</h4>
             <ul>
-              <li>✅ 支持多种敏感数据类型检测</li>
+              <li>✅ 支持多种敏感数据类型检测（身份证、手机、邮箱、银行卡等）</li>
               <li>✅ 智能目录树选择与过滤</li>
               <li>✅ 实时扫描进度显示</li>
-              <li>✅ 敏感内容高亮预览</li>
-              <li>✅ 支持 PDF 和 Office 文档解析</li>
-              <li>✅ 扫描结果导出为XLSX/CSV/JSON</li>
-              <li>✅ 跨平台支持（Windows/macOS/Linux）</li>
+              <li>✅ 敏感内容高亮预览（Worker 线程处理，界面流畅）</li>
+              <li>✅ 支持 PDF、Excel、Word、PPT 等文档解析</li>
+              <li>✅ 扫描结果导出为 XLSX/CSV/JSON</li>
+              <li>✅ 跨平台支持（Windows 7/10/11、macOS、Linux）</li>
               <li>✅ 便携免安装设计</li>
+              <li>✅ 智能并发控制（根据硬件配置自动调整）</li>
+              <li>✅ 多线程架构（CPU 密集型任务隔离）</li>
             </ul>
           </div>
           

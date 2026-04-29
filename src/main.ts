@@ -4,13 +4,11 @@ import * as fs from 'fs';
 import {ScanState} from './scan-state';
 import {getDirectoryTree} from './directory-tree';
 import {cancelScan, startScan} from './scanner';
-import {extractTextFromFile} from './file-parser';
 import {deleteFile, openFile, openFileLocation} from './file-operations';
 import {exportReport} from './report-exporter';
 import {loadConfig, saveConfig} from './config-manager';
 import {checkEnvironment} from './environment-check';
 import {getSensitiveRules} from './sensitive-detector';
-import {log} from "node:util";
 
 // 抑制pdf-parse的字体警告
 const originalWarn = console.warn;
@@ -114,6 +112,11 @@ function createWindow() {
     }
 
     mainWindow.on('closed', () => {
+        // 如果窗口关闭时正在扫描，取消扫描并重置状态
+        if (scanState.isScanning) {
+            cancelScan(scanState);
+            scanState.isScanning = false;
+        }
         mainWindow = null;
     });
 }
@@ -204,24 +207,82 @@ function setupIpcHandlers() {
         return {success: true};
     });
 
-    // 预览文件
+    // 预览文件（使用 Worker 线程，避免阻塞主进程）
     ipcMain.handle('preview-file', async (_, filePath: string) => {
         try {
-            const { text, unsupportedPreview } = await extractTextFromFile(filePath);
+            const { Worker } = require('worker_threads');
+            const pathModule = require('path');
+            
+            // 创建单个 Worker 来处理预览
+            const workerPath = pathModule.join(__dirname, 'file-worker.js');
+            const worker = new Worker(workerPath, {
+                resourceLimits: {
+                    maxOldGenerationSizeMb: 512,
+                    maxYoungGenerationSizeMb: 64,
+                }
+            });
+            
+            return new Promise((resolve) => {
+                let messageReceived = false;
                 
-            // 获取启用的敏感类型（从配置中读取）
-            const config = await loadConfig();
-            const enabledTypes = config.enabledSensitiveTypes || [];
+                const timeout = setTimeout(() => {
+                    if (!messageReceived) {
+                        worker.terminate();
+                        resolve({ error: '预览超时，文件可能太大或太复杂' });
+                    }
+                }, 30000); // 30秒超时
                 
-            // 生成高亮信息
-            const { getHighlights } = await import('./sensitive-detector');
-            const highlights = getHighlights(text, enabledTypes);
+                worker.on('message', async (result: any) => {
+                    // 跳过 ready 消息
+                    if (result.type === 'ready') {
+                        return;
+                    }
+                    
+                    messageReceived = true;
+                    clearTimeout(timeout);
+                    
+                    if (result.error) {
+                        worker.terminate();
+                        resolve({ error: result.error });
+                        return;
+                    }
+                    
+                    // 获取启用的敏感类型
+                    const config = await loadConfig();
+                    const enabledTypes = config.enabledSensitiveTypes || [];
+                    
+                    // 生成高亮信息
+                    const { getHighlights } = await import('./sensitive-detector');
+                    const highlights = getHighlights(result.text || '', enabledTypes);
+                    
+                    worker.terminate();
+                    resolve({
+                        content: result.text || '',
+                        highlights: highlights,
+                        unsupportedPreview: result.unsupportedPreview || false
+                    });
+                });
                 
-            return {
-                content: text,
-                highlights: highlights,
-                unsupportedPreview: unsupportedPreview
-            };
+                worker.on('error', (error: any) => {
+                    clearTimeout(timeout);
+                    resolve({ error: '预览失败：' + error.message });
+                });
+                
+                worker.on('exit', (code: number) => {
+                    if (code !== 0 && !messageReceived) {
+                        clearTimeout(timeout);
+                        resolve({ error: `预览异常退出 (代码: ${code})` });
+                    }
+                });
+                
+                // 发送任务到 Worker
+                worker.postMessage({
+                    taskId: Date.now(),
+                    filePath: filePath,
+                    enabledSensitiveTypes: [],
+                    previewMode: true // 预览模式：只提取文本
+                });
+            });
         } catch (error: any) {
             return { error: error.message };
         }

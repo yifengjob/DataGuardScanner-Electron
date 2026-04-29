@@ -62,6 +62,7 @@ export interface AppConfig {
   enableExperimentalParsers: boolean;
   enableOfficeParsers: boolean;
   deleteToTrash: boolean;
+  ignoreOtherDrivesSystemDirs: boolean; // 是否忽略其他磁盘的系统目录（仅 Windows）
 }
 
 export interface EnvironmentIssue {

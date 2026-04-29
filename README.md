@@ -4,9 +4,10 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.5-blue.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)
-![Electron](https://img.shields.io/badge/Electron-28.x-47848F.svg)
+![Electron](https://img.shields.io/badge/Electron-22.x-47848F.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.x-4FC08D.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-339933.svg)
+![Windows](https://img.shields.io/badge/Windows-7/10/11-0078D6.svg)
 
 **一款强大的跨平台敏感数据检测工具，帮助您快速发现和定位文件中的隐私信息**
 
@@ -23,9 +24,9 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 ### 核心优势
 
 - 🔍 **智能检测**：采用正则表达式 + 校验算法（Luhn、身份证校验码）确保准确性
-- ⚡ **高性能**：基于 Node.js 后端，支持并发扫描
-- 🎯 **多格式支持**：支持文本文件、PDF、Excel 等多种格式
-- 🌐 **跨平台**：完美支持 Windows、macOS 和 Linux
+- ⚡ **高性能**：基于 Worker Threads 多线程技术，支持并发扫描
+- 🎯 **多格式支持**：支持文本文件、PDF、Excel、Word、PPT 等多种格式
+- 🌐 **跨平台**：完美支持 Windows 7/10/11、macOS 和 Linux
 - 📊 **可视化报告**：支持 CSV、JSON、Excel 三种格式导出扫描结果
 - 🔒 **安全可靠**：本地运行，数据不上传，保护隐私安全
 
@@ -55,19 +56,22 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 
 #### 文档文件
 - PDF 文档（使用 `pdf-parse` 库解析）
-- Excel 表格（实验性支持）
+- Excel 表格（`.xlsx`, `.xls`，使用 `exceljs` 库）
+- Word 文档（`.docx`, `.doc`，实验性支持）
+- PowerPoint 演示文稿（`.pptx`, `.ppt`，实验性支持）
 
 ### 3. 核心功能
 
 - 🗂️ **目录树浏览**：懒加载目录结构，性能优化
 - 🔎 **智能扫描**：自定义扫描路径，文件类型筛选，实时进度显示
-- 👁️ **文件预览**：内容高亮显示敏感数据，不同颜色标识不同类型
+- 👁️ **文件预览**：内容高亮显示敏感数据，不同颜色标识不同类型（Worker 线程处理，界面流畅）
 - 📈 **结果管理**：表格展示扫描结果，统计各类敏感数据数量
 - 📤 **报告导出**：CSV、JSON、Excel 三种格式
 - 🗑️ **文件删除**：移入回收站或永久删除
 - ⚙️ **配置管理**：自动保存用户配置，主题设置
 - 🛡️ **环境检查**：启动时自动检测系统环境
 - 📝 **日志系统**：实时记录扫描过程
+- 🧠 **智能并发**：根据 CPU 核心数和可用内存动态调整并发数
 
 ---
 
@@ -81,8 +85,9 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 - **UI**：原生 CSS（无第三方 UI 库）
 
 ### 后端技术
-- **框架**：Electron 28.x
+- **框架**：Electron 22.3.27（兼容 Windows 7）
 - **语言**：Node.js + TypeScript
+- **多线程**：Worker Threads（CPU 密集型任务隔离）
 - **文件系统**：fs, walkdir
 - **序列化**：JSON
 
@@ -90,7 +95,7 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 
 | 库名 | 版本 | 用途 |
 |------|------|------|
-| `electron` | 28.x | 桌面应用框架 |
+| `electron` | 22.3.27 | 桌面应用框架（兼容 Win7） |
 | `vue` | 3.x | 前端框架 |
 | `pinia` | 2.x | 状态管理 |
 | `vite` | 6.x | 构建工具 |
@@ -115,7 +120,9 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 - **pnpm**: 8.x 或更高版本
 
 #### Windows
-- Windows 10 (版本 1809+) 或 Windows 11
+- Windows 7 SP1+ (需要 .NET Framework 4.5+)
+- Windows 10 (版本 1809+) 
+- Windows 11
 
 #### macOS
 - macOS 10.15 (Catalina) 或更高版本

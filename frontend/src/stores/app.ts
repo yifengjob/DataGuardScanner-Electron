@@ -9,6 +9,8 @@ export const useAppStore = defineStore('app', () => {
   // 扫描状态
   const isScanning = ref(false)
   const scannedCount = ref(0)
+  const totalCount = ref(0)      // ← 新增：遍历的文件总数
+  const errorCount = ref(0)  // ← 修改为 ref，用于记录跳过文件数
   const currentFile = ref('')
   const logs = ref<string[]>([])
   
@@ -29,12 +31,13 @@ export const useAppStore = defineStore('app', () => {
     systemDirs: [], // 会在加载配置时从后端获取
     maxFileSizeMb: 50,
     maxPdfSizeMb: 100,
-    scanConcurrency: 8,
+    scanConcurrency: 0, // 0 表示使用默认值（根据 CPU 动态计算）
     theme: 'system',
     language: 'zh-CN',
     enableExperimentalParsers: false,
     enableOfficeParsers: true,
     deleteToTrash: false, // 默认永久删除
+    ignoreOtherDrivesSystemDirs: false, // 默认不忽略其他磁盘的系统目录（即会扫描）
   })
   
   // 目录树选中状态
@@ -42,7 +45,6 @@ export const useAppStore = defineStore('app', () => {
   
   // 计算属性
   const sensitiveFilesCount = computed(() => scanResults.value.length)
-  const errorCount = computed(() => logs.value.filter(l => l.includes('错误') || l.includes('失败')).length)
   const totalSensitiveItems = computed(() => 
     scanResults.value.reduce((sum, item) => sum + item.total, 0)
   )
@@ -101,6 +103,8 @@ export const useAppStore = defineStore('app', () => {
   function clearScanResults() {
     scanResults.value = []
     scannedCount.value = 0
+    totalCount.value = 0      // ← 重置总数
+    errorCount.value = 0  // ← 重置跳过文件数
     logs.value = []
   }
   
@@ -200,6 +204,7 @@ export const useAppStore = defineStore('app', () => {
     scanResults,
     isScanning,
     scannedCount,
+    totalCount,      // ← 导出总数
     currentFile,
     logs,
     config,

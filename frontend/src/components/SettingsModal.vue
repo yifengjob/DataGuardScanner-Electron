@@ -66,6 +66,15 @@
             <span class="hint">（取消勾选则永久删除）</span>
           </div>
           
+          <div class="setting-item" v-if="isWindows">
+            <label>忽略其他磁盘的系统目录</label>
+            <input 
+              type="checkbox" 
+              v-model="config.ignoreOtherDrivesSystemDirs"
+            />
+            <span class="hint">（启用后将忽略 D-Z 盘的 Windows、Program Files 等系统目录）</span>
+          </div>
+          
           <div class="setting-item">
             <button class="btn-clear-cache" @click="handleClearCache">
               🗑️ 清理应用缓存
@@ -138,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
 import { saveConfig, getSensitiveRules, clearCache } from '../utils/electron-api'
@@ -154,6 +163,11 @@ const { config } = storeToRefs(appStore)
 const newIgnoreDir = ref('')
 const newSystemDir = ref('')
 const sensitiveTypes = ref<Array<{id: string, name: string}>>([])
+
+// 检测是否为 Windows 系统
+const isWindows = computed(() => {
+  return navigator.userAgent.toLowerCase().includes('win')
+})
 
 onMounted(async () => {
   try {

@@ -35,8 +35,10 @@ export interface HighlightRange {
 }
 
 export interface PreviewResult {
-  content: string
-  highlights: HighlightRange[]
+  content?: string
+  highlights?: HighlightRange[]
+  error?: string
+  unsupportedPreview?: boolean
 }
 
 export interface AppConfig {
@@ -53,6 +55,7 @@ export interface AppConfig {
   enableExperimentalParsers: boolean
   enableOfficeParsers: boolean
   deleteToTrash: boolean
+  ignoreOtherDrivesSystemDirs: boolean // 是否忽略其他磁盘的系统目录（仅 Windows）
 }
 
 export interface SensitiveRule {

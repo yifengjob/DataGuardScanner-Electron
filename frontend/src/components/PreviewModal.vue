@@ -57,32 +57,24 @@ const highlightedContent = computed(() => {
 
 // 监听 visible 和 filePath 的组合变化
 watch([() => props.visible, () => props.filePath], async ([isVisible, newPath]) => {
-  console.log('PreviewModal watch triggered:', { isVisible, newPath: newPath?.substring(0, 50), timestamp: Date.now() })
-  
   if (isVisible && newPath) {
     // 窗口打开且有文件路径时，立即加载
-    console.log('Start loading file, setting loading=true')
-    
     // 使用 requestAnimationFrame 确保在下一帧才设置 loading，让窗口先显示
     requestAnimationFrame(() => {
       loading.value = true
       error.value = ''
       content.value = ''
       highlights.value = []
-      console.log('Loading state set, calling loadFile')
       loadFile(newPath)
     })
   } else if (!isVisible) {
     // 窗口关闭时，取消当前任务并清空状态
-    console.log('Modal closed, canceling task and clearing state')
-    
     // 取消正在进行的预览任务
     if (currentTaskId.value !== null) {
-      console.log('Canceling preview task')
       try {
         await cancelPreview()
       } catch (err) {
-        console.error('Failed to cancel preview:', err)
+        // 忽略错误
       }
       currentTaskId.value = null
     }
@@ -99,23 +91,25 @@ async function loadFile(filePath: string) {
   const taskId = Date.now()  // 使用时间戳作为任务标识
   currentTaskId.value = taskId
   
-  console.log('Loading file with task ID:', taskId)
-  
   try {
     const result = await previewFile(filePath)
     
     // 检查是否在加载过程中被取消（通过比较 task_id）
     if (currentTaskId.value !== taskId) {
-      console.log('Preview was canceled, ignoring result')
       return
     }
     
-    content.value = result.content
-    highlights.value = result.highlights
+    // 检查是否有错误
+    if (result.error) {
+      error.value = result.error
+      return
+    }
+    
+    content.value = result.content || ''
+    highlights.value = result.highlights || []
   } catch (err) {
     // 如果是取消错误，不显示错误信息
     if (String(err).includes('已取消')) {
-      console.log('Preview canceled by user')
       return
     }
     error.value = `预览失败: ${err}`
