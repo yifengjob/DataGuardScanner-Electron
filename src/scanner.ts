@@ -298,18 +298,45 @@ export async function startScan(
             log(`walkdir 错误: ${err.message}`);
         });
 
-        // 等待所有文件处理完成
+        // 【修复】添加超时保护，避免扫描卡死
         await new Promise<void>((resolve) => {
+            let pathScanCompleted = false;
+            
+            // 路径级超时保护（3分钟）
+            const pathTimeout = setTimeout(() => {
+                if (!pathScanCompleted) {
+                    log(`警告: 路径 ${rootPath} 扫描超时（3分钟），强制结束`);
+                    shouldStop = true;
+                    scanState.cancelFlag = true;
+                    pathScanCompleted = true;
+                    resolve();
+                }
+            }, 180000); // 3分钟超时
+            
             walker.on('end', async () => {
                 // 如果被取消，直接退出
                 if (scanState.cancelFlag) {
+                    clearTimeout(pathTimeout);
+                    pathScanCompleted = true;
                     log(`扫描已取消: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
                     resolve();
                     return;
                 }
                 
-                // 等待所有活动任务完成
+                // 等待所有活动任务完成（最多等待 30 秒）
+                const maxWaitTime = 30000; // 30秒
+                const startTime = Date.now();
+                
                 const checkCompletion = () => {
+                    // 超时保护
+                    if (Date.now() - startTime > maxWaitTime) {
+                        log(`警告: 等待任务完成超时，强制结束（活动任务: ${activeTasks}, 队列: ${taskQueue.length}）`);
+                        clearTimeout(pathTimeout);
+                        pathScanCompleted = true;
+                        resolve();
+                        return;
+                    }
+                    
                     if (activeTasks === 0 && taskQueue.length === 0) {
                         log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
                         
@@ -320,6 +347,8 @@ export async function startScan(
                             return;
                         }
                         
+                        clearTimeout(pathTimeout);
+                        pathScanCompleted = true;
                         resolve();
                     } else {
                         setTimeout(checkCompletion, 50);
@@ -348,9 +377,16 @@ export async function startScan(
         log(`遍历: ${scannedCount}, 处理: ${processedCount}, 跳过: ${skippedCount}, 总数: ${totalCount}`);
     }
     
+    // 【修复】确保状态一定被重置
     scanState.isScanning = false;
     log('扫描完成');
-    mainWindow.webContents.send('scan-finished');
+    
+    // 【修复】确保发送完成事件（即使 mainWindow 已关闭）
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('scan-finished');
+    } else {
+        console.warn('窗口已销毁，无法发送 scan-finished 事件');
+    }
 }
 
 export function cancelScan(scanState: ScanState): void {
