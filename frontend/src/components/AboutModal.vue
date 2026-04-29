@@ -141,8 +141,8 @@ defineEmits<{
 }
 
 .app-icon {
-  width: 120px;
-  height: 120px;
+  width: 96px;
+  height: 96px;
   margin-bottom: 16px;
   object-fit: contain;
 }
