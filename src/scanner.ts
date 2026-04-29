@@ -307,8 +307,11 @@ export async function startScan(
             let pathScanCompleted = false;
             
             // 空闲超时检查（30秒无新文件即判定为卡住）
+            // 【注意】只在遍历阶段检测，避免误判 Worker 处理时间
+            let walkerEnded = false;
+            
             const idleCheckInterval = setInterval(() => {
-                if (pathScanCompleted) {
+                if (pathScanCompleted || walkerEnded) {
                     clearInterval(idleCheckInterval);
                     return;
                 }
@@ -339,6 +342,9 @@ export async function startScan(
             }, 1800000); // 30分钟
             
             walker.on('end', async () => {
+                // 标记遍历已结束，停止空闲检测
+                walkerEnded = true;
+                
                 // 清理定时器
                 clearInterval(idleCheckInterval);
                 clearTimeout(absoluteTimeout);
