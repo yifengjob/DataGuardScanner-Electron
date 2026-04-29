@@ -2,16 +2,36 @@
   <div class="app-container">
     <!-- 菜单栏 -->
     <div class="menu-bar">
-      <div class="menu-item" @click="showSettings = true">设置</div>
-      <div 
-        class="menu-item" 
-        :class="{ disabled: scanResults.length === 0 }"
-        @click="handleExportReport"
-      >
-        导出报告
+      <div class="menu-dropdown" @click.stop>
+        <div class="menu-item menu-trigger" @click="showMenuDropdown = !showMenuDropdown">
+          菜单
+          <svg class="dropdown-arrow" :class="{ open: showMenuDropdown }"><use href="#icon-chevron-down" /></svg>
+        </div>
+        <Transition name="dropdown">
+          <div v-if="showMenuDropdown" class="dropdown-menu" @click="showMenuDropdown = false">
+            <div class="dropdown-item" @click="showSettings = true">
+              <svg class="item-icon"><use href="#icon-setting" /></svg>
+              设置
+            </div>
+            <div 
+              class="dropdown-item" 
+              :class="{ disabled: scanResults.length === 0 }"
+              @click="handleExportReport"
+            >
+              <svg class="item-icon"><use href="#icon-export" /></svg>
+              导出报告
+            </div>
+            <div class="dropdown-item" @click="showLogs = true">
+              <svg class="item-icon"><use href="#icon-log" /></svg>
+              查看日志
+            </div>
+            <div class="dropdown-item" @click="showAbout = true">
+              <svg class="item-icon"><use href="#icon-info" /></svg>
+              关于
+            </div>
+          </div>
+        </Transition>
       </div>
-      <div class="menu-item" @click="showLogs = true">查看日志</div>
-      <div class="menu-item" @click="showAbout = true">关于</div>
     </div>
 
     <!-- 工具栏 -->
@@ -158,6 +178,7 @@ const showSettings = ref(false)
 const showLogs = ref(false)
 const showAbout = ref(false)
 const showExport = ref(false)
+const showMenuDropdown = ref(false) // 【新增】菜单下拉状态
 const isSidebarCollapsed = ref(false)
 const currentTheme = ref<ThemeMode>('system')
 
@@ -179,6 +200,11 @@ onMounted(async () => {
     if (currentTheme.value === 'system') {
       applyTheme('system')
     }
+  })
+  
+  // 【新增】点击外部关闭菜单下拉
+  document.addEventListener('click', () => {
+    showMenuDropdown.value = false
   })
   
   // 监听扫描事件
@@ -351,6 +377,79 @@ const getThemeTooltip = () => {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+/* 【新增】菜单下拉样式 */
+.menu-dropdown {
+  position: relative;
+}
+
+.menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.dropdown-arrow {
+  width: 0.8em;
+  height: 0.8em;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 160px;
+  background-color: var(--bg-color);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  margin-top: 0.25em;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em 1em;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  font-size: 0.95em;
+}
+
+.dropdown-item:hover:not(.disabled) {
+  background-color: var(--bg-hover);
+}
+
+.dropdown-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.item-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+/* 下拉菜单动画 */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .toolbar {
