@@ -1,13 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import {BrowserWindow} from 'electron';
-import walkdir = require('walkdir');
-import {ScanConfig, ScanResultItem} from './types';
-import {ScanState} from './scan-state';
-import {WorkerPool} from './worker-pool';
-import {addAllowedPath, clearAllowedPaths} from './file-operations';
-import {SUPPORTED_EXTENSIONS} from './file-parser'; // 【新增】导入支持的文件类型
+import { BrowserWindow } from 'electron';
+import { Worker } from 'worker_threads';
+import { ScanConfig, ScanResultItem } from './types';
+import { ScanState } from './scan-state';
+import { addAllowedPath, clearAllowedPaths } from './file-operations';
 
 export async function startScan(
     config: ScanConfig,
@@ -27,7 +25,6 @@ export async function startScan(
     config.selectedPaths.forEach(p => addAllowedPath(p));
 
     const log = (msg: string) => {
-        // 【新增】添加时间戳
         const now = new Date();
         const timeStr = now.toLocaleTimeString('zh-CN', {
             hour12: false,
@@ -48,71 +45,408 @@ export async function startScan(
     log(`敏感检测类型: ${config.enabledSensitiveTypes.join(', ')}`);
     log('---');
 
-    let scannedCount = 0;
-    let processedCount = 0;
-    let resultCount = 0;
-    let skippedCount = 0;  // ← 新增：跳过的文件数
-    let totalCount = 0;     // ← 新增：遍历的文件总数
-
-    // 创建 Worker 池（根据 CPU 核心数和可用内存动态调整）
+    // 计算并发数
     const cpuCount = os.cpus().length;
-    const totalMemoryGB = os.totalmem() / (1024 * 1024 * 1024);
     const freeMemoryGB = os.freemem() / (1024 * 1024 * 1024);
-
-    // 基于 CPU 的限制
-    const maxByCPU = cpuCount;
-
-    // 基于内存的限制（使用可用内存的 40%，每个 Worker 预留 400 MB）
-    // ExcelJS 解析大型文件时可能占用 200-400 MB，使用更保守的估计
-    const memoryPerWorker = 0.4; // GB（增加到 400 MB）
-    const maxByMemory = Math.floor(freeMemoryGB * 0.4 / memoryPerWorker); // 降低到 40%
-
-    // 绝对上限（安全阀，避免极端情况）- 降低到 6
+    const memoryPerWorker = 0.4; // GB
+    const maxByMemory = Math.floor(freeMemoryGB * 0.4 / memoryPerWorker);
     const absoluteMax = 6;
-
-    // 综合限制：取最小值，确保不会内存溢出
-    const calculatedMaxConcurrency = Math.min(maxByCPU, maxByMemory, absoluteMax);
-
-    // 确保至少 2 个并发，最多不超过计算值
+    const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, absoluteMax);
     const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, 2);
-
-    // 默认并发数：2-4 个，根据 CPU 调整
-    const defaultConcurrency = Math.min(Math.max(cpuCount, 2), 4);
-
-    // 确定最终使用的并发数
+    
     let configuredConcurrency: number;
     if (config.scanConcurrency && config.scanConcurrency > 0) {
-        // 用户配置了并发数，但限制在合理范围内
         configuredConcurrency = Math.min(config.scanConcurrency, maxAllowedConcurrency);
     } else {
-        // 使用默认值
-        configuredConcurrency = defaultConcurrency;
+        configuredConcurrency = Math.min(Math.max(cpuCount, 2), 4);
     }
 
-    // 如果用户配置的值被限制了，给出警告
     if (config.scanConcurrency && config.scanConcurrency > maxAllowedConcurrency) {
         log(`警告: 配置的并发数 ${config.scanConcurrency} 超过最大值 ${maxAllowedConcurrency}，已自动调整`);
         log(`提示: 系统可用内存 ${freeMemoryGB.toFixed(1)} GB, CPU ${cpuCount} 核, 建议不超过 ${maxAllowedConcurrency}`);
     }
 
     const poolSize = configuredConcurrency;
+    log(`使用 ${poolSize} 个 Consumer Workers (CPU: ${cpuCount}核, 可用内存: ${freeMemoryGB.toFixed(1)}GB)`);
 
-    log(`使用 ${poolSize} 个 Worker 线程 (CPU: ${cpuCount}核, 总内存: ${totalMemoryGB.toFixed(1)}GB, 可用: ${freeMemoryGB.toFixed(1)}GB, 配置: ${config.scanConcurrency || '默认'})`);
+    // 统计信息
+    let walkerTotalCount = 0;      // Walker 找到的文件总数
+    let walkerSkippedCount = 0;    // Walker 跳过的文件数
+    let consumerProcessedCount = 0; // Consumer 已处理的文件数
+    let resultCount = 0;            // 发现的敏感文件数
 
-    const workerPool = new WorkerPool(poolSize);
-    
-    // 【优化】获取路径总数，用于日志显示进度
+    // 创建 Consumer Workers 池
+    const consumers: Array<{
+        worker: Worker;
+        busy: boolean;
+        taskId?: number;
+    }> = [];
+
+    const pendingTasks = new Map<number, {
+        filePath: string;
+        resolve: (result: any) => void;
+        reject: (error: any) => void;
+        timeoutId: NodeJS.Timeout;
+    }>();
+
+    let nextTaskId = 0;
+    const taskQueue: Array<{ filePath: string; fileSize: number; fileMtime: string }> = [];
+
+    // 创建 Consumer Worker
+    function createConsumer(id: number) {
+        const workerPath = path.join(__dirname, 'file-worker.js');
+        
+        const worker = new Worker(workerPath, {
+            resourceLimits: {
+                maxOldGenerationSizeMb: 512,
+                maxYoungGenerationSizeMb: 64,
+            }
+        });
+
+        const consumer = {
+            worker,
+            busy: false,
+            taskId: undefined
+        };
+
+        worker.on('message', (result) => {
+            if (result.type === 'ready') {
+                return;
+            }
+
+            const taskId = result.taskId;
+            const pending = pendingTasks.get(taskId);
+
+            if (!pending) {
+                console.warn(`[Consumer ${id}] 任务 ${taskId} 已被删除，忽略结果`);
+                consumer.busy = false;
+                consumer.taskId = undefined;
+                tryDispatch();
+                return;
+            }
+
+            // 清除超时定时器
+            clearTimeout(pending.timeoutId);
+            pendingTasks.delete(taskId);
+
+            // 标记 Worker 为空闲
+            consumer.busy = false;
+            consumer.taskId = undefined;
+            consumerProcessedCount++;
+
+            // 发送进度更新
+            const activeConsumers = consumers.filter(c => c.busy).length;
+            mainWindow.webContents.send('scan-progress', {
+                currentFile: result.filePath || '',
+                scannedCount: consumerProcessedCount,
+                totalCount: walkerTotalCount,
+                skippedCount: walkerSkippedCount
+            });
+
+            // 处理结果
+            if (result.error) {
+                log(`处理文件失败: ${result.error}`);
+                pending.reject(new Error(result.error));
+            } else {
+                if (result.total && result.total > 0) {
+                    resultCount++;
+                    log(`发现敏感文件 [${resultCount}]: ${result.filePath} (总计: ${result.total} 个敏感项)`);
+
+                    const resultItem: ScanResultItem = {
+                        filePath: result.filePath,
+                        fileSize: result.fileSize || 0,
+                        modifiedTime: result.modifiedTime || new Date().toISOString(),
+                        counts: result.counts || {},
+                        total: result.total,
+                        unsupportedPreview: false
+                    };
+
+                    mainWindow.webContents.send('scan-result', resultItem);
+                }
+                pending.resolve(result);
+            }
+
+            // 调度下一个任务
+            tryDispatch();
+        });
+
+        worker.on('error', (error: any) => {
+            console.error(`[Consumer ${id}] Worker 错误:`, error.message);
+            consumer.busy = false;
+            
+            if (consumer.taskId !== undefined) {
+                const pending = pendingTasks.get(consumer.taskId);
+                if (pending) {
+                    clearTimeout(pending.timeoutId);
+                    pendingTasks.delete(consumer.taskId);
+                    consumerProcessedCount++; // 即使失败也要计数
+                    pending.reject(error);
+                }
+            }
+        });
+
+        worker.on('exit', (code) => {
+            if (code !== 0 && !scanState.cancelFlag) {
+                console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}`);
+                setTimeout(() => {
+                    if (!scanState.cancelFlag) {
+                        const index = consumers.findIndex(c => c.worker === worker);
+                        if (index > -1) {
+                            consumers.splice(index, 1);
+                            createConsumer(id);
+                        }
+                    }
+                }, 100);
+            }
+            consumer.busy = false;
+        });
+
+        consumers.push(consumer);
+    }
+
+    // 创建所有 Consumer Workers
+    for (let i = 0; i < poolSize; i++) {
+        createConsumer(i);
+    }
+
+    // 计算动态超时时间
+    function calculateTimeout(fileSize: number): number {
+        const sizeMB = fileSize / 1024 / 1024;
+        
+        if (sizeMB < 1) {
+            return 30000; // 30 秒
+        } else if (sizeMB < 10) {
+            return 60000; // 1 分钟
+        } else if (sizeMB < 50) {
+            return 120000; // 2 分钟
+        } else {
+            return 180000; // 3 分钟
+        }
+    }
+
+    // 尝试调度任务
+    function tryDispatch() {
+        for (const consumer of consumers) {
+            if (!consumer.busy && taskQueue.length > 0) {
+                dispatchNextTask(consumer);
+            }
+        }
+    }
+
+    // 分发下一个任务
+    function dispatchNextTask(consumer: typeof consumers[0]) {
+        const task = taskQueue.shift();
+        if (!task) {
+            return;
+        }
+
+        consumer.busy = true;
+        const taskId = nextTaskId++;
+        consumer.taskId = taskId;
+
+        // 创建 Promise 并保存
+        return new Promise<void>((resolve, reject) => {
+            // 设置超时
+            const timeout = calculateTimeout(task.fileSize);
+            const timeoutId = setTimeout(() => {
+                console.error(`[TaskQueue] 任务 ${taskId} 超时 (${timeout / 1000}秒): ${task.filePath}`);
+                const pending = pendingTasks.get(taskId);
+                if (pending) {
+                    pendingTasks.delete(taskId);
+                    consumerProcessedCount++; // 超时也要计数
+                    pending.reject(new Error(`文件处理超时（${timeout / 1000}秒）`));
+                }
+                
+                // 终止并重新创建 Worker
+                try {
+                    consumer.worker.terminate();
+                } catch (err) {
+                    console.error('终止 Worker 失败:', err);
+                }
+                
+                const index = consumers.indexOf(consumer);
+                if (index > -1) {
+                    consumers.splice(index, 1);
+                    createConsumer(index);
+                }
+                
+                resolve(); // 超时处理后继续
+            }, timeout);
+
+            pendingTasks.set(taskId, {
+                filePath: task.filePath,
+                resolve,
+                reject,
+                timeoutId
+            });
+
+            // 发送任务到 Worker
+            consumer.worker.postMessage({
+                taskId,
+                filePath: task.filePath,
+                enabledSensitiveTypes: config.enabledSensitiveTypes
+            });
+        });
+    }
+
+    // IPC 节流
+    let lastProgressTime = 0;
+
+    // 创建 Walker Worker
+    const walkerWorkerPath = path.join(__dirname, 'walker-worker.js');
+    const walkerWorker = new Worker(walkerWorkerPath);
+
+    walkerWorker.on('message', (message: any) => {
+        if (message.type === 'ready') {
+            return;
+        }
+
+        if (message.type === 'file-found') {
+            walkerTotalCount++;
+            
+            // 更新进度
+            const now = Date.now();
+            if (!lastProgressTime || now - lastProgressTime >= 200) {
+                mainWindow.webContents.send('scan-progress', {
+                    currentFile: message.filePath,
+                    scannedCount: consumerProcessedCount,
+                    totalCount: walkerTotalCount,
+                    skippedCount: walkerSkippedCount
+                });
+                lastProgressTime = now;
+            }
+
+            // 添加到任务队列
+            taskQueue.push({
+                filePath: message.filePath,
+                fileSize: message.stat.size,
+                fileMtime: message.stat.mtime
+            });
+
+            // 尝试调度
+            tryDispatch();
+        }
+
+        if (message.type === 'walking-complete') {
+            log(`Walker 完成: 找到 ${message.fileCount} 个文件, 跳过 ${message.skippedCount} 个`);
+            walkerSkippedCount += message.skippedCount;
+            
+            // 等待所有任务完成
+            waitForCompletion();
+        }
+
+        if (message.type === 'walking-error') {
+            log(`Walker 错误: ${message.error}`);
+            waitForCompletion();
+        }
+    });
+
+    walkerWorker.on('error', (error: any) => {
+        log(`Walker Worker 错误: ${error.message}`);
+        waitForCompletion();
+    });
+
+    walkerWorker.on('exit', (code) => {
+        if (code !== 0) {
+            log(`Walker Worker 异常退出，代码: ${code}`);
+        }
+    });
+
+    // 等待所有任务完成
+    function waitForCompletion() {
+        let lastProgressCheck = Date.now();
+        let lastProcessedCount = consumerProcessedCount;
+        let lastQueueLength = taskQueue.length;
+        let lastActiveCount = consumers.filter(c => c.busy).length;
+
+        const maxIdleTime = 120000; // 2分钟无进展才超时
+
+        const checkCompletion = () => {
+            if (scanState.cancelFlag) {
+                cleanup();
+                return;
+            }
+
+            const now = Date.now();
+            const currentProcessed = consumerProcessedCount;
+            const currentQueue = taskQueue.length;
+            const currentActive = consumers.filter(c => c.busy).length;
+
+            const hasProgress = (
+                currentProcessed > lastProcessedCount ||
+                currentActive !== lastActiveCount ||
+                currentQueue !== lastQueueLength
+            );
+
+            if (hasProgress) {
+                lastProgressCheck = now;
+                lastProcessedCount = currentProcessed;
+                lastActiveCount = currentActive;
+                lastQueueLength = currentQueue;
+            }
+
+            const idleTime = now - lastProgressCheck;
+            if (idleTime > maxIdleTime) {
+                log(`警告: 扫描停滞超过${maxIdleTime / 1000}秒，强制结束`);
+                cleanup();
+                return;
+            }
+
+            if (currentActive === 0 && currentQueue === 0) {
+                log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
+                cleanup();
+            } else {
+                setTimeout(checkCompletion, 50);
+            }
+        };
+
+        checkCompletion();
+    }
+
+    // 清理资源
+    function cleanup() {
+        // 终止 Walker Worker
+        try {
+            walkerWorker.terminate();
+        } catch (error) {
+            console.error('终止 Walker Worker 失败:', error);
+        }
+
+        // 终止所有 Consumer Workers
+        for (const consumer of consumers) {
+            try {
+                consumer.worker.terminate();
+            } catch (error) {
+                console.error('终止 Consumer Worker 失败:', error);
+            }
+        }
+
+        // 清除所有超时定时器
+        for (const pending of pendingTasks.values()) {
+            clearTimeout(pending.timeoutId);
+        }
+        pendingTasks.clear();
+
+        scanState.isScanning = false;
+        log('扫描完成');
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('scan-finished');
+        }
+    }
+
+    // 启动 Walker Worker
     const totalPaths = config.selectedPaths.length;
     let currentPathIndex = 0;
-    
+
     for (const rootPath of config.selectedPaths) {
         currentPathIndex++;
-            
+        
         if (scanState.cancelFlag) {
             log('扫描已取消');
             break;
         }
-    
+
         log(`正在扫描: ${rootPath} (${currentPathIndex}/${totalPaths})`);
 
         if (!fs.existsSync(rootPath)) {
@@ -125,414 +459,21 @@ export async function startScan(
             continue;
         }
 
-        // 预处理：构建快速查找的忽略目录集合（normalized + lowercase）
-        const ignoredDirsNormalized = new Set<string>();
-        config.systemDirs.forEach(dir => {
-            ignoredDirsNormalized.add(path.normalize(dir).toLowerCase());
-        });
-
-        // 使用walkdir遍历目录，添加 filter 选项优化性能
-        const walker = walkdir(rootPath, {
-            follow_symlinks: false,
-            no_recurse: false,
-            // 【优化】在 readdir 阶段就过滤掉忽略的目录，避免进入这些目录
-            filter: (directory: string, files: string[]) => {
-                const dirName = path.basename(directory);
-
-                // 检查是否应该忽略这个目录
-                if (shouldIgnoreDirectory(dirName, directory, config)) {
-                    return []; // 返回空数组，跳过整个目录
-                }
-
-                // 检查当前目录是否在系统目录的子目录下
-                const normalizedDir = path.normalize(directory).toLowerCase();
-                for (const sysDir of ignoredDirsNormalized) {
-                    if (normalizedDir.startsWith(sysDir + path.sep) || normalizedDir === sysDir) {
-                        return []; // 跳过系统目录及其子目录
-                    }
-                }
-
-                // 返回所有文件，让 walkdir 继续遍历
-                return files;
+        // 发送配置到 Walker Worker
+        walkerWorker.postMessage({
+            type: 'start-walking',
+            config: {
+                rootPath,
+                selectedExtensions: config.selectedExtensions,
+                ignoreDirNames: config.ignoreDirNames,
+                systemDirs: config.systemDirs,
+                maxFileSizeMb: config.maxFileSizeMb,
+                maxPdfSizeMb: config.maxPdfSizeMb
             }
         });
-
-        let shouldStop = false;
-        let lastActivityTime = Date.now(); // 【优化】最后一次发现文件的时间
-
-        // 并发控制：限制同时处理的文件数
-        const maxConcurrency = poolSize * 2;  // 允许队列中的任务数是 Worker 数的 2 倍
-        let activeTasks = 0;
-        const taskQueue: Array<{ filePath: string, stat: any }> = [];
-
-        // IPC 节流 - 【优化】从 100ms 改为 200ms，减少主线程压力
-        let lastProgressTime = 0;
-
-        // 使用 Worker 池处理文件
-        const processFileWithWorker = async (filePath: string, stat: any): Promise<void> => {
-            // 立即增加计数，确保每个任务都被记录
-            processedCount++;
-
-            try {
-                if (scanState.cancelFlag) {
-                    return;
-                }
-
-                // 使用 Worker 池处理文件（不阻塞主线程！）
-                // 【优化】移除这里的超时，Worker 内部已有 60 秒超时保护
-                // 避免排队时间计入超时导致误判
-                const result = await workerPool.processFile(filePath, config.enabledSensitiveTypes, stat.size) as any;
-
-                if (result.unsupportedPreview) {
-                    return;
-                }
-
-                if (result.total && result.total > 0) {
-                    resultCount++;
-
-                    log(`发现敏感文件 [${resultCount}]: ${filePath} (总计: ${result.total} 个敏感项)`);
-
-                    const resultItem: ScanResultItem = {
-                        filePath: result.filePath,
-                        fileSize: result.fileSize || stat.size,
-                        modifiedTime: result.modifiedTime || stat.mtime.toISOString(),
-                        counts: result.counts || {},
-                        total: result.total,
-                        unsupportedPreview: false
-                    };
-
-                    mainWindow.webContents.send('scan-result', resultItem);
-                }
-            } catch (error: any) {
-                if (!scanState.cancelFlag) {
-                    log(`处理文件失败 ${filePath}: ${error.message}`);
-                    // 【调试】输出错误详情
-                    console.error(`[Worker错误] ${filePath}:`, error.message);
-                }
-            } finally {
-                // 任务完成，减少活动任务数
-                activeTasks--;
-                
-                // 【调试】输出状态变化
-                if (activeTasks < 0) {
-                    console.error(`[严重错误] activeTasks 变为负数: ${activeTasks}，文件: ${filePath}`);
-                }
-
-                // 发送进度（基于实际处理的文件数）
-                const now = Date.now();
-                if (!lastProgressTime || now - lastProgressTime >= 100) {
-                    mainWindow.webContents.send('scan-progress', {
-                        currentFile: filePath,
-                        scannedCount: processedCount,  // ← 使用 processedCount（实际处理数）
-                        totalCount: totalCount,         // ← 使用 totalCount（遍历总数）
-                        skippedCount: skippedCount
-                    });
-                    lastProgressTime = now;
-                }
-
-                // 从队列中取出下一个任务执行
-                if (taskQueue.length > 0 && !shouldStop && !scanState.cancelFlag) {
-                    const next = taskQueue.shift();
-                    if (next) {
-                        activeTasks++;
-                        void processFileWithWorker(next.filePath, next.stat);  // ← 异步执行，不等待结果
-                    }
-                }
-            }
-        };
-
-        walker.on('path', (filePath: string, stat: any) => {
-            // 【优化】更新活动时间，重置空闲计时器
-            lastActivityTime = Date.now();
-
-            // 立即检查取消标志，尽早退出
-            if (shouldStop || scanState.cancelFlag) {
-                if (!shouldStop) {
-                    shouldStop = true;
-                    log('扫描已取消，正在停止...');
-                }
-                return false; // 返回 false 停止遍历
-            }
-
-            // 【优化】由于已在 filter 中处理，这里不再需要检查忽略目录
-            // 只需处理非文件类型
-            if (!stat.isFile()) return;
-
-            // 检查扩展名
-            const ext = path.extname(filePath).toLowerCase().replace('.', '');
-
-            // 【优化】如果用户选择了 '*'，只扫描支持的文件类型
-            if (config.selectedExtensions.includes('*')) {
-                // '*' 表示所有支持的类型，过滤掉不支持的文件
-                if (!SUPPORTED_EXTENSIONS.includes(ext)) {
-                    skippedCount++;
-                    return; // 跳过不支持的文件类型
-                }
-            } else {
-                // 用户指定了具体类型，按指定类型过滤
-                if (!config.selectedExtensions.includes(ext)) {
-                    skippedCount++;
-                    return;
-                }
-            }
-
-            // 【新增】检查文件大小（跳过 0 字节文件）
-            try {
-                const fileSize = stat.size;
-                
-                // 跳过 0 字节文件
-                if (fileSize === 0) {
-                    skippedCount++;
-                    return;
-                }
-                
-                const maxSize = filePath.toLowerCase().endsWith('.pdf')
-                    ? config.maxPdfSizeMb * 1024 * 1024
-                    : config.maxFileSizeMb * 1024 * 1024;
-
-                if (fileSize > maxSize) {
-                    skippedCount++;  // ← 增加跳过计数
-                    log(`跳过超大文件: ${filePath} (${Math.round(fileSize / 1024 / 1024)} MB)`);
-                    return;
-                }
-            } catch {
-                skippedCount++;  // ← 增加跳过计数
-                return;
-            }
-
-            // 【新增】检查文件可读性和可打开性（避免将无权限或锁定的文件加入队列）
-            try {
-                // 第一步：检查读权限
-                fs.accessSync(filePath, fs.constants.R_OK);
-                
-                // 第二步：【Windows 专用】尝试以只读方式打开文件，检测是否被锁定
-                // 这可以提前发现 EBUSY（文件锁定）问题，避免浪费 Worker 资源
-                if (process.platform === 'win32') {
-                    const fd = fs.openSync(filePath, 'r');
-                    fs.closeSync(fd);
-                }
-            } catch (accessError: any) {
-                skippedCount++;
-                
-                // 区分不同类型的错误
-                let skipReason = '未知原因';
-                if (accessError.code === 'EPERM' || accessError.code === 'EACCES') {
-                    skipReason = '无权限';
-                } else if (accessError.code === 'EBUSY') {
-                    skipReason = '文件被锁定';
-                } else if (accessError.code === 'ENOENT') {
-                    skipReason = '文件不存在';
-                }
-                
-                // 只记录前 10 个跳过的文件，之后每 100 个记录一次，避免日志过多
-                if (skippedCount <= 10 || skippedCount % 100 === 0) {
-                    log(`跳过文件 [${skipReason}]: ${filePath} (${accessError.code || 'UNKNOWN'})`);
-                }
-                return;
-            }
-
-            scannedCount++;
-            totalCount++;  // ← 记录总数
-
-            // 发送进度（遍历阶段，使用 scannedCount）
-            const now = Date.now();
-            // 【优化】IPC 节流从 100ms 改为 200ms，减少主线程和渲染进程通信开销
-            const shouldThrottle = lastProgressTime && (now - lastProgressTime < 200);
-
-            if (!shouldThrottle) {
-                mainWindow.webContents.send('scan-progress', {
-                    currentFile: filePath,
-                    scannedCount: scannedCount,
-                    totalCount: totalCount,  // ← 发送总数
-                    skippedCount: skippedCount
-                });
-                lastProgressTime = now;
-            }
-
-            // 将任务加入队列或直接执行
-            if (activeTasks < maxConcurrency) {
-                activeTasks++;
-                void processFileWithWorker(filePath, stat);  // ← 异步执行，不等待结果
-            } else {
-                taskQueue.push({filePath, stat});
-            }
-        });
-
-        // 【调试】监听 walkdir 错误
-        walker.on('error', (err: any) => {
-            log(`walkdir 错误: ${err.message}`);
-        });
-
-        // 【优化】智能超时检测：监控扫描活动，超过指定时间无新文件则判定为卡住
-        await new Promise<void>((resolve) => {
-            let pathScanCompleted = false;
-
-            // 空闲超时检查（30秒无新文件即判定为卡住）
-            // 【注意】只在遍历阶段检测，避免误判 Worker 处理时间
-            let walkerEnded = false;
-
-            const idleCheckInterval = setInterval(() => {
-                if (pathScanCompleted || walkerEnded) {
-                    clearInterval(idleCheckInterval);
-                    return;
-                }
-
-                const idleTime = Date.now() - lastActivityTime;
-                const idleTimeout = 30000; // 30秒空闲超时
-
-                if (idleTime > idleTimeout && !scanState.cancelFlag) {
-                    log(`警告: 路径 ${rootPath} 扫描停滞（${Math.round(idleTime / 1000)}秒无新文件），强制结束`);
-                    shouldStop = true;
-                    scanState.cancelFlag = true;
-                    pathScanCompleted = true;
-                    clearInterval(idleCheckInterval);
-                    resolve();
-                }
-            }, 5000); // 每5秒检查一次
-
-            // 【修复】绝对超时保护（20分钟）- 仅针对 walkdir 遍历阶段
-            // 遍历结束后会清除此定时器，不影响 Worker 处理时间
-            const walkerTimeout = setTimeout(() => {
-                if (!pathScanCompleted && !walkerEnded) {
-                    log(`警告: 路径 ${rootPath} 遍历超时（20分钟未完成的目录树），强制结束`);
-                    shouldStop = true;
-                    scanState.cancelFlag = true;
-                    pathScanCompleted = true;
-                    clearInterval(idleCheckInterval);
-                    resolve();
-                }
-            }, 1200000); // 10分钟
-
-            walker.on('end', async () => {
-                // 标记遍历已结束，停止空闲检测和绝对超时
-                walkerEnded = true;
-
-                // 【调试】输出 walker.on('end') 时的状态
-                log(`walker.on('end') 触发: activeTasks=${activeTasks}, queue=${taskQueue.length}, scanned=${scannedCount}, processed=${processedCount}`);
-
-                // 清理遍历阶段的定时器
-                clearInterval(idleCheckInterval);
-                clearTimeout(walkerTimeout);
-
-                // 如果被取消，直接退出
-                if (scanState.cancelFlag) {
-                    pathScanCompleted = true;
-                    log(`扫描已取消: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
-                    resolve();
-                    return;
-                }
-
-                // 【优化】智能等待：动态监控任务完成情况，无固定超时限制
-                // 只有当长时间（2分钟）没有任何进展时才判定为卡住
-                let lastProgressCheck = Date.now();
-                let lastProcessedCount = processedCount;
-                let lastActiveTasks = activeTasks;
-                let lastQueueLength = taskQueue.length;
-
-                const maxIdleTime = 120000; // 2分钟无进展才超时
-
-                const checkCompletion = () => {
-                    const now = Date.now();
-                    const currentProcessed = processedCount;
-                    const currentActive = activeTasks;
-                    const currentQueue = taskQueue.length;
-
-                    // 检查是否有进展
-                    const hasProgress = (
-                        currentProcessed > lastProcessedCount ||
-                        currentActive !== lastActiveTasks ||
-                        currentQueue !== lastQueueLength
-                    );
-
-                    if (hasProgress) {
-                        // 有进展，重置计时器
-                        lastProgressCheck = now;
-                        lastProcessedCount = currentProcessed;
-                        lastActiveTasks = currentActive;
-                        lastQueueLength = currentQueue;
-                        
-                        // 【调试】输出进展信息
-                        console.log(`[checkCompletion] 进展: active=${currentActive}, queue=${currentQueue}, processed=${currentProcessed}/${scannedCount}`);
-                    }
-
-                    // 检查是否超时（长时间无任何进展）
-                    const idleTime = now - lastProgressCheck;
-                    if (idleTime > maxIdleTime && !scanState.cancelFlag) {
-                        log(`警告: 扫描停滞超过${maxIdleTime / 1000}秒，强制结束（活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}）`);
-                        pathScanCompleted = true;
-                        resolve();
-                        return;
-                    }
-
-                    // 【修复】只有当没有活动任务且队列为空时才完成
-                    // 不需要检查 processedCount >= scannedCount，因为：
-                    // 1. processedCount 在 processFileWithWorker 开头就增加了
-                    // 2. 即使处理失败，finally 块也会执行，计数已增加
-                    // 3. activeTasks === 0 && queue.length === 0 说明所有任务都结束了
-                    if (currentActive === 0 && currentQueue === 0) {
-                        log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${currentProcessed} 个, 发现 ${resultCount} 个敏感文件`);
-                        pathScanCompleted = true;
-                        resolve();
-                    } else {
-                        // 继续等待（每 10 秒输出一次状态，便于诊断）
-                        const elapsed = Math.floor((now - lastProgressCheck) / 1000);
-                        if (elapsed % 10 === 0 && elapsed > 0) {
-                            console.log(`[等待] 活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}, 无进展时间: ${elapsed}秒`);
-                        }
-                        setTimeout(checkCompletion, 50);
-                    }
-                };
-                checkCompletion();
-            });
-        });
-
-        // 如果在循环中被取消，跳出外层循环
-        if (scanState.cancelFlag) {
-            break;
-        }
-    }
-
-    // 销毁 Worker 池
-    try {
-        workerPool.destroy();
-    } catch (error: any) {
-        log(`销毁 Worker 池失败: ${error.message}`);
-    }
-
-    // 最后一次检查，确保所有文件都已处理
-    if (processedCount < scannedCount) {
-        log(`警告: 扫描结束时还有 ${scannedCount - processedCount} 个文件未处理`);
-        log(`遍历: ${scannedCount}, 处理: ${processedCount}, 跳过: ${skippedCount}, 总数: ${totalCount}`);
-    }
-
-    // 【修复】确保状态一定被重置
-    scanState.isScanning = false;
-    log('扫描完成');
-
-    // 【修复】确保发送完成事件（即使 mainWindow 已关闭）
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('scan-finished');
-    } else {
-        console.warn('窗口已销毁，无法发送 scan-finished 事件');
     }
 }
 
 export function cancelScan(scanState: ScanState): void {
     scanState.cancelFlag = true;
-}
-
-function shouldIgnoreDirectory(dirName: string, dirPath: string, config: ScanConfig): boolean {
-    // 检查是否在忽略目录名列表中
-    if (config.ignoreDirNames.includes(dirName)) {
-        return true;
-    }
-
-    // 检查是否是系统目录（不区分大小写，处理路径分隔符）
-    const normalizedDirPath = path.normalize(dirPath).toLowerCase();
-    return config.systemDirs.some(sysDir => {
-        const normalizedSysDir = path.normalize(sysDir).toLowerCase();
-        // 确保匹配完整目录，而不是前缀（例如 C:\Windows 不应匹配 C:\WindowsABC）
-        return normalizedDirPath === normalizedSysDir ||
-            normalizedDirPath.startsWith(normalizedSysDir + path.sep);
-    });
 }
