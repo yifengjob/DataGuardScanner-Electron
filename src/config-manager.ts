@@ -200,8 +200,8 @@ export function calculateActualConcurrency(configuredConcurrency: number): {
   } else {
     // 【优化】更保守的默认并发数，避免 CPU 过载
     // Mac M2/M3 等高性能 CPU 也需要限制，避免风扇狂转
-    // 使用 CPU 核心数的 1/4，但不超过 4，最少 2
-    actualConcurrency = Math.min(Math.max(Math.floor(cpuCount / 4), 2), 3);
+    // 使用 CPU 核心数的 1/2，但不超过 4，最少 2
+    actualConcurrency = Math.min(Math.max(Math.floor(cpuCount / 2), 2), 4);
   }
   
   return {

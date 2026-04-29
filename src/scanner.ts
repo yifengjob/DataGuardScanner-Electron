@@ -91,6 +91,9 @@ export async function startScan(
     
     // IPC 节流
     let lastProgressTime = 0;
+    
+    // 【事件驱动】跟踪最后活动时间（必须在前面声明）
+    let lastActivityTime = Date.now();
 
     // 创建 Consumer Worker
     function createConsumer(id: number) {
@@ -206,6 +209,20 @@ export async function startScan(
             if (code !== 0 && !scanState.cancelFlag) {
                 // 【优化】只记录到日志文件
                 console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}`);
+                
+                // 【修复】确保更新计数和状态
+                consumer.busy = false;
+                if (consumer.taskId !== undefined) {
+                    activeWorkerCount--; // 减少活跃计数
+                    const pending = pendingTasks.get(consumer.taskId);
+                    if (pending) {
+                        clearTimeout(pending.timeoutId);
+                        pendingTasks.delete(consumer.taskId);
+                        consumerProcessedCount++;
+                        pending.reject(new Error(`Worker 异常退出（代码: ${code}）`));
+                    }
+                }
+                
                 setTimeout(() => {
                     if (!scanState.cancelFlag) {
                         const index = consumers.findIndex(c => c.worker === worker);
@@ -215,8 +232,9 @@ export async function startScan(
                         }
                     }
                 }, 100);
+            } else {
+                consumer.busy = false;
             }
-            consumer.busy = false;
         });
 
         consumers.push(consumer);
@@ -282,6 +300,10 @@ export async function startScan(
                     consumerProcessedCount++; // 超时也要计数
                     pending.reject(new Error(`文件处理超时（${timeout / 1000}秒）`));
                 }
+                
+                // 【修复】更新 Consumer 状态
+                consumer.busy = false;
+                consumer.taskId = undefined;
                 
                 // 终止并重新创建 Worker
                 try {
@@ -384,8 +406,8 @@ export async function startScan(
 
     // 【事件驱动】检查是否应该结束扫描
     let completionCheckTimer: NodeJS.Timeout | null = null;
-    let lastActivityTime = Date.now(); // 【重命名】避免与 IPC 节流的 lastProgressTime 冲突
     const maxIdleTime = 120000; // 2分钟无进展才超时
+    let isCleaningUp = false; // 【修复】防止 cleanup 被多次调用
 
     function checkAndComplete() {
         // 检查是否取消
@@ -416,6 +438,13 @@ export async function startScan(
 
     // 清理资源
     function cleanup() {
+        // 【修复】防止重复调用
+        if (isCleaningUp) {
+            console.warn('[cleanup] 警告: cleanup 已被调用，忽略重复调用');
+            return;
+        }
+        isCleaningUp = true;
+        
         // 【事件驱动】清除超时检测定时器
         if (completionCheckTimer) {
             clearInterval(completionCheckTimer);

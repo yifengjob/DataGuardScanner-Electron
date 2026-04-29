@@ -80,8 +80,14 @@ export async function extractTextFromFile(filePath: string): Promise<{ text: str
 }
 
 async function extractTextFile(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
-  const content = await fs.promises.readFile(filePath, 'utf-8');
-  return { text: content, unsupportedPreview: false };
+  try {
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    return { text: content, unsupportedPreview: false };
+  } catch (error: any) {
+    // 【修复】Windows 文件锁定或其他读取错误
+    console.error(`读取文本文件失败 ${filePath}:`, error.message);
+    throw new Error(`无法读取文件: ${error.message}`);
+  }
 }
 
 async function extractPdf(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
