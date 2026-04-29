@@ -18,14 +18,15 @@ export function checkEnvironment(): EnvironmentCheck {
   
   // Windows特定检查
   if (platform === 'win32') {
-    // 检查Windows版本（需要Windows 10 1809+）
-    const winVersion = parseInt(release.split('.')[2] || '0');
-    if (winVersion < 17763) {
+    // 检查Windows版本（需要Windows 7+）
+    // Windows 7: NT 6.1, Windows 8: NT 6.2, Windows 8.1: NT 6.3, Windows 10: NT 10.0
+    const winVersion = parseFloat(release);
+    if (winVersion < 6.1) {
       issues.push({
         title: 'Windows版本过低',
-        description: '需要Windows 10版本1809或更高版本',
+        description: '需要Windows 7或更高版本',
         severity: 'critical',
-        solution: '请升级Windows系统到最新版本',
+        solution: '请升级Windows系统到Windows 7或更高版本',
         downloadUrl: 'https://www.microsoft.com/windows'
       });
     }
