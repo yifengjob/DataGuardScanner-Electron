@@ -1,4 +1,4 @@
-import {app, BrowserWindow, dialog, ipcMain, nativeImage} from 'electron';
+import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu} from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import {ScanState} from './scan-state';
@@ -55,6 +55,9 @@ function createWindow() {
         title: 'DataGuard Scanner - 敏感数据扫描工具',
         icon: icon
     });
+
+    // 【新增】隐藏原生菜单栏（Windows/Linux）
+    Menu.setApplicationMenu(null);
 
     // macOS下设置Dock图标（开发模式）
     if (process.platform === 'darwin' && icon && !icon.isEmpty()) {
