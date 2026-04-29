@@ -91,13 +91,20 @@ export async function startScan(
     
     const workerPool = new WorkerPool(poolSize);
 
+    // 【优化】获取路径总数，用于判断是否是最后一个路径
+    const totalPaths = config.selectedPaths.length;
+    let currentPathIndex = 0;
+
     for (const rootPath of config.selectedPaths) {
+        currentPathIndex++;
+        const isLastPath = currentPathIndex === totalPaths; // 是否是最后一个路径
+        
         if (scanState.cancelFlag) {
             log('扫描已取消');
             break;
         }
 
-        log(`正在扫描: ${rootPath}`);
+        log(`正在扫描: ${rootPath} (${currentPathIndex}/${totalPaths})`);
 
         if (!fs.existsSync(rootPath)) {
             log(`路径不存在: ${rootPath}`);
@@ -358,34 +365,43 @@ export async function startScan(
                     return;
                 }
                 
-                // 等待所有活动任务完成（最多等待 2 分钟）
-                const maxWaitTime = 120000; // 2分钟
-                const startTime = Date.now();
-                
-                const checkCompletion = () => {
-                    // 超时保护
-                    if (Date.now() - startTime > maxWaitTime) {
-                        log(`警告: 等待任务完成超时，强制结束（活动任务: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}）`);
-                        pathScanCompleted = true;
-                        resolve();
-                        return;
-                    }
+                // 【优化】只在最后一个路径时等待所有任务完成
+                // 中间路径遍历完成后立即开始下一个路径，提高并发效率
+                if (isLastPath) {
+                    // 最后一个路径：等待所有任务完成（最多等待 2 分钟）
+                    const maxWaitTime = 120000; // 2分钟
+                    const startTime = Date.now();
                     
-                    // 【修复】只有当没有活动任务、队列为空、且所有文件都已处理时才完成
-                    if (activeTasks === 0 && taskQueue.length === 0 && processedCount >= scannedCount) {
-                        log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
-                        pathScanCompleted = true;
-                        resolve();
-                    } else {
-                        // 继续等待（每 10 秒输出一次状态，便于诊断）
-                        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                        if (elapsed % 10 === 0 && elapsed > 0) {
-                            console.log(`等待任务完成... 活动: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}, 已等待: ${elapsed}秒`);
+                    const checkCompletion = () => {
+                        // 超时保护
+                        if (Date.now() - startTime > maxWaitTime) {
+                            log(`警告: 等待任务完成超时，强制结束（活动任务: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}）`);
+                            pathScanCompleted = true;
+                            resolve();
+                            return;
                         }
-                        setTimeout(checkCompletion, 50);
-                    }
-                };
-                checkCompletion();
+                        
+                        // 【修复】只有当没有活动任务、队列为空、且所有文件都已处理时才完成
+                        if (activeTasks === 0 && taskQueue.length === 0 && processedCount >= scannedCount) {
+                            log(`路径 ${rootPath} 扫描完成: 遍历 ${scannedCount} 个文件, 处理 ${processedCount} 个, 发现 ${resultCount} 个敏感文件`);
+                            pathScanCompleted = true;
+                            resolve();
+                        } else {
+                            // 继续等待（每 10 秒输出一次状态，便于诊断）
+                            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                            if (elapsed % 10 === 0 && elapsed > 0) {
+                                console.log(`等待任务完成... 活动: ${activeTasks}, 队列: ${taskQueue.length}, 已处理: ${processedCount}/${scannedCount}, 已等待: ${elapsed}秒`);
+                            }
+                            setTimeout(checkCompletion, 50);
+                        }
+                    };
+                    checkCompletion();
+                } else {
+                    // 中间路径：遍历完成后立即开始下一个路径
+                    log(`路径 ${rootPath} 遍历完成: ${scannedCount} 个文件，Worker 继续后台处理`);
+                    pathScanCompleted = true;
+                    resolve();
+                }
             });
         });
         
