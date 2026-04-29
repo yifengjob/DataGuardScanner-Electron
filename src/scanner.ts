@@ -34,8 +34,17 @@ export async function startScan(
         });
         const logWithTime = `[${timeStr}] ${msg}`;
 
-        scanState.logs.push(logWithTime);
-        mainWindow.webContents.send('scan-log', logWithTime);
+        // 【优化】异步添加到日志数组，避免阻塞
+        setImmediate(() => {
+            scanState.logs.push(logWithTime);
+        });
+        
+        // 【优化】异步发送日志到前端，避免阻塞主线程
+        setImmediate(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('scan-log', logWithTime);
+            }
+        });
     };
 
     log('开始扫描...');
@@ -91,6 +100,9 @@ export async function startScan(
 
     let nextTaskId = 0;
     const taskQueue: Array<{ filePath: string; fileSize: number; fileMtime: string }> = [];
+    
+    // IPC 节流
+    let lastProgressTime = 0;
 
     // 创建 Consumer Worker
     function createConsumer(id: number) {
@@ -118,7 +130,10 @@ export async function startScan(
             const pending = pendingTasks.get(taskId);
 
             if (!pending) {
-                console.warn(`[Consumer ${id}] 任务 ${taskId} 已被删除，忽略结果`);
+                // 【优化】只在调试模式下输出，避免生产环境日志过多
+                if (process.env.NODE_ENV === 'development') {
+                    console.warn(`[Consumer ${id}] 任务 ${taskId} 已被删除，忽略结果`);
+                }
                 consumer.busy = false;
                 consumer.taskId = undefined;
                 tryDispatch();
@@ -134,14 +149,17 @@ export async function startScan(
             consumer.taskId = undefined;
             consumerProcessedCount++;
 
-            // 发送进度更新
-            const activeConsumers = consumers.filter(c => c.busy).length;
-            mainWindow.webContents.send('scan-progress', {
-                currentFile: result.filePath || '',
-                scannedCount: consumerProcessedCount,
-                totalCount: walkerTotalCount,
-                skippedCount: walkerSkippedCount
-            });
+            // 【优化】节流发送进度更新（每 200ms 最多一次）
+            const now = Date.now();
+            if (!lastProgressTime || now - lastProgressTime >= 200) {
+                mainWindow.webContents.send('scan-progress', {
+                    currentFile: result.filePath || '',
+                    scannedCount: consumerProcessedCount,
+                    totalCount: walkerTotalCount,
+                    skippedCount: walkerSkippedCount
+                });
+                lastProgressTime = now;
+            }
 
             // 处理结果
             if (result.error) {
@@ -171,6 +189,7 @@ export async function startScan(
         });
 
         worker.on('error', (error: any) => {
+            // 【优化】只记录到日志文件，不发送到前端
             console.error(`[Consumer ${id}] Worker 错误:`, error.message);
             consumer.busy = false;
             
@@ -187,6 +206,7 @@ export async function startScan(
 
         worker.on('exit', (code) => {
             if (code !== 0 && !scanState.cancelFlag) {
+                // 【优化】只记录到日志文件
                 console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}`);
                 setTimeout(() => {
                     if (!scanState.cancelFlag) {
@@ -288,9 +308,6 @@ export async function startScan(
             });
         });
     }
-
-    // IPC 节流
-    let lastProgressTime = 0;
 
     // 创建 Walker Worker
     const walkerWorkerPath = path.join(__dirname, 'walker-worker.js');
