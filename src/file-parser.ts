@@ -105,8 +105,28 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
 
 async function extractExcel(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
+    // 【修复】先检查文件大小，避免处理超大文件导致崩溃
+    const stat = await fs.promises.stat(filePath);
+    const fileSizeMB = stat.size / 1024 / 1024;
+    
+    // 如果文件超过 50MB，直接使用二进制提取，避免 exceljs 崩溃
+    if (fileSizeMB > 50) {
+      console.warn(`Excel文件过大 (${fileSizeMB.toFixed(1)}MB)，使用二进制提取: ${filePath}`);
+      const data = await fs.promises.readFile(filePath);
+      const text = extractTextFromBinary(data);
+      return { text: text || '', unsupportedPreview: !text.trim() };
+    }
+    
+    // 【修复】添加超时保护，防止 exceljs 卡死
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(filePath);
+    
+    // 使用 Promise.race 添加 30 秒超时
+    const readPromise = workbook.xlsx.readFile(filePath);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Excel解析超时（30秒）')), 30000);
+    });
+    
+    await Promise.race([readPromise, timeoutPromise]);
     
     let text = '';
     
@@ -153,14 +173,27 @@ async function extractExcel(filePath: string): Promise<{ text: string; unsupport
     
     return { text, unsupportedPreview: false };
   } catch (error: any) {
-    // 【修复】Windows 文件锁定或其他读取错误，静默处理
-    console.error(`Excel解析失败 ${filePath}:`, error.message);
+    // 【修复】详细记录 Excel 解析失败的原因
+    const stat = await fs.promises.stat(filePath).catch(() => null);
+    const fileSizeMB = stat ? (stat.size / 1024 / 1024).toFixed(2) : '未知';
+    
+    console.error(`Excel解析失败 ${filePath}:`);
+    console.error(`  - 文件大小: ${fileSizeMB} MB`);
+    console.error(`  - 错误类型: ${error.constructor.name}`);
+    console.error(`  - 错误代码: ${error.code || '无'}`);
+    console.error(`  - 错误消息: ${error.message}`);
+    
+    // 如果是超时错误，直接返回
+    if (error.message.includes('超时')) {
+      console.warn(`Excel解析超时，使用二进制提取: ${filePath}`);
+    }
     
     // 尝试二进制文本提取作为备选
     try {
       const data = await fs.promises.readFile(filePath);
       const text = extractTextFromBinary(data);
       if (text.trim()) {
+        console.log(`Excel二进制提取成功: ${filePath}`);
         return { text, unsupportedPreview: false };
       }
     } catch (e: any) {
