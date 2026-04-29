@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as ExcelJS from 'exceljs';
+// 【修复】移除 exceljs 导入，避免原生 C++ 段错误导致闪退
+// import * as ExcelJS from 'exceljs';
 import pdfParse from 'pdf-parse';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
@@ -104,102 +105,19 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
 }
 
 async function extractExcel(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  // 【修复】完全禁用 exceljs，避免原生 C++ 段错误导致闪退
+  // 所有 Excel 文件统一使用二进制文本提取
   try {
-    // 【修复】先检查文件大小，避免处理超大文件导致崩溃
-    const stat = await fs.promises.stat(filePath);
-    const fileSizeMB = stat.size / 1024 / 1024;
+    const data = await fs.promises.readFile(filePath);
+    const text = extractTextFromBinary(data);
     
-    // 如果文件超过 50MB，直接使用二进制提取，避免 exceljs 崩溃
-    if (fileSizeMB > 50) {
-      console.warn(`Excel文件过大 (${fileSizeMB.toFixed(1)}MB)，使用二进制提取: ${filePath}`);
-      const data = await fs.promises.readFile(filePath);
-      const text = extractTextFromBinary(data);
-      return { text: text || '', unsupportedPreview: !text.trim() };
+    if (!text.trim()) {
+      return { text: '', unsupportedPreview: true };
     }
-    
-    // 【修复】添加超时保护，防止 exceljs 卡死
-    const workbook = new ExcelJS.Workbook();
-    
-    // 使用 Promise.race 添加 30 秒超时
-    const readPromise = workbook.xlsx.readFile(filePath);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Excel解析超时（30秒）')), 30000);
-    });
-    
-    await Promise.race([readPromise, timeoutPromise]);
-    
-    let text = '';
-    
-    // 遍历所有工作表
-    workbook.eachSheet((worksheet, sheetId) => {
-      worksheet.eachRow((row, rowNumber) => {
-        const cells: string[] = [];
-        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-          let cellValue = '';
-          
-          if (cell.value) {
-            // 处理不同类型的单元格值
-            if (typeof cell.value === 'object') {
-              // 富文本类型
-              if ((cell.value as any).richText) {
-                cellValue = (cell.value as any).richText
-                  .map((r: any) => r.text || '')
-                  .join('');
-              }
-              // 公式结果
-              else if ((cell.value as any).result !== undefined) {
-                cellValue = String((cell.value as any).result);
-              }
-              // 其他对象类型，尝试获取text属性
-              else if ((cell.value as any).text) {
-                cellValue = String((cell.value as any).text);
-              }
-              // 默认转换为字符串
-              else {
-                cellValue = String(cell.value);
-              }
-            } else {
-              // 基本类型（string, number, boolean, date）
-              cellValue = String(cell.value);
-            }
-          }
-          
-          cells.push(cellValue);
-        });
-        text += cells.join('\t') + '\n';
-      });
-      text += '---\n';
-    });
     
     return { text, unsupportedPreview: false };
   } catch (error: any) {
-    // 【修复】详细记录 Excel 解析失败的原因
-    const stat = await fs.promises.stat(filePath).catch(() => null);
-    const fileSizeMB = stat ? (stat.size / 1024 / 1024).toFixed(2) : '未知';
-    
-    console.error(`Excel解析失败 ${filePath}:`);
-    console.error(`  - 文件大小: ${fileSizeMB} MB`);
-    console.error(`  - 错误类型: ${error.constructor.name}`);
-    console.error(`  - 错误代码: ${error.code || '无'}`);
-    console.error(`  - 错误消息: ${error.message}`);
-    
-    // 如果是超时错误，直接返回
-    if (error.message.includes('超时')) {
-      console.warn(`Excel解析超时，使用二进制提取: ${filePath}`);
-    }
-    
-    // 尝试二进制文本提取作为备选
-    try {
-      const data = await fs.promises.readFile(filePath);
-      const text = extractTextFromBinary(data);
-      if (text.trim()) {
-        console.log(`Excel二进制提取成功: ${filePath}`);
-        return { text, unsupportedPreview: false };
-      }
-    } catch (e: any) {
-      // 忽略二级错误
-      console.error(`Excel二进制提取也失败 ${filePath}:`, e.message);
-    }
+    console.error(`Excel文件读取失败 ${filePath}:`, error.message);
     return { text: '', unsupportedPreview: true };
   }
 }
