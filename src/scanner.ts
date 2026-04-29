@@ -431,8 +431,8 @@ export async function startScan(
                     } else {
                         // 继续等待（每 10 秒输出一次状态，便于诊断）
                         const elapsed = Math.floor((now - lastProgressCheck) / 1000);
-                        if (elapsed % 30 === 0 && elapsed > 0 && !hasProgress) {
-                            console.log(`等待任务完成... 活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}, 无进展时间: ${elapsed}秒`);
+                        if (elapsed % 10 === 0 && elapsed > 0) {
+                            console.log(`[等待] 活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}, 无进展时间: ${elapsed}秒`);
                         }
                         setTimeout(checkCompletion, 50);
                     }
