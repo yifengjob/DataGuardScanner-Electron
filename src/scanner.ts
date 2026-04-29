@@ -139,6 +139,9 @@ export async function startScan(
             consumer.taskId = undefined;
             activeWorkerCount--; // 【优化】减少活跃计数
             consumerProcessedCount++;
+            
+            // 【事件驱动】更新最后活动时间
+            lastActivityTime = Date.now();
 
             // 【优化】节流发送进度更新（每 200ms 最多一次）
             const now = Date.now();
@@ -177,6 +180,9 @@ export async function startScan(
 
             // 调度下一个任务
             tryDispatch();
+            
+            // 【事件驱动】检查是否应该结束
+            checkAndComplete();
         });
 
         worker.on('error', (error: any) => {
@@ -321,6 +327,9 @@ export async function startScan(
         if (message.type === 'file-found') {
             walkerTotalCount++;
             
+            // 【事件驱动】更新最后活动时间
+            lastActivityTime = Date.now();
+            
             // 更新进度
             const now = Date.now();
             if (!lastProgressTime || now - lastProgressTime >= 200) {
@@ -348,19 +357,23 @@ export async function startScan(
             log(`Walker 完成: 找到 ${message.fileCount} 个文件, 跳过 ${message.skippedCount} 个`);
             walkerSkippedCount += message.skippedCount;
             
-            // 等待所有任务完成
-            waitForCompletion();
+            // 【事件驱动】检查是否应该结束
+            checkAndComplete();
         }
 
         if (message.type === 'walking-error') {
             log(`Walker 错误: ${message.error}`);
-            waitForCompletion();
+            
+            // 【事件驱动】检查是否应该结束
+            checkAndComplete();
         }
     });
 
     walkerWorker.on('error', (error: any) => {
         log(`Walker Worker 错误: ${error.message}`);
-        waitForCompletion();
+        
+        // 【事件驱动】检查是否应该结束
+        checkAndComplete();
     });
 
     walkerWorker.on('exit', (code) => {
@@ -369,51 +382,46 @@ export async function startScan(
         }
     });
 
-    // 等待所有任务完成
-    function waitForCompletion() {
-        let lastProgressCheck = Date.now();
-        let lastProcessedCount = consumerProcessedCount;
+    // 【事件驱动】检查是否应该结束扫描
+    let completionCheckTimer: NodeJS.Timeout | null = null;
+    let lastActivityTime = Date.now(); // 【重命名】避免与 IPC 节流的 lastProgressTime 冲突
+    const maxIdleTime = 120000; // 2分钟无进展才超时
 
-        const maxIdleTime = 120000; // 2分钟无进展才超时
+    function checkAndComplete() {
+        // 检查是否取消
+        if (scanState.cancelFlag) {
+            cleanup();
+            return;
+        }
 
-        const checkCompletion = () => {
-            if (scanState.cancelFlag) {
-                cleanup();
-                return;
-            }
+        // 【事件驱动】只有在没有活跃 Worker 且队列为空时才完成
+        if (activeWorkerCount === 0 && taskQueue.length === 0) {
+            log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
+            cleanup();
+            return;
+        }
 
-            const now = Date.now();
-            const currentProcessed = consumerProcessedCount;
-            const currentQueue = taskQueue.length;
-            
-            // 【优化】只在有进展时更新检查时间
-            if (currentProcessed > lastProcessedCount) {
-                lastProgressCheck = now;
-                lastProcessedCount = currentProcessed;
-            }
-
-            const idleTime = now - lastProgressCheck;
-            if (idleTime > maxIdleTime) {
-                log(`警告: 扫描停滞超过${maxIdleTime / 1000}秒，强制结束`);
-                cleanup();
-                return;
-            }
-
-            // 【优化】使用缓存的 activeWorkerCount，避免频繁 filter
-            // 检查间隔增加到 200ms，大幅减少 CPU 占用
-            if (activeWorkerCount === 0 && currentQueue === 0) {
-                log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
-                cleanup();
-            } else {
-                setTimeout(checkCompletion, 200); // 从 50ms 增加到 200ms
-            }
-        };
-
-        checkCompletion();
+        // 更新最后活动时间
+        lastActivityTime = Date.now();
     }
+
+    // 【超时检测】单独的定时器，每 10 秒检查一次是否有进展
+    completionCheckTimer = setInterval(() => {
+        const idleTime = Date.now() - lastActivityTime;
+        if (idleTime > maxIdleTime) {
+            log(`警告: 扫描停滞超过${maxIdleTime / 1000}秒，强制结束`);
+            cleanup();
+        }
+    }, 10000); // 每 10 秒检查一次
 
     // 清理资源
     function cleanup() {
+        // 【事件驱动】清除超时检测定时器
+        if (completionCheckTimer) {
+            clearInterval(completionCheckTimer);
+            completionCheckTimer = null;
+        }
+
         // 终止 Walker Worker
         try {
             walkerWorker.terminate();
