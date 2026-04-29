@@ -359,6 +359,8 @@ const getThemeTooltip = () => {
   background-color: var(--menu-bg);
   border-bottom: var(--border-width) solid var(--border-color);
   contain: layout style;             /* ← 限制重排范围 */
+  position: relative;                /* 【修复】为下拉菜单提供定位上下文 */
+  z-index: 100;                      /* 【修复】确保菜单栏在内容区之上 */
 }
 
 .menu-item {
@@ -409,9 +411,9 @@ const getThemeTooltip = () => {
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--radius-sm);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  z-index: 10000;                    /* 【修复】提高 z-index，确保在最上层 */
   margin-top: 0.25em;
-  overflow: hidden;
+  overflow: visible;                 /* 【修复】允许内容溢出 */
 }
 
 .dropdown-item {
