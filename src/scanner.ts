@@ -206,10 +206,17 @@ export async function startScan(
             } catch (error: any) {
                 if (!scanState.cancelFlag) {
                     log(`处理文件失败 ${filePath}: ${error.message}`);
+                    // 【调试】输出错误详情
+                    console.error(`[Worker错误] ${filePath}:`, error.message);
                 }
             } finally {
                 // 任务完成，减少活动任务数
                 activeTasks--;
+                
+                // 【调试】输出状态变化
+                if (activeTasks < 0) {
+                    console.error(`[严重错误] activeTasks 变为负数: ${activeTasks}，文件: ${filePath}`);
+                }
 
                 // 发送进度（基于实际处理的文件数）
                 const now = Date.now();
