@@ -375,7 +375,7 @@ export async function startScan(
                 }
 
                 // 【优化】智能等待：动态监控任务完成情况，无固定超时限制
-                // 只有当长时间（5分钟）没有任何进展时才判定为卡住
+                // 只有当长时间（2分钟）没有任何进展时才判定为卡住
                 let lastProgressCheck = Date.now();
                 let lastProcessedCount = processedCount;
                 let lastActiveTasks = activeTasks;
