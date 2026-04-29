@@ -1,4 +1,4 @@
-import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu} from 'electron';
+import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu, screen} from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import {ScanState} from './scan-state';
@@ -22,7 +22,48 @@ console.warn = function(...args) {
 let mainWindow: BrowserWindow | null = null;
 const scanState = new ScanState();
 
+// 【新增】计算窗口位置和尺寸（屏幕的 85%，居中显示）
+function getWindowBounds(): { x?: number; y?: number; width: number; height: number } {
+    try {
+        // 获取鼠标所在的显示器
+        const cursorPoint = screen.getCursorScreenPoint();
+        const display = screen.getDisplayNearestPoint(cursorPoint);
+        
+        // 获取工作区（排除任务栏/Dock）
+        const workArea = display.workArea;
+        
+        // 计算目标尺寸（85%）
+        const targetWidth = Math.floor(workArea.width * 0.85);
+        const targetHeight = Math.floor(workArea.height * 0.85);
+        
+        // 应用尺寸限制
+        const minWidth = 1000;
+        const minHeight = 600;
+        const maxWidth = 1920;
+        const maxHeight = 1080;
+        
+        const width = Math.max(minWidth, Math.min(maxWidth, targetWidth));
+        const height = Math.max(minHeight, Math.min(maxHeight, targetHeight));
+        
+        // 居中计算
+        const x = workArea.x + Math.floor((workArea.width - width) / 2);
+        const y = workArea.y + Math.floor((workArea.height - height) / 2);
+        
+        console.log(`窗口位置: (${x}, ${y}), 尺寸: ${width}x${height}`);
+        console.log(`显示器工作区: ${workArea.width}x${workArea.height}, 缩放: ${display.scaleFactor}x`);
+        
+        return { x, y, width, height };
+    } catch (error) {
+        console.error('计算窗口位置失败，使用默认值:', error);
+        // 降级方案：使用默认尺寸，系统会自动居中
+        return { width: 1024, height: 768 };
+    }
+}
+
 function createWindow() {
+    // 【新增】计算窗口位置和尺寸
+    const bounds = getWindowBounds();
+    
     // 加载应用图标
     let icon: any = undefined;
     try {
@@ -43,8 +84,10 @@ function createWindow() {
     }
 
     mainWindow = new BrowserWindow({
-        width: 1024,
-        height: 768,
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
         minWidth: 1000,
         minHeight: 600,
         webPreferences: {
