@@ -198,7 +198,9 @@ export function calculateActualConcurrency(configuredConcurrency: number): {
   if (configuredConcurrency && configuredConcurrency > 0) {
     actualConcurrency = Math.min(configuredConcurrency, maxAllowedConcurrency);
   } else {
-    actualConcurrency = Math.min(Math.max(cpuCount, 2), 4);
+    // 【优化】默认并发数更保守，避免 CPU 过载
+    // 使用 CPU 核心数的一半，但不超过 4，最少 2
+    actualConcurrency = Math.min(Math.max(Math.floor(cpuCount / 2), 2), 4);
   }
   
   return {

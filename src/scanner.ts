@@ -70,6 +70,7 @@ export async function startScan(
     let walkerSkippedCount = 0;    // Walker 跳过的文件数
     let consumerProcessedCount = 0; // Consumer 已处理的文件数
     let resultCount = 0;            // 发现的敏感文件数
+    let activeWorkerCount = 0;      // 【优化】跟踪活跃的 Worker 数量
 
     // 创建 Consumer Workers 池
     const consumers: Array<{
@@ -122,6 +123,7 @@ export async function startScan(
                     console.warn(`[Consumer ${id}] 任务 ${taskId} 已被删除，忽略结果`);
                 }
                 consumer.busy = false;
+                activeWorkerCount--; // 【优化】减少活跃计数
                 consumer.taskId = undefined;
                 consumerProcessedCount++; // 即使任务已删除也要计数，避免死锁
                 tryDispatch();
@@ -135,6 +137,7 @@ export async function startScan(
             // 标记 Worker 为空闲
             consumer.busy = false;
             consumer.taskId = undefined;
+            activeWorkerCount--; // 【优化】减少活跃计数
             consumerProcessedCount++;
 
             // 【优化】节流发送进度更新（每 200ms 最多一次）
@@ -180,6 +183,7 @@ export async function startScan(
             // 【优化】只记录到日志文件，不发送到前端
             console.error(`[Consumer ${id}] Worker 错误:`, error.message);
             consumer.busy = false;
+            activeWorkerCount--; // 【优化】减少活跃计数
             
             if (consumer.taskId !== undefined) {
                 const pending = pendingTasks.get(consumer.taskId);
@@ -255,6 +259,7 @@ export async function startScan(
         }
 
         consumer.busy = true;
+        activeWorkerCount++; // 【优化】增加活跃计数
         const taskId = nextTaskId++;
         consumer.taskId = taskId;
 
@@ -267,6 +272,7 @@ export async function startScan(
                 const pending = pendingTasks.get(taskId);
                 if (pending) {
                     pendingTasks.delete(taskId);
+                    activeWorkerCount--; // 【优化】减少活跃计数
                     consumerProcessedCount++; // 超时也要计数
                     pending.reject(new Error(`文件处理超时（${timeout / 1000}秒）`));
                 }
@@ -381,7 +387,7 @@ export async function startScan(
             const currentQueue = taskQueue.length;
             
             // 【优化】只在有进展时更新检查时间
-            if (currentProcessed > lastProcessedCount || currentQueue !== taskQueue.length) {
+            if (currentProcessed > lastProcessedCount) {
                 lastProgressCheck = now;
                 lastProcessedCount = currentProcessed;
             }
@@ -393,13 +399,13 @@ export async function startScan(
                 return;
             }
 
-            // 【优化】增加检查间隔到 100ms，减少 CPU 占用
-            const currentActive = consumers.filter(c => c.busy).length;
-            if (currentActive === 0 && currentQueue === 0) {
+            // 【优化】使用缓存的 activeWorkerCount，避免频繁 filter
+            // 检查间隔增加到 200ms，大幅减少 CPU 占用
+            if (activeWorkerCount === 0 && currentQueue === 0) {
                 log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
                 cleanup();
             } else {
-                setTimeout(checkCompletion, 100); // 从 50ms 增加到 100ms
+                setTimeout(checkCompletion, 200); // 从 50ms 增加到 200ms
             }
         };
 
