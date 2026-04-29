@@ -285,8 +285,31 @@ function setupIpcHandlers() {
     });
 
     // 取消扫描
-    ipcMain.handle('scan-cancel', () => {
+    ipcMain.handle('scan-cancel', async () => {
+        if (!scanState.isScanning) {
+            return {success: true};
+        }
+        
         cancelScan(scanState);
+        
+        // 【修复】等待扫描状态真正重置，避免竞态条件
+        // 最多等待 10 秒，每 100ms 检查一次
+        const maxWaitTime = 10000;
+        const checkInterval = 100;
+        let waitedTime = 0;
+        
+        while (scanState.isScanning && waitedTime < maxWaitTime) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            waitedTime += checkInterval;
+        }
+        
+        if (scanState.isScanning) {
+            console.warn('[scan-cancel] 警告: 等待 10 秒后扫描仍未结束，强制重置状态');
+            scanState.isScanning = false;
+        } else {
+            console.log('[scan-cancel] 扫描已安全取消');
+        }
+        
         return {success: true};
     });
 
@@ -464,7 +487,10 @@ function setupIpcHandlers() {
             const os = require('os');
             const userDataPath = app.getPath('userData');
             
-            // 清理 Chromium 缓存
+            let cleanedSize = 0;
+            const cleanedFiles: string[] = [];
+            
+            // 1. 清理 Chromium 缓存
             const cacheDirs = [
                 path.join(userDataPath, 'Cache'),
                 path.join(userDataPath, 'GPUCache'),
@@ -472,16 +498,54 @@ function setupIpcHandlers() {
                 path.join(userDataPath, 'Service Worker'),
             ];
             
-            let cleanedSize = 0;
             for (const cacheDir of cacheDirs) {
                 if (fs.existsSync(cacheDir)) {
                     const size = getDirectorySize(cacheDir);
                     fs.rmSync(cacheDir, { recursive: true, force: true });
                     cleanedSize += size;
+                    cleanedFiles.push(path.basename(cacheDir));
                 }
             }
             
-            // 清理系统临时目录中的本应用相关文件
+            // 2. 【新增】清理日志文件（保留当前正在使用的日志）
+            const logDir = path.join(userDataPath, 'logs');
+            if (fs.existsSync(logDir)) {
+                const logFiles = fs.readdirSync(logDir);
+                const currentLogFile = `app-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+                
+                for (const logFile of logFiles) {
+                    // 跳过当前正在使用的日志文件
+                    if (logFile === currentLogFile) {
+                        console.log(`[clear-cache] 保留当前日志: ${logFile}`);
+                        continue;
+                    }
+                    
+                    const logFilePath = path.join(logDir, logFile);
+                    try {
+                        const stat = fs.statSync(logFilePath);
+                        if (stat.isFile()) {
+                            fs.unlinkSync(logFilePath);
+                            cleanedSize += stat.size;
+                            cleanedFiles.push(`logs/${logFile}`);
+                        }
+                    } catch (e) {
+                        console.warn(`[clear-cache] 无法删除日志文件 ${logFile}:`, e);
+                    }
+                }
+                
+                // 【优化】清空当前日志文件内容（不删除文件本身）
+                const currentLogPath = path.join(logDir, currentLogFile);
+                if (fs.existsSync(currentLogPath)) {
+                    try {
+                        fs.writeFileSync(currentLogPath, '');
+                        console.log('[clear-cache] 已清空当前日志文件内容');
+                    } catch (e) {
+                        console.warn('[clear-cache] 清空当前日志失败:', e);
+                    }
+                }
+            }
+            
+            // 3. 清理系统临时目录中的本应用相关文件
             const tempDir = os.tmpdir();
             if (fs.existsSync(tempDir)) {
                 const files = fs.readdirSync(tempDir);
@@ -494,6 +558,7 @@ function setupIpcHandlers() {
                         if (daysOld > 7 && stat.isFile()) {
                             fs.unlinkSync(filePath);
                             cleanedSize += stat.size;
+                            cleanedFiles.push(`temp/${file}`);
                         }
                     } catch (e) {
                         // 忽略无法删除的文件
@@ -501,10 +566,13 @@ function setupIpcHandlers() {
                 }
             }
             
-            console.log(`缓存清理完成，释放 ${Math.round(cleanedSize / 1024 / 1024)} MB 空间`);
-            return { success: true, cleanedSize };
+            const cleanedSizeMB = Math.round(cleanedSize / 1024 / 1024);
+            console.log(`[clear-cache] 缓存清理完成，释放 ${cleanedSizeMB} MB 空间`);
+            console.log(`[clear-cache] 清理的文件: ${cleanedFiles.join(', ') || '无'}`);
+            
+            return { success: true, cleanedSize, cleanedFiles };
         } catch (error: any) {
-            console.error('清理缓存失败:', error);
+            console.error('[clear-cache] 清理缓存失败:', error);
             return { error: error.message };
         }
     });

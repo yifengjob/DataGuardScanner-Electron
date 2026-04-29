@@ -181,7 +181,7 @@ export async function startScan(
                 // 使用 Worker 池处理文件（不阻塞主线程！）
                 // 【优化】移除这里的超时，Worker 内部已有 60 秒超时保护
                 // 避免排队时间计入超时导致误判
-                const result = await workerPool.processFile(filePath, config.enabledSensitiveTypes) as any;
+                const result = await workerPool.processFile(filePath, config.enabledSensitiveTypes, stat.size) as any;
 
                 if (result.unsupportedPreview) {
                     return;
@@ -290,6 +290,37 @@ export async function startScan(
                 }
             } catch {
                 skippedCount++;  // ← 增加跳过计数
+                return;
+            }
+
+            // 【新增】检查文件可读性和可打开性（避免将无权限或锁定的文件加入队列）
+            try {
+                // 第一步：检查读权限
+                fs.accessSync(filePath, fs.constants.R_OK);
+                
+                // 第二步：【Windows 专用】尝试以只读方式打开文件，检测是否被锁定
+                // 这可以提前发现 EBUSY（文件锁定）问题，避免浪费 Worker 资源
+                if (process.platform === 'win32') {
+                    const fd = fs.openSync(filePath, 'r');
+                    fs.closeSync(fd);
+                }
+            } catch (accessError: any) {
+                skippedCount++;
+                
+                // 区分不同类型的错误
+                let skipReason = '未知原因';
+                if (accessError.code === 'EPERM' || accessError.code === 'EACCES') {
+                    skipReason = '无权限';
+                } else if (accessError.code === 'EBUSY') {
+                    skipReason = '文件被锁定';
+                } else if (accessError.code === 'ENOENT') {
+                    skipReason = '文件不存在';
+                }
+                
+                // 只记录前 10 个跳过的文件，之后每 100 个记录一次，避免日志过多
+                if (skippedCount <= 10 || skippedCount % 100 === 0) {
+                    log(`跳过文件 [${skipReason}]: ${filePath} (${accessError.code || 'UNKNOWN'})`);
+                }
                 return;
             }
 
@@ -420,7 +451,7 @@ export async function startScan(
                     // 检查是否超时（长时间无任何进展）
                     const idleTime = now - lastProgressCheck;
                     if (idleTime > maxIdleTime && !scanState.cancelFlag) {
-                        log(`警告: 扫描停滞超过${maxIdleTime / 1000 / 60}分钟，强制结束（活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}）`);
+                        log(`警告: 扫描停滞超过${maxIdleTime / 1000}秒，强制结束（活动: ${currentActive}, 队列: ${currentQueue}, 已处理: ${currentProcessed}/${scannedCount}）`);
                         pathScanCompleted = true;
                         resolve();
                         return;

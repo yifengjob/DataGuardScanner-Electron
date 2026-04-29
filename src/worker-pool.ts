@@ -9,6 +9,7 @@ interface PendingTask {
   taskId: number;
   filePath: string;
   enabledSensitiveTypes: string[];
+  fileSize?: number; // 【新增】文件大小，用于动态计算超时时间
   resolve: (result: any) => void;
   reject: (error: any) => void;
 }
@@ -17,14 +18,17 @@ interface WorkerInfo {
   worker: Worker;
   busy: boolean;
   currentTaskId?: number;
+  taskStartTime?: number; // 【新增】记录任务开始时间
 }
 
 export class WorkerPool {
   private workers: WorkerInfo[] = [];
   private taskQueue: PendingTask[] = [];
   private pendingTasks = new Map<number, PendingTask>();  // ← 新增：保存所有待处理的任务
+  private taskTimeouts = new Map<number, NodeJS.Timeout>(); // 【新增】保存任务超时定时器
   private nextTaskId = 0;
   private destroyed = false;
+  private readonly TASK_TIMEOUT = 180000; // 【新增】单个任务最大执行时间 3 分钟（考虑大文件处理）
 
   constructor(private poolSize: number) {
     // 创建 Worker 池
@@ -59,9 +63,19 @@ export class WorkerPool {
       // 找到对应的任务并 resolve
       const taskId = result.taskId;
       
+      // 清除任务超时定时器
+      if (workerInfo.currentTaskId !== undefined) {
+        const timeoutId = this.taskTimeouts.get(workerInfo.currentTaskId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          this.taskTimeouts.delete(workerInfo.currentTaskId);
+        }
+      }
+      
       // 标记 Worker 为空闲
       workerInfo.busy = false;
       workerInfo.currentTaskId = undefined;
+      workerInfo.taskStartTime = undefined;
 
       // 处理结果
       if (result.error) {
@@ -90,6 +104,16 @@ export class WorkerPool {
 
     worker.on('error', (error: any) => {
       console.error('Worker 错误:', error.message);
+      
+      // 【修复】清除任务超时定时器
+      if (workerInfo.currentTaskId !== undefined) {
+        const timeoutId = this.taskTimeouts.get(workerInfo.currentTaskId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          this.taskTimeouts.delete(workerInfo.currentTaskId);
+        }
+      }
+      
       workerInfo.busy = false;
       
       // 如果当前有任务，reject 它
@@ -113,6 +137,15 @@ export class WorkerPool {
       if (code !== 0) {
         console.error(`Worker 异常退出，代码: ${code}`);
         
+        // 【修复】清除任务超时定时器
+        if (workerInfo.currentTaskId !== undefined) {
+          const timeoutId = this.taskTimeouts.get(workerInfo.currentTaskId);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            this.taskTimeouts.delete(workerInfo.currentTaskId);
+          }
+        }
+        
         // 如果 Worker 异常退出，尝试重新创建一个
         // 延迟 100ms 后重新创建，避免频繁重启
         setTimeout(() => {
@@ -133,7 +166,8 @@ export class WorkerPool {
    */
   async processFile(
     filePath: string,
-    enabledSensitiveTypes: string[]
+    enabledSensitiveTypes: string[],
+    fileSize?: number // 【新增】可选的文件大小参数
   ): Promise<any> {
     if (this.destroyed) {
       throw new Error('Worker 池已销毁');
@@ -146,6 +180,7 @@ export class WorkerPool {
         taskId,
         filePath,
         enabledSensitiveTypes,
+        fileSize,
         resolve,
         reject
       };
@@ -169,6 +204,31 @@ export class WorkerPool {
   }
 
   /**
+   * 【新增】根据文件大小计算动态超时时间
+   * - 小文件 (< 10MB): 60 秒
+   * - 中文件 (10-50MB): 120 秒
+   * - 大文件 (50-100MB): 180 秒
+   * - 超大文件 (> 100MB): 300 秒
+   */
+  private calculateTimeout(fileSize?: number): number {
+    if (!fileSize) {
+      return 180000; // 默认 3 分钟
+    }
+    
+    const sizeMB = fileSize / 1024 / 1024;
+    
+    if (sizeMB < 10) {
+      return 60000; // 1 分钟
+    } else if (sizeMB < 50) {
+      return 120000; // 2 分钟
+    } else if (sizeMB < 100) {
+      return 180000; // 3 分钟
+    } else {
+      return 300000; // 5 分钟
+    }
+  }
+
+  /**
    * 为指定的 Worker 调度下一个任务
    */
   private dispatchNextTask(workerInfo: WorkerInfo) {
@@ -185,6 +245,51 @@ export class WorkerPool {
     // 标记 Worker 为忙碌
     workerInfo.busy = true;
     workerInfo.currentTaskId = task.taskId;
+    workerInfo.taskStartTime = Date.now();
+
+    // 【新增】设置任务级别超时保护（动态超时）
+    // 注意：这个超时应该比 Worker 内部的 60 秒超时更长，作为兜底保护
+    // 主要针对 Worker 内部超时未触发的极端情况（如死锁、无限循环等）
+    const timeout = this.calculateTimeout(task.fileSize);
+    const timeoutId = setTimeout(() => {
+      const sizeMB = task.fileSize ? Math.round(task.fileSize / 1024 / 1024) : 0;
+      console.error(`[WorkerPool] 任务 ${task.taskId} 执行超时（${timeout / 1000}秒）: ${task.filePath} (${sizeMB} MB)`);
+      console.warn(`[WorkerPool] 这可能是由于：`);
+      console.warn(`  1. 文件太大或太复杂（建议降低并发数）`);
+      console.warn(`  2. 文件格式损坏导致解析器卡住`);
+      console.warn(`  3. Worker 内部超时机制失效（Bug）`);
+      
+      // 从 Map 中移除任务
+      this.pendingTasks.delete(task.taskId);
+      this.taskTimeouts.delete(task.taskId);
+      
+      // 拒绝任务的 Promise
+      task.reject(new Error(`文件处理超时（超过${timeout / 1000}秒），可能是文件太大、格式异常或解析器卡住`));
+      
+      // 强制终止并重新创建 Worker
+      console.warn(`[WorkerPool] 正在终止超时的 Worker...`);
+      try {
+        workerInfo.worker.terminate();
+      } catch (err) {
+        console.error(`[WorkerPool] 终止 Worker 失败:`, err);
+      }
+      
+      // 标记 Worker 为空闲
+      workerInfo.busy = false;
+      workerInfo.currentTaskId = undefined;
+      workerInfo.taskStartTime = undefined;
+      
+      // 重新创建 Worker
+      if (!this.destroyed) {
+        console.log('[WorkerPool] 正在重新创建 Worker...');
+        this.createWorker();
+      }
+      
+      // 继续调度下一个任务
+      this.dispatchNextTask(workerInfo);
+    }, timeout);
+    
+    this.taskTimeouts.set(task.taskId, timeoutId);
 
     // 发送任务到 Worker
     workerInfo.worker.postMessage({
@@ -220,6 +325,12 @@ export class WorkerPool {
    */
   destroy() {
     this.destroyed = true;
+    
+    // 清除所有任务超时定时器
+    for (const timeoutId of this.taskTimeouts.values()) {
+      clearTimeout(timeoutId);
+    }
+    this.taskTimeouts.clear();
     
     // 拒绝所有待处理的任务（从 Map 中）
     for (const [taskId, task] of this.pendingTasks) {
