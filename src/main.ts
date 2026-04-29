@@ -56,6 +56,15 @@ function setupLogFile() {
 // 在应用启动时设置日志文件
 setupLogFile();
 
+// 【修复】添加全局未处理异常处理器，防止 Windows 闪退
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[全局错误] 未处理的 Promise Rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[全局错误] 未捕获的异常:', error);
+});
+
 let mainWindow: BrowserWindow | null = null;
 const scanState = new ScanState();
 

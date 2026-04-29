@@ -99,12 +99,19 @@ export async function startScan(
     function createConsumer(id: number) {
         const workerPath = path.join(__dirname, 'file-worker.js');
         
-        const worker = new Worker(workerPath, {
-            resourceLimits: {
-                maxOldGenerationSizeMb: 512,
-                maxYoungGenerationSizeMb: 64,
-            }
-        });
+        let worker: Worker;
+        try {
+            worker = new Worker(workerPath, {
+                resourceLimits: {
+                    maxOldGenerationSizeMb: 512,
+                    maxYoungGenerationSizeMb: 64,
+                }
+            });
+        } catch (error: any) {
+            console.error(`[Consumer ${id}] 创建 Worker 失败:`, error.message);
+            log(`错误: 无法创建 Worker ${id} - ${error.message}`);
+            return; // 跳过这个 Worker
+        }
 
         const consumer = {
             worker,
@@ -149,12 +156,15 @@ export async function startScan(
             // 【优化】节流发送进度更新（每 500ms 最多一次，减少 IPC 开销）
             const now = Date.now();
             if (!lastProgressTime || now - lastProgressTime >= 500) {
-                mainWindow.webContents.send('scan-progress', {
-                    currentFile: result.filePath || '',
-                    scannedCount: consumerProcessedCount,
-                    totalCount: walkerTotalCount,
-                    skippedCount: walkerSkippedCount
-                });
+                // 【修复】检查窗口是否已销毁
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('scan-progress', {
+                        currentFile: result.filePath || '',
+                        scannedCount: consumerProcessedCount,
+                        totalCount: walkerTotalCount,
+                        skippedCount: walkerSkippedCount
+                    });
+                }
                 lastProgressTime = now;
             }
 
@@ -176,7 +186,10 @@ export async function startScan(
                         unsupportedPreview: false
                     };
 
-                    mainWindow.webContents.send('scan-result', resultItem);
+                    // 【修复】检查窗口是否已销毁
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('scan-result', resultItem);
+                    }
                 }
                 pending.resolve(result);
             }
@@ -339,7 +352,17 @@ export async function startScan(
 
     // 创建 Walker Worker
     const walkerWorkerPath = path.join(__dirname, 'walker-worker.js');
-    const walkerWorker = new Worker(walkerWorkerPath);
+    let walkerWorker: Worker;
+    try {
+        walkerWorker = new Worker(walkerWorkerPath);
+    } catch (error: any) {
+        log(`错误: 无法创建 Walker Worker - ${error.message}`);
+        scanState.isScanning = false;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('scan-error', `无法创建 Walker Worker: ${error.message}`);
+        }
+        return; // 直接退出
+    }
 
     walkerWorker.on('message', (message: any) => {
         if (message.type === 'ready') {
@@ -355,12 +378,15 @@ export async function startScan(
             // 更新进度（与 Consumer 保持一致，每 500ms 最多一次）
             const now = Date.now();
             if (!lastProgressTime || now - lastProgressTime >= 500) {
-                mainWindow.webContents.send('scan-progress', {
-                    currentFile: message.filePath,
-                    scannedCount: consumerProcessedCount,
-                    totalCount: walkerTotalCount,
-                    skippedCount: walkerSkippedCount
-                });
+                // 【修复】检查窗口是否已销毁
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('scan-progress', {
+                        currentFile: message.filePath,
+                        scannedCount: consumerProcessedCount,
+                        totalCount: walkerTotalCount,
+                        skippedCount: walkerSkippedCount
+                    });
+                }
                 lastProgressTime = now;
             }
 
