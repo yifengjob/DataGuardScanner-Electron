@@ -207,16 +207,20 @@ export async function startScan(
         worker.on('error', (error: any) => {
             // 【优化】只记录到日志文件，不发送到前端
             console.error(`[Consumer ${id}] Worker 错误:`, error.message);
-            consumer.busy = false;
-            activeWorkerCount--; // 【优化】减少活跃计数
             
-            if (consumer.taskId !== undefined) {
-                const pending = pendingTasks.get(consumer.taskId);
-                if (pending) {
-                    clearTimeout(pending.timeoutId);
-                    pendingTasks.delete(consumer.taskId);
-                    consumerProcessedCount++; // 即使失败也要计数
-                    pending.reject(error);
+            // 【修复】只有当 consumer 处于 busy 状态时才减少计数
+            if (consumer.busy) {
+                consumer.busy = false;
+                activeWorkerCount--;
+                
+                if (consumer.taskId !== undefined) {
+                    const pending = pendingTasks.get(consumer.taskId);
+                    if (pending) {
+                        clearTimeout(pending.timeoutId);
+                        pendingTasks.delete(consumer.taskId);
+                        consumerProcessedCount++;
+                        pending.reject(error);
+                    }
                 }
             }
         });
@@ -226,10 +230,11 @@ export async function startScan(
                 // 【优化】只记录到日志文件
                 console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}`);
                 
-                // 【修复】确保更新计数和状态
-                consumer.busy = false;
-                if (consumer.taskId !== undefined) {
-                    activeWorkerCount--; // 减少活跃计数
+                // 【修复】只有当 consumer 处于 busy 状态时才更新计数
+                if (consumer.busy && consumer.taskId !== undefined) {
+                    consumer.busy = false;
+                    activeWorkerCount--;
+                    
                     const pending = pendingTasks.get(consumer.taskId);
                     if (pending) {
                         clearTimeout(pending.timeoutId);
@@ -237,6 +242,9 @@ export async function startScan(
                         consumerProcessedCount++;
                         pending.reject(new Error(`Worker 异常退出（代码: ${code}）`));
                     }
+                } else {
+                    // Worker 空闲时退出，只需标记
+                    consumer.busy = false;
                 }
                 
                 setTimeout(() => {
@@ -345,11 +353,22 @@ export async function startScan(
             });
 
             // 发送任务到 Worker
-            consumer.worker.postMessage({
-                taskId,
-                filePath: task.filePath,
-                enabledSensitiveTypes: config.enabledSensitiveTypes
-            });
+            try {
+                consumer.worker.postMessage({
+                    taskId,
+                    filePath: task.filePath,
+                    enabledSensitiveTypes: config.enabledSensitiveTypes
+                });
+            } catch (error: any) {
+                console.error(`[TaskQueue] 发送任务失败:`, error.message);
+                // 回滚状态
+                consumer.busy = false;
+                consumer.taskId = undefined;
+                activeWorkerCount--;
+                pendingTasks.delete(taskId);
+                // 将任务放回队列头部
+                taskQueue.unshift(task);
+            }
         });
     }
 
@@ -467,46 +486,56 @@ export async function startScan(
 
     // 清理资源
     function cleanup() {
-        // 【修复】防止重复调用
+        // 【修复】防止重复调用 - 使用原子检查
         if (isCleaningUp) {
             console.warn('[cleanup] 警告: cleanup 已被调用，忽略重复调用');
             return;
         }
         isCleaningUp = true;
         
-        // 【事件驱动】清除超时检测定时器
-        if (completionCheckTimer) {
-            clearInterval(completionCheckTimer);
-            completionCheckTimer = null;
-        }
-
-        // 终止 Walker Worker
+        console.log('[cleanup] 开始清理资源...');
+        
         try {
-            walkerWorker.terminate();
-        } catch (error) {
-            console.error('终止 Walker Worker 失败:', error);
-        }
-
-        // 终止所有 Consumer Workers
-        for (const consumer of consumers) {
-            try {
-                consumer.worker.terminate();
-            } catch (error) {
-                console.error('终止 Consumer Worker 失败:', error);
+            // 【事件驱动】清除超时检测定时器
+            if (completionCheckTimer) {
+                clearInterval(completionCheckTimer);
+                completionCheckTimer = null;
             }
-        }
 
-        // 清除所有超时定时器
-        for (const pending of pendingTasks.values()) {
-            clearTimeout(pending.timeoutId);
-        }
-        pendingTasks.clear();
+            // 终止 Walker Worker
+            try {
+                walkerWorker.terminate();
+            } catch (error) {
+                console.error('终止 Walker Worker 失败:', error);
+            }
 
-        scanState.isScanning = false;
-        log('扫描完成');
+            // 终止所有 Consumer Workers
+            for (const consumer of consumers) {
+                try {
+                    consumer.worker.terminate();
+                } catch (error) {
+                    console.error('终止 Consumer Worker 失败:', error);
+                }
+            }
 
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('scan-finished');
+            // 清除所有超时定时器
+            for (const pending of pendingTasks.values()) {
+                clearTimeout(pending.timeoutId);
+            }
+            pendingTasks.clear();
+
+            scanState.isScanning = false;
+            log('扫描完成');
+
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('scan-finished');
+            }
+            
+            console.log('[cleanup] 资源清理完成');
+        } catch (error) {
+            console.error('[cleanup] 清理过程中出错:', error);
+            // 即使出错也要标记为完成
+            scanState.isScanning = false;
         }
     }
 
