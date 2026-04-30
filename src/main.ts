@@ -9,6 +9,13 @@ import {exportReport} from './report-exporter';
 import {loadConfig, saveConfig, calculateRecommendedConcurrency} from './config-manager';
 import {checkEnvironment} from './environment-check';
 import {getSensitiveRules} from './sensitive-detector';
+// 【优化】导入配置常量
+import {
+    CANCEL_SCAN_MAX_WAIT,
+    CANCEL_SCAN_CHECK_INTERVAL,
+    WORKER_MAX_OLD_GENERATION_MB,
+    WORKER_MAX_YOUNG_GENERATION_MB
+} from './scan-config';
 
 // 【新增】设置日志文件
 function setupLogFile() {
@@ -308,18 +315,16 @@ function setupIpcHandlers() {
         cancelScan(scanState);
         
         // 【修复】等待扫描状态真正重置，避免竞态条件
-        // 最多等待 10 秒，每 100ms 检查一次
-        const maxWaitTime = 10000;
-        const checkInterval = 100;
+        // 最多等待一定时间，定期检查状态
         let waitedTime = 0;
         
-        while (scanState.isScanning && waitedTime < maxWaitTime) {
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            waitedTime += checkInterval;
+        while (scanState.isScanning && waitedTime < CANCEL_SCAN_MAX_WAIT) {
+            await new Promise(resolve => setTimeout(resolve, CANCEL_SCAN_CHECK_INTERVAL));
+            waitedTime += CANCEL_SCAN_CHECK_INTERVAL;
         }
         
         if (scanState.isScanning) {
-            console.warn('[scan-cancel] 警告: 等待 10 秒后扫描仍未结束，强制重置状态');
+            console.warn(`[scan-cancel] 警告: 等待 ${CANCEL_SCAN_MAX_WAIT / 1000} 秒后扫描仍未结束，强制重置状态`);
             scanState.isScanning = false;
         } else {
             console.log('[scan-cancel] 扫描已安全取消');
@@ -338,8 +343,8 @@ function setupIpcHandlers() {
             const workerPath = pathModule.join(__dirname, 'file-worker.js');
             const worker = new Worker(workerPath, {
                 resourceLimits: {
-                    maxOldGenerationSizeMb: 256, // 【修复】降低内存限制
-                    maxYoungGenerationSizeMb: 32,
+                    maxOldGenerationSizeMb: WORKER_MAX_OLD_GENERATION_MB,
+                    maxYoungGenerationSizeMb: WORKER_MAX_YOUNG_GENERATION_MB,
                 }
             });
             

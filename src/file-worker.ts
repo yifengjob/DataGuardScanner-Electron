@@ -5,6 +5,8 @@
 import { parentPort } from 'worker_threads';
 import { extractTextFromFile } from './file-parser';
 import { detectSensitiveData } from './sensitive-detector';
+// 【优化】导入配置常量
+import { WORKER_DEFAULT_TIMEOUT } from './scan-config';
 
 interface WorkerTask {
   taskId: number;
@@ -29,12 +31,12 @@ interface WorkerResult {
 parentPort?.on('message', async (task: WorkerTask) => {
   const { taskId, filePath, enabledSensitiveTypes, previewMode = false } = task;
   
-  // 设置超时保护（60秒）
+  // 设置超时保护
   let timeoutId: NodeJS.Timeout | null = null;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
       reject(new Error('处理超时'));
-    }, 60000); // 60秒超时
+    }, WORKER_DEFAULT_TIMEOUT);
   });
   
   try {
