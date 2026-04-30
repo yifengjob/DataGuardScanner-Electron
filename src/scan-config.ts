@@ -14,7 +14,7 @@ export const WORKER_MAX_YOUNG_GENERATION_MB = 32;
 // ==================== 超时时间配置 ====================
 
 /** 文件处理超时 - 小文件 (<1MB) */
-export const TIMEOUT_SMALL_FILE = 30000; // 30 秒
+export const TIMEOUT_SMALL_FILE = 60000; // 60 秒
 
 /** 文件处理超时 - 中等文件 (1-10MB) */
 export const TIMEOUT_MEDIUM_FILE = 60000; // 1 分钟

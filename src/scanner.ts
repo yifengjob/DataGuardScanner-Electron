@@ -97,6 +97,7 @@ export async function startScan(
         worker: Worker;
         busy: boolean;
         taskId?: number;
+        isTerminating?: boolean; // 【新增】标记是否正在被主动终止
     }> = [];
 
     const pendingTasks = new Map<number, {
@@ -244,25 +245,35 @@ export async function startScan(
         });
 
         worker.on('exit', (code) => {
+            // 【修复】区分主动终止和异常退出
+            const consumerRef = consumer as typeof consumers[0];
+            if (consumerRef.isTerminating) {
+                // 主动终止（超时等情况），不视为异常
+                console.log(`[Consumer ${id}] Worker 已终止（代码: ${code}）`);
+                consumerRef.isTerminating = false;
+                consumerRef.busy = false;
+                return;
+            }
+            
             if (code !== 0 && !scanState.cancelFlag) {
                 // 【优化】只记录到日志文件
                 console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}`);
                 
                 // 【修复】只有当 consumer 处于 busy 状态时才更新计数
-                if (consumer.busy && consumer.taskId !== undefined) {
-                    consumer.busy = false;
+                if (consumerRef.busy && consumerRef.taskId !== undefined) {
+                    consumerRef.busy = false;
                     activeWorkerCount--;
                     
-                    const pending = pendingTasks.get(consumer.taskId);
+                    const pending = pendingTasks.get(consumerRef.taskId);
                     if (pending) {
                         clearTimeout(pending.timeoutId);
-                        pendingTasks.delete(consumer.taskId);
+                        pendingTasks.delete(consumerRef.taskId);
                         consumerProcessedCount++;
                         pending.reject(new Error(`Worker 异常退出（代码: ${code}）`));
                     }
                 } else {
                     // Worker 空闲时退出，只需标记
-                    consumer.busy = false;
+                    consumerRef.busy = false;
                 }
                 
                 // 【关键】延迟重启 Worker，避免频繁创建销毁
@@ -279,7 +290,7 @@ export async function startScan(
                     }
                 }, WORKER_RESTART_DELAY);
             } else {
-                consumer.busy = false;
+                consumerRef.busy = false;
             }
         });
 
@@ -350,6 +361,7 @@ export async function startScan(
                 // 【修复】更新 Consumer 状态
                 consumer.busy = false;
                 consumer.taskId = undefined;
+                consumer.isTerminating = true; // 【新增】标记为主动终止
                 
                 // 终止并重新创建 Worker
                 try {
