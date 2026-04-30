@@ -279,56 +279,47 @@ async function startWalking(config: WalkerConfig) {
 let isWalking = false; // 【修复】标记是否正在遍历
 const taskQueue: any[] = []; // 【修复】任务队列
 
-// 【修复】递归处理下一个任务，确保链式调用
-function processNextTask(config: any) {
-  console.log(`[Walker] 开始遍历: ${config.rootPath}`);
-  parentPort?.postMessage({
-    type: 'walker-log',
-    message: `[Walker] 开始遍历: ${config.rootPath}`
-  });
-  
-  startWalking(config).then(() => {
-    console.log(`[Walker] .then() 回调被调用: ${config.rootPath}`);
-    // 遍历完成，检查队列中是否有待处理的任务
-    isWalking = false;
-    const queueLength = taskQueue.length;
-    console.log(`[Walker] 遍历完成: ${config.rootPath}, 队列长度: ${queueLength}`);
-    parentPort?.postMessage({
-      type: 'walker-log',
-      message: `[Walker] 遍历完成: ${config.rootPath}, 队列长度: ${queueLength}`
-    });
-    
-    if (taskQueue.length > 0) {
-      const nextConfig = taskQueue.shift();
-      console.log(`[Walker] 从队列中取出下一个任务: ${nextConfig.rootPath}`);
-      parentPort?.postMessage({
-        type: 'walker-log',
-        message: `[Walker] 从队列中取出下一个任务: ${nextConfig.rootPath}`
-      });
-      isWalking = true;
-      processNextTask(nextConfig); // 递归调用
-    } else {
+// 【修复】迭代处理下一个任务，避免递归导致的栈溢出
+async function processNextTask() {
+  while (taskQueue.length > 0 || isWalking) {
+    if (taskQueue.length === 0) {
+      // 队列为空，等待新任务
       console.log(`[Walker] 队列为空，等待新任务`);
       parentPort?.postMessage({
         type: 'walker-log',
         message: `[Walker] 队列为空，等待新任务`
       });
+      return;
     }
-  }).catch((error: any) => {
-    parentPort?.postMessage({
-      type: 'walking-error',
-      error: error.message || String(error)
-    });
-    isWalking = false;
     
-    // 即使出错也要继续处理队列中的任务
-    if (taskQueue.length > 0) {
-      const nextConfig = taskQueue.shift();
-      console.log(`[Walker] 从队列中取出下一个任务（错误恢复）: ${nextConfig.rootPath}`);
-      isWalking = true;
-      processNextTask(nextConfig); // 递归调用
+    const config = taskQueue.shift();
+    console.log(`[Walker] 开始遍历: ${config.rootPath}`);
+    parentPort?.postMessage({
+      type: 'walker-log',
+      message: `[Walker] 开始遍历: ${config.rootPath}`
+    });
+    
+    try {
+      await startWalking(config);
+      
+      // 遍历完成
+      isWalking = false;
+      const queueLength = taskQueue.length;
+      console.log(`[Walker] .then() 回调被调用: ${config.rootPath}`);
+      console.log(`[Walker] 遍历完成: ${config.rootPath}, 队列长度: ${queueLength}`);
+      parentPort?.postMessage({
+        type: 'walker-log',
+        message: `[Walker] 遍历完成: ${config.rootPath}, 队列长度: ${queueLength}`
+      });
+    } catch (error: any) {
+      parentPort?.postMessage({
+        type: 'walking-error',
+        error: error.message || String(error)
+      });
+      isWalking = false;
+      console.log(`[Walker] 从队列中取出下一个任务（错误恢复）: ${taskQueue.length > 0 ? taskQueue[0].rootPath : 'none'}`);
     }
-  });
+  }
 }
 
 parentPort?.on('message', (message: any) => {
@@ -342,7 +333,8 @@ parentPort?.on('message', (message: any) => {
     
     // 开始遍历第一个任务
     isWalking = true;
-    processNextTask(message.config);
+    taskQueue.push(message.config); // 先加入队列
+    processNextTask(); // 启动迭代处理
   } else if (message.type === 'cancel-all') {
     // 【内存安全】清空所有待处理的任务
     console.log(`[Walker] 收到取消信号，清空队列 (${taskQueue.length} 个任务)`);
