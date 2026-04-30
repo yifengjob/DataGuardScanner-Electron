@@ -98,10 +98,16 @@ export const useAppStore = defineStore('app', () => {
   // 【优化】使用批量更新，避免频繁触发 UI 重渲染
   const pendingResults: ScanResultItem[] = []
   let batchTimer: number | null = null
+    
+  // 【新增】限制 scanResults 的最大长度，防止内存泄漏
+  const MAX_SCAN_RESULTS = 10000  // 最多保留 10000 条结果
   
   // 【优化】日志也使用批量更新
   const pendingLogs: string[] = []
   let logBatchTimer: number | null = null
+    
+  // 【新增】限制 logs 的最大长度
+  const MAX_LOG_ENTRIES = 5000  // 最多保留 5000 条日志
   
   function addScanResult(item: ScanResultItem) {
     pendingResults.push(item)
@@ -112,6 +118,13 @@ export const useAppStore = defineStore('app', () => {
         // 批量添加所有待处理的结果
         if (pendingResults.length > 0) {
           scanResults.value.push(...pendingResults)
+          
+          // 【新增】限制数组大小，防止内存泄漏
+          if (scanResults.value.length > MAX_SCAN_RESULTS) {
+            const excess = scanResults.value.length - MAX_SCAN_RESULTS
+            scanResults.value.splice(0, excess)  // 移除最旧的结果
+          }
+          
           pendingResults.length = 0  // 清空数组
         }
         batchTimer = null
@@ -127,6 +140,13 @@ export const useAppStore = defineStore('app', () => {
       logBatchTimer = window.setTimeout(() => {
         if (pendingLogs.length > 0) {
           logs.value.push(...pendingLogs)
+          
+          // 【新增】限制日志数组大小，防止内存泄漏
+          if (logs.value.length > MAX_LOG_ENTRIES) {
+            const excess = logs.value.length - MAX_LOG_ENTRIES
+            logs.value.splice(0, excess)  // 移除最旧的日志
+          }
+          
           pendingLogs.length = 0
         }
         logBatchTimer = null

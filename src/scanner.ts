@@ -614,9 +614,11 @@ export async function startScan(
                 completionCheckTimer = null;
             }
 
-            // 终止 Walker Worker
+            // 【修复】终止 Walker Worker 并清除引用
             try {
+                walkerWorker.removeAllListeners();
                 walkerWorker.terminate();
+                (walkerWorker as any) = null;
             } catch (error) {
                 console.error('终止 Walker Worker 失败:', error);
             }
