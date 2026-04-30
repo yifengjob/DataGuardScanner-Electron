@@ -265,12 +265,16 @@ export async function startScan(
                     consumer.busy = false;
                 }
                 
+                // 【关键】延迟重启 Worker，避免频繁创建销毁
                 setTimeout(() => {
                     if (!scanState.cancelFlag) {
                         const index = consumers.findIndex(c => c.worker === worker);
                         if (index > -1) {
+                            console.log(`[Consumer ${id}] 正在重启 Worker...`);
                             consumers.splice(index, 1);
                             createConsumer(id);
+                            // 【关键】重启后立即尝试调度任务，防止停滞
+                            setTimeout(() => tryDispatch(), 100);
                         }
                     }
                 }, WORKER_RESTART_DELAY);
@@ -444,6 +448,7 @@ export async function startScan(
         if (message.type === 'walking-complete') {
             log(`Walker 完成: 找到 ${message.fileCount} 个文件, 跳过 ${message.skippedCount} 个`);
             walkerSkippedCount += message.skippedCount;
+            walkerCompleted = true; // 【新增】标记 Walker 已完成
             
             // 【事件驱动】检查是否应该结束
             checkAndComplete();
@@ -473,6 +478,7 @@ export async function startScan(
     // 【事件驱动】检查是否应该结束扫描
     let completionCheckTimer: NodeJS.Timeout | null = null;
     let isCleaningUp = false; // 【修复】防止 cleanup 被多次调用
+    let walkerCompleted = false; // 【新增】标记 Walker 是否已完成
     
     // 【优化】多指标停滞检测 - 记录上次检查时的状态快照
     let lastStagnationCheckState = {
@@ -491,8 +497,14 @@ export async function startScan(
             return;
         }
 
-        // 【事件驱动】只有在没有活跃 Worker 且队列为空时才完成
-        if (activeWorkerCount === 0 && taskQueue.length === 0) {
+        // 【修复】只有在以下情况才结束扫描：
+        // 1. Walker 已经完成（不再有新文件加入队列）
+        // 2. 没有活跃的 Worker
+        // 3. 任务队列为空
+        // 4. 没有待处理的任务
+        const hasPendingTasks = pendingTasks.size > 0;
+        
+        if (walkerCompleted && activeWorkerCount === 0 && taskQueue.length === 0 && !hasPendingTasks) {
             log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
             cleanup();
             return;

@@ -51,11 +51,26 @@ interface WorkerResult {
   error?: string;
 }
 
+// 【新增】添加全局错误处理器，防止 Worker 因未捕获异常而崩溃
+process.on('unhandledRejection', (reason, _promise) => {
+  console.error(`[Worker ${process.pid}] 未处理的 Promise Rejection:`, reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error(`[Worker ${process.pid}] 未捕获的异常:`, error.message);
+  // 【关键】即使发生未捕获异常，也要通知主进程，而不是直接退出
+  parentPort?.postMessage({
+    taskId: -1,
+    filePath: 'unknown',
+    error: `Worker 内部错误: ${error.message}`
+  } as WorkerResult);
+});
+
 // 监听主线程传来的任务
 parentPort?.on('message', async (task: WorkerTask) => {
   const { taskId, filePath, enabledSensitiveTypes, previewMode = false } = task;
   
-  // 设置超时保护
+  // 【优化】设置超时保护（使用配置常量）
   let timeoutId: NodeJS.Timeout | null = null;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
@@ -64,9 +79,20 @@ parentPort?.on('message', async (task: WorkerTask) => {
   });
   
   try {
-    // 获取文件统计信息
+    // 【优化】获取文件统计信息（添加错误处理）
     const fs = require('fs');
-    const stat = fs.statSync(filePath);
+    let stat: any;
+    try {
+      stat = fs.statSync(filePath);
+    } catch (statError: any) {
+      console.error(`[Worker ${process.pid}] 无法读取文件状态: ${filePath}`, statError.message);
+      parentPort?.postMessage({
+        taskId,
+        filePath,
+        error: `无法访问文件: ${statError.message}`
+      } as WorkerResult);
+      return;
+    }
     
     // 提取文本（CPU 密集型操作）
     const extractPromise = extractTextFromFile(filePath);
@@ -119,12 +145,14 @@ parentPort?.on('message', async (task: WorkerTask) => {
     // 清除超时
     if (timeoutId) clearTimeout(timeoutId);
     
-    // 发生错误，返回错误信息
-    console.error(`[Worker ${process.pid}] 任务失败:`, error.message);
+    // 【优化】详细记录错误信息，但不让 Worker 崩溃
+    console.error(`[Worker ${process.pid}] 任务 ${taskId} 失败:`, error.message);
+    
+    // 返回错误结果给主进程，而不是抛出异常
     parentPort?.postMessage({
       taskId,
       filePath,
-      error: error.message
+      error: error.message || '未知错误'
     } as WorkerResult);
   }
 });
