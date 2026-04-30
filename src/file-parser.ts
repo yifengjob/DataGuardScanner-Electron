@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 // 【重构】弃用 docstream，使用专门的库解析不同格式
 import mammoth from 'mammoth';  // .docx
+import WordExtractor from 'word-extractor';  // .doc
 // 【修复】PDF 使用专门的 pdf-parse 库，避免 pdfjs-dist 的 Worker 问题
 import pdfParse from 'pdf-parse';
 // 【新增】SheetJS 用于快速解析 Excel 文件
@@ -59,9 +60,9 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   'toml': extractTextFile,
   // 【修复】PDF 使用专门的 pdf-parse 库
   'pdf': extractPdf,
-  // 【优化】Word 文档使用 mammoth（快速、稳定）
+  // 【优化】Word 文档使用专门的解析器
   'docx': extractWithMammoth,
-  'doc': extractWithBinary,  // .doc 降级到二进制提取
+  'doc': extractWithWordExtractor,  // .doc 使用 word-extractor
   'wps': extractWithBinary,
   // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
   'xlsx': extractWithSheetJS,
@@ -158,6 +159,41 @@ async function extractWithMammoth(filePath: string): Promise<{ text: string; uns
     
   } catch (error: any) {
     console.error(`mammoth解析失败 ${filePath}:`, error.message);
+    
+    // 降级到二进制提取
+    try {
+      const data = await fs.promises.readFile(filePath);
+      const text = extractTextFromBinary(data);
+      if (text.trim()) {
+        return { text, unsupportedPreview: false };
+      }
+    } catch (e: any) {
+      console.error(`二进制提取也失败 ${filePath}:`, e.message);
+    }
+    
+    return { text: '', unsupportedPreview: true };
+  }
+}
+
+// 【新增】使用 word-extractor 解析 .doc 文件
+async function extractWithWordExtractor(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    // 创建 extractor 实例
+    const extractor = new WordExtractor();
+    
+    // 提取文本
+    const extracted = await extractor.extract(filePath);
+    const text = extracted.getBody();
+    
+    const hasContent = text && text.trim().length > 0;
+    
+    return {
+      text: hasContent ? text : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    console.error(`word-extractor解析失败 ${filePath}:`, error.message);
     
     // 降级到二进制提取
     try {
@@ -285,28 +321,6 @@ async function extractWithSheetJS(filePath: string): Promise<{ text: string; uns
 // 【新增】二进制提取（用于 .doc、.ppt 等旧格式）
 async function extractWithBinary(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    const ext = path.extname(filePath).toLowerCase().substring(1);
-    
-    // 【优化】对于 .doc 文件，尝试使用 macOS 的 textutil 命令
-    if (ext === 'doc' && process.platform === 'darwin') {
-      try {
-        const { exec } = await import('child_process');
-        const text = await new Promise<string>((resolve, reject) => {
-          exec(`textutil -convert txt -stdout "${filePath}"`, (error, stdout) => {
-            if (error) reject(error);
-            else resolve(stdout);
-          });
-        });
-        
-        if (text && text.trim().length > 0) {
-          return { text, unsupportedPreview: false };
-        }
-      } catch (e: any) {
-        console.warn(`textutil 转换失败 ${filePath}，降级到二进制提取`);
-      }
-    }
-    
-    // 降级到二进制提取
     const data = await fs.promises.readFile(filePath);
     const text = extractTextFromBinary(data);
     
