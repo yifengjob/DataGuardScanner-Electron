@@ -65,7 +65,7 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   // 【优化】Word 文档使用专门的解析器
   'docx': extractWithMammoth,
   'doc': extractWithWordExtractor,  // .doc 使用 word-extractor
-  'wps': extractWithMammoth,  // WPS 文字尝试用 mammoth 解析（格式类似 .docx）
+  'wps': extractWithBinary,  // WPS 旧版格式，降级到二进制提取
   // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
   'xlsx': extractWithSheetJS,
   'xls': extractWithSheetJS,
@@ -73,7 +73,7 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   // 【优化】PPT 文件使用自定义解压方案
   'pptx': extractPptx,
   'ppt': extractWithBinary,  // .ppt 降级到二进制提取（旧版格式难以解析）
-  'dps': extractPptx,  // WPS 演示尝试用 PPTX 方案解析（格式类似）
+  'dps': extractWithBinary,  // WPS 演示旧版格式，降级到二进制提取
   // 【优化】OpenDocument 格式使用自定义解压方案
   'odt': extractOdt,
   'ods': extractOds,
@@ -543,18 +543,38 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
         return node.text;
       }
       
+      // 递归处理 children
       if (node.children && Array.isArray(node.children)) {
         return node.children.map(extractTextFromNode).join('');
+      }
+      
+      // 处理其他可能的属性
+      if (node.value) {
+        return String(node.value);
       }
       
       return '';
     }
     
+    // 尝试多种可能的结构
     if (document.children && Array.isArray(document.children)) {
       allText = document.children.map(extractTextFromNode).join('\n');
+    } else if (document.text) {
+      allText = document.text;
+    } else {
+      // 如果顶层没有 children，尝试直接提取
+      allText = extractTextFromNode(document);
     }
     
-    const hasContent = allText && allText.trim().length > 0;
+    // 清理文本：移除多余空白
+    allText = allText.replace(/\s+/g, ' ').trim();
+    
+    const hasContent = allText && allText.length > 0;
+    
+    // 【调试】输出解析结果
+    if (!hasContent) {
+      console.warn(`RTF 解析未提取到文本 ${filePath}, 文档结构:`, JSON.stringify(document).substring(0, 200));
+    }
     
     return {
       text: hasContent ? allText : '',
@@ -570,6 +590,7 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
       // 简单移除 RTF 标记，提取可读文本
       const text = content.replace(/\\[a-z]+[0-9]*|[{}]/g, ' ').replace(/\s+/g, ' ').trim();
       if (text && text.length > 10) {
+        console.log(`RTF 降级提取成功，文本长度: ${text.length}`);
         return { text, unsupportedPreview: false };
       }
     } catch (e: any) {
