@@ -670,10 +670,11 @@ export async function startScan(
             continue;
         }
 
-        if (!fs.statSync(rootPath).isDirectory()) {
-            log(`路径不是目录: ${rootPath}`);
-            continue;
-        }
+        // 【修复】支持文件和目录，walker-worker 会自行判断
+        // if (!fs.statSync(rootPath).isDirectory()) {
+        //     log(`路径不是目录: ${rootPath}`);
+        //     continue;
+        // }
 
         // 发送配置到 Walker Worker
         walkerWorker.postMessage({
