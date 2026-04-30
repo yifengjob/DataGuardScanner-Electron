@@ -27,17 +27,9 @@ try {
   // Worker 中静默失败，由主进程的错误处理捕获
 }
 
-// 【优化】抑制 pdfjs-dist 的字体警告（Worker 线程也需要）
-const originalWarn = console.warn;
-console.warn = function(...args: any[]) {
-  const message = args.join(' ');
-  // 过滤掉 pdfjs-dist 的字体相关警告
-  if (message.includes('Warning: TT: undefined function') || 
-      message.includes('Warning: Ran out of space in font private use area')) {
-    return; // 静默丢弃
-  }
-  originalWarn.apply(console, args);
-};
+// 【优化】初始化日志抑制（Worker 线程也需要）
+import { initLogSuppression } from './log-utils';
+initLogSuppression();
 
 import { extractTextFromFile } from './file-parser';
 import { detectSensitiveData } from './sensitive-detector';
