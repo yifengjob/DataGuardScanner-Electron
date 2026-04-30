@@ -59,6 +59,66 @@ async function startWalking(config: WalkerConfig) {
     
     const { rootPath, selectedExtensions, ignoreDirNames, systemDirs, maxFileSizeMb, maxPdfSizeMb } = config;
     
+    // 【修复】检查 rootPath 是文件还是目录
+    let stat: fs.Stats;
+    try {
+      stat = await fs.promises.stat(rootPath);
+    } catch (error: any) {
+      parentPort?.postMessage({
+        type: 'walking-error',
+        error: `无法访问路径: ${rootPath}`
+      });
+      return;
+    }
+    
+    // 如果是文件，直接处理该文件
+    if (stat.isFile()) {
+      const ext = path.extname(rootPath).toLowerCase().replace('.', '');
+      
+      // 检查扩展名
+      let shouldProcess = false;
+      if (selectedExtensions.includes('*')) {
+        shouldProcess = SUPPORTED_EXTENSIONS.includes(ext);
+      } else {
+        shouldProcess = selectedExtensions.includes(ext);
+      }
+      
+      if (shouldProcess && stat.size > 0) {
+        // 检查文件大小
+        const maxSize = rootPath.toLowerCase().endsWith('.pdf')
+          ? maxPdfSizeMb * BYTES_TO_MB
+          : maxFileSizeMb * BYTES_TO_MB;
+        
+        if (stat.size <= maxSize) {
+          parentPort?.postMessage({
+            type: 'file-found',
+            filePath: rootPath,
+            stat: {
+              size: stat.size,
+              mtime: stat.mtime.toISOString()
+            }
+          });
+        }
+      }
+      
+      // 发送完成信号
+      parentPort?.postMessage({
+        type: 'walking-complete',
+        fileCount: shouldProcess && stat.size > 0 ? 1 : 0,
+        skippedCount: shouldProcess && stat.size > 0 ? 0 : 1
+      });
+      return;
+    }
+    
+    // 如果是目录，使用 walkdir 遍历
+    if (!stat.isDirectory()) {
+      parentPort?.postMessage({
+        type: 'walking-error',
+        error: `路径既不是文件也不是目录: ${rootPath}`
+      });
+      return;
+    }
+    
     // 预处理：构建快速查找的忽略目录集合
     const ignoredDirsNormalized = new Set<string>();
     systemDirs.forEach(dir => {
