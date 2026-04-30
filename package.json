@@ -125,6 +125,7 @@
     "@napi-rs/canvas": "^0.1.100",
     "adm-zip": "^0.5.17",
     "buffer": "^6.0.3",
+    "cfb": "^1.2.2",
     "chrono-node": "^2.9.0",
     "events": "^3.3.0",
     "exceljs": "^4.4.0",
