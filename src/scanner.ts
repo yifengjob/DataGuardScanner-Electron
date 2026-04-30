@@ -158,7 +158,10 @@ export async function startScan(
 
         worker.on('message', (result) => {
             if (result.type === 'ready') {
-                console.log(`[Consumer ${id}] Worker 已就绪，等待任务...`);
+                // 【性能优化】移除高频日志，只在开发模式下输出
+                if (process.env.NODE_ENV === 'development') {
+                    console.log(`[Consumer ${id}] Worker 已就绪，等待任务...`);
+                }
                 return;
             }
 
@@ -324,11 +327,13 @@ export async function startScan(
 
     // 尝试调度任务
     function tryDispatch() {
-        console.log(`[tryDispatch] 检查调度: taskQueue=${taskQueue.length}, consumers=${consumers.length}`);
+        // 【性能优化】移除高频日志，避免 I/O 阻塞主线程
+        // console.log(`[tryDispatch] 检查调度: taskQueue=${taskQueue.length}, consumers=${consumers.length}`);
         let dispatched = 0;
         for (const consumer of consumers) {
             if (!consumer.busy && taskQueue.length > 0) {
-                console.log(`[tryDispatch] 发现空闲 Consumer，准备分发任务...`);
+                // 【优化】只在真正分发时才记录
+                // console.log(`[tryDispatch] 分发任务给 Consumer`);
                 // 处理 Promise rejection，避免未捕获的错误
                 const promise = dispatchNextTask(consumer);
                 if (promise) {
@@ -339,11 +344,14 @@ export async function startScan(
                 }
             }
         }
-        if (dispatched > 0) {
-            console.log(`[tryDispatch] 成功分发 ${dispatched} 个任务`);
-        } else if (taskQueue.length > 0) {
-            console.warn(`[tryDispatch] 有任务但无法分发: taskQueue=${taskQueue.length}, allBusy=${consumers.every(c => c.busy)}`);
-        }
+        // 【优化】移除成功分发的日志，避免频繁输出
+        // if (dispatched > 0) {
+        //     console.log(`[tryDispatch] 成功分发 ${dispatched} 个任务`);
+        // }
+        // 【优化】移除无法分发的警告，避免频繁输出
+        // else if (taskQueue.length > 0) {
+        //     console.warn(`[tryDispatch] 有任务但无法分发: taskQueue=${taskQueue.length}, allBusy=${consumers.every(c => c.busy)}`);
+        // }
     }
 
     // 分发下一个任务
@@ -390,13 +398,14 @@ export async function startScan(
                 
                 const index = consumers.indexOf(consumer);
                 if (index > -1) {
-                    console.log(`[超时处理] 正在创建新 Worker 替换 Consumer ${index}...`);
+                    // 【性能优化】移除高频日志
+                    // console.log(`[超时处理] 正在创建新 Worker 替换 Consumer ${index}...`);
                     consumers.splice(index, 1);
                     createConsumer(index);
-                    console.log(`[超时处理] 新 Worker 已创建，当前 Consumers 数量: ${consumers.length}`);
+                    // console.log(`[超时处理] 新 Worker 已创建，当前 Consumers 数量: ${consumers.length}`);
                     // 【关键】立即尝试调度任务
                     setTimeout(() => {
-                        console.log(`[超时处理] 尝试调度任务，队列长度: ${taskQueue.length}, Consumers: ${consumers.length}`);
+                        // console.log(`[超时处理] 尝试调度任务，队列长度: ${taskQueue.length}, Consumers: ${consumers.length}`);
                         tryDispatch();
                     }, 50);
                 }

@@ -106,8 +106,8 @@ export const CONCURRENCY_MEMORY_RATIO = 0.4;
 /** 默认并发数的 CPU 核心数比例 */
 export const DEFAULT_CONCURRENCY_CPU_RATIO = 0.5;
 
-/** 默认并发数最大值 */
-export const DEFAULT_CONCURRENCY_MAX = 4;
+/** 默认并发数最大值 - 优化为 6，充分利用多核性能 */
+export const DEFAULT_CONCURRENCY_MAX = 6;
 
 /** 默认并发数最小值 */
 export const DEFAULT_CONCURRENCY_MIN = 2;
