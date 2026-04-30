@@ -57,7 +57,7 @@ async function startWalking(config: WalkerConfig) {
   try {
     await initWalkdir();
     
-    const { rootPath, selectedExtensions, ignoreDirNames, systemDirs, maxFileSizeMb, maxPdfSizeMb } = config;
+    const { rootPath, selectedExtensions, systemDirs, maxFileSizeMb, maxPdfSizeMb } = config;
     
     // 【修复】检查 rootPath 是文件还是目录
     let stat: fs.Stats;
@@ -79,7 +79,7 @@ async function startWalking(config: WalkerConfig) {
       console.log(`[Walker] 文件扩展名: '${ext}'`);
       
       // 检查扩展名
-      let shouldProcess = false;
+      let shouldProcess: boolean;
       if (selectedExtensions.includes('*')) {
         shouldProcess = SUPPORTED_EXTENSIONS.includes(ext);
         console.log(`[Walker] 检查扩展名: ${ext} in SUPPORTED_EXTENSIONS=${SUPPORTED_EXTENSIONS.includes(ext)}`);
