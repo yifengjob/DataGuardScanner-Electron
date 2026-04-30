@@ -9,6 +9,19 @@ import * as XLSX from 'xlsx';
 // 【新增】adm-zip 用于解压 .pptx 文件
 import AdmZip from 'adm-zip';
 
+// 【优化】抑制 pdfjs-dist 的字体警告（TT: undefined function, Ran out of space）
+// 这些警告不影响文本提取，但会污染日志
+const originalWarn = console.warn;
+console.warn = function(...args: any[]) {
+  const message = args.join(' ');
+  // 过滤掉 pdfjs-dist 的字体相关警告
+  if (message.includes('Warning: TT: undefined function') || 
+      message.includes('Warning: Ran out of space in font private use area')) {
+    return; // 静默丢弃
+  }
+  originalWarn.apply(console, args);
+};
+
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
 type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
 
