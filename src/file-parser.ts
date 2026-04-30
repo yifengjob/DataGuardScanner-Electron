@@ -94,15 +94,29 @@ async function extractTextFile(filePath: string): Promise<{ text: string; unsupp
 
 // 【重构】统一使用 docstream 解析 Office 文档和 PDF
 async function extractWithDocstream(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  const ext = path.extname(filePath).toLowerCase().substring(1);
+  const isPdf = ext === 'pdf';
+  
   try {
-    // 使用 docstream 解析文件（支持 Buffer 输入）
-    const ast = await docstream.parseOffice(filePath);
+    // PDF 可能需要特殊配置，但 parseOffice 应该能自动处理
+    // 如果遇到问题，可以添加配置参数
+    const config = isPdf ? {
+      // PDF 特定配置（可选）
+      outputErrorToConsole: false, // 不在控制台输出错误
+    } : {};
+    
+    // 使用 docstream 解析文件
+    const ast = await docstream.parseOffice(filePath, config);
     
     // 提取纯文本
     const text = ast.toText();
     
     // 检查是否有实质性内容
     const hasContent = text && text.trim().length > 0;
+    
+    if (isPdf && !hasContent) {
+      console.warn(`PDF 解析未提取到文本 ${filePath}，可能是扫描版或加密 PDF`);
+    }
     
     return {
       text: hasContent ? text : '',
@@ -111,20 +125,27 @@ async function extractWithDocstream(filePath: string): Promise<{ text: string; u
     
   } catch (error: any) {
     // docstream 解析失败，记录错误
-    console.error(`docstream解析失败 ${filePath}:`, error.message);
-    
-    // 降级到二进制提取作为备选方案
-    try {
-      const data = await fs.promises.readFile(filePath);
-      const text = extractTextFromBinary(data);
-      if (text.trim()) {
-        return { text, unsupportedPreview: false };
+    if (isPdf) {
+      console.error(`PDF解析失败 ${filePath}:`, error.message);
+      // 【重要】PDF 解析失败时，不要降级到二进制提取（会显示乱码）
+      // 直接返回不支持预览
+      return { text: '', unsupportedPreview: true };
+    } else {
+      console.error(`docstream解析失败 ${filePath}:`, error.message);
+      
+      // Office 文档可以尝试降级到二进制提取
+      try {
+        const data = await fs.promises.readFile(filePath);
+        const text = extractTextFromBinary(data);
+        if (text.trim()) {
+          return { text, unsupportedPreview: false };
+        }
+      } catch (e: any) {
+        console.error(`二进制提取也失败 ${filePath}:`, e.message);
       }
-    } catch (e: any) {
-      console.error(`二进制提取也失败 ${filePath}:`, e.message);
+      
+      return { text: '', unsupportedPreview: true };
     }
-    
-    return { text: '', unsupportedPreview: true };
   }
 }
 

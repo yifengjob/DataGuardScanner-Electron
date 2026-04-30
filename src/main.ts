@@ -1,6 +1,19 @@
 import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu, screen} from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+
+// 【修复】在 Node.js 环境中全局定义 DOMMatrix，解决 pdfjs-dist 的依赖问题
+// docstream 使用 pdfjs-dist 解析 PDF，需要 DOMMatrix API
+try {
+  const { DOMMatrix } = require('@napi-rs/canvas');
+  if (typeof (global as any).DOMMatrix === 'undefined') {
+    (global as any).DOMMatrix = DOMMatrix;
+    console.log('[初始化] DOMMatrix 已全局定义（用于 PDF 解析）');
+  }
+} catch (error) {
+  console.warn('[警告] 无法加载 @napi-rs/canvas，PDF 解析可能失败:', error);
+}
+
 import {ScanState} from './scan-state';
 import {getDirectoryTree} from './directory-tree';
 import {cancelScan, startScan} from './scanner';
