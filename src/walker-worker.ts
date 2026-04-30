@@ -334,7 +334,7 @@ parentPort?.on('message', (message: any) => {
     // 开始遍历第一个任务
     isWalking = true;
     taskQueue.push(message.config); // 先加入队列
-    processNextTask(); // 启动迭代处理
+    void processNextTask(); // 启动迭代处理（忽略返回值）
   } else if (message.type === 'cancel-all') {
     // 【内存安全】清空所有待处理的任务
     console.log(`[Walker] 收到取消信号，清空队列 (${taskQueue.length} 个任务)`);
