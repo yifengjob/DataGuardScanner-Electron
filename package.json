@@ -134,7 +134,8 @@
     "readable-stream": "^3.6.2",
     "setimmediate": "^1.0.5",
     "trash": "^9.0.0",
-    "walkdir": "^0.4.1"
+    "walkdir": "^0.4.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",

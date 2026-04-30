@@ -4,6 +4,8 @@ import * as path from 'path';
 import docstream from '@jose.espana/docstream';
 // 【修复】PDF 使用专门的 pdf-parse 库，避免 pdfjs-dist 的 Worker 问题
 import pdfParse from 'pdf-parse';
+// 【新增】SheetJS 用于快速解析 Excel 文件
+import * as XLSX from 'xlsx';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
 type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
@@ -46,9 +48,11 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   'docx': extractWithDocstream,
   'doc': extractWithDocstream,
   'wps': extractWithDocstream,
-  'xlsx': extractWithDocstream,
-  'xls': extractWithDocstream,
-  'et': extractWithDocstream,
+  // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
+  'xlsx': extractWithSheetJS,
+  'xls': extractWithSheetJS,
+  'et': extractWithSheetJS,
+  // PPT 和其他格式继续使用 docstream
   'pptx': extractWithDocstream,
   'ppt': extractWithDocstream,
   'dps': extractWithDocstream,
@@ -166,6 +170,57 @@ async function extractWithDocstream(filePath: string): Promise<{ text: string; u
         console.error(`二进制提取也失败 ${filePath}:`, e.message);
       }
       
+      return { text: '', unsupportedPreview: true };
+    }
+  }
+}
+
+// 【新增】使用 SheetJS 快速解析 Excel 文件
+async function extractWithSheetJS(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    // 读取文件
+    const data = await fs.promises.readFile(filePath);
+    
+    // 使用 SheetJS 解析工作簿
+    const workbook = XLSX.read(data, {
+      type: 'buffer',
+      cellText: true,
+      cellDates: true,
+    });
+    
+    // 提取所有工作表的文本
+    let allText = '';
+    
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // 将工作表转换为 CSV 格式（保留换行）
+      const csv = XLSX.utils.sheet_to_csv(worksheet, {
+        FS: '\t', // 字段分隔符：制表符
+        RS: '\n', // 记录分隔符：换行符
+      });
+      
+      if (csv && csv.trim()) {
+        allText += `\n=== ${sheetName} ===\n${csv}\n`;
+      }
+    }
+    
+    // 检查是否有实质性内容
+    const hasContent = allText && allText.trim().length > 0;
+    
+    return {
+      text: hasContent ? allText : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    console.error(`SheetJS解析失败 ${filePath}:`, error.message);
+    
+    // 降级到 docstream
+    try {
+      return await extractWithDocstream(filePath);
+    } catch (e: any) {
+      console.error(`docstream降级也失败 ${filePath}:`, e.message);
       return { text: '', unsupportedPreview: true };
     }
   }
