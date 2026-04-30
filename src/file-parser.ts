@@ -9,6 +9,8 @@ import pdfParse from 'pdf-parse';
 import * as XLSX from 'xlsx';
 // 【新增】adm-zip 用于解压 .pptx 文件
 import AdmZip from 'adm-zip';
+// 【新增】iconv-lite 用于解码 GBK 编码的 RTF 文件
+import * as iconv from 'iconv-lite';
 
 // 【优化】抑制 pdfjs-dist 的字体警告（TT: undefined function, Ran out of space）
 // 这些警告不影响文本提取，但会污染日志
@@ -520,10 +522,30 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
   try {
     const content = await fs.promises.readFile(filePath, 'utf-8');
     
-    // 移除 RTF 控制字（如 \par, \b, \i 等）
-    let text = content
-      // 移除十六进制转义序列（\'xx）
-      .replace(/\\'[0-9a-fA-F]{2}/g, '')
+    // 第一步：将十六进制转义序列（\'xx）转换为 GBK 编码的字符
+    // RTF 中的 \'xx 是 GBK/GB2312 编码的字节，需要两个字节组合成一个中文字符
+    let text = content.replace(/(\\'[0-9a-fA-F]{2})+/g, (match) => {
+      // 提取所有十六进制字节
+      const hexPairs = match.match(/\\'([0-9a-fA-F]{2})/g);
+      if (!hexPairs) return '';
+      
+      // 转换为字节数组
+      const bytes = hexPairs.map(pair => {
+        const hex = pair.substring(2); // 去掉 \'
+        return parseInt(hex, 16);
+      });
+      
+      // 使用 iconv-lite 将 GBK 字节解码为字符串
+      try {
+        const buffer = Buffer.from(bytes);
+        return iconv.decode(buffer, 'gbk');
+      } catch (e) {
+        return '';
+      }
+    });
+    
+    // 第二步：移除其他 RTF 控制字和标记
+    text = text
       // 移除 Unicode 转义序列（\uN?）
       .replace(/\\u-?\d+\??/g, '')
       // 移除 RTF 控制字（\word）
