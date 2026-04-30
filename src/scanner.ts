@@ -552,15 +552,20 @@ export async function startScan(
             // 无进展，检查是否应该超时
             const idleTime = now - lastStagnationCheckTime;
             
-            // 【保守策略】只有同时满足以下条件才判定为停滞：
-            // 1. 超过阈值时间无任何进展
-            // 2. 没有活跃的 Worker（activeWorkerCount === 0）
-            // 3. 任务队列为空（taskQueue.length === 0）
-            // 这样可以避免误杀正在处理大文件的正常任务
+            // 【双层保护策略】
+            // 第一层：短时间停滞警告（30秒）
             if (idleTime > STAGNATION_THRESHOLD && 
+                idleTime <= MAX_IDLE_TIME &&
                 activeWorkerCount === 0 && 
                 taskQueue.length === 0) {
-                log(`警告: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}），且系统空闲，强制结束`);
+                log(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展，但仍在等待可能的恢复...`);
+            }
+            
+            // 第二层：长时间停滞强制结束（2分钟）
+            if (idleTime > MAX_IDLE_TIME && 
+                activeWorkerCount === 0 && 
+                taskQueue.length === 0) {
+                log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}），且系统空闲，强制结束`);
                 cleanup();
             }
         }
