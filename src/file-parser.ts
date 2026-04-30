@@ -9,6 +9,8 @@ import pdfParse from 'pdf-parse';
 import * as XLSX from 'xlsx';
 // 【新增】adm-zip 用于解压 .pptx 文件
 import AdmZip from 'adm-zip';
+// 【新增】rtf-parser 用于解析 RTF 文件
+import * as rtfParser from 'rtf-parser';
 
 // 【优化】抑制 pdfjs-dist 的字体警告（TT: undefined function, Ran out of space）
 // 这些警告不影响文本提取，但会污染日志
@@ -63,20 +65,20 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   // 【优化】Word 文档使用专门的解析器
   'docx': extractWithMammoth,
   'doc': extractWithWordExtractor,  // .doc 使用 word-extractor
-  'wps': extractWithBinary,
+  'wps': extractWithMammoth,  // WPS 文字尝试用 mammoth 解析（格式类似 .docx）
   // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
   'xlsx': extractWithSheetJS,
   'xls': extractWithSheetJS,
   'et': extractWithSheetJS,
   // 【优化】PPT 文件使用自定义解压方案
   'pptx': extractPptx,
-  'ppt': extractWithBinary,  // .ppt 降级到二进制提取
-  'dps': extractWithBinary,
+  'ppt': extractWithBinary,  // .ppt 降级到二进制提取（旧版格式难以解析）
+  'dps': extractPptx,  // WPS 演示尝试用 PPTX 方案解析（格式类似）
   // 【优化】OpenDocument 格式使用自定义解压方案
   'odt': extractOdt,
   'ods': extractOds,
   'odp': extractOdp,
-  'rtf': extractWithBinary,
+  'rtf': extractRtf,  // RTF 使用专门的解析器
 };
 
 // 【优化】从 EXTRACTOR_MAP 自动生成支持的文件类型列表（单一数据源）
@@ -510,6 +512,70 @@ async function extractOdp(filePath: string): Promise<{ text: string; unsupported
     
   } catch (error: any) {
     console.error(`ODP解析失败 ${filePath}:`, error.message);
+    return { text: '', unsupportedPreview: true };
+  }
+}
+
+// 【新增】解析 .rtf (Rich Text Format) 文件
+async function extractRtf(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    // 读取文件
+    const data = await fs.promises.readFile(filePath, 'utf-8');
+    
+    // 使用 rtf-parser 解析
+    const document = await new Promise<any>((resolve, reject) => {
+      rtfParser.parseString(data, (err: any, doc: any) => {
+        if (err) reject(err);
+        else resolve(doc);
+      });
+    });
+    
+    // 提取文本内容
+    let allText = '';
+    
+    // rtf-parser 返回的文档结构中，文本分布在各个节点中
+    function extractTextFromNode(node: any): string {
+      if (typeof node === 'string') {
+        return node;
+      }
+      
+      if (node.text) {
+        return node.text;
+      }
+      
+      if (node.children && Array.isArray(node.children)) {
+        return node.children.map(extractTextFromNode).join('');
+      }
+      
+      return '';
+    }
+    
+    if (document.children && Array.isArray(document.children)) {
+      allText = document.children.map(extractTextFromNode).join('\n');
+    }
+    
+    const hasContent = allText && allText.trim().length > 0;
+    
+    return {
+      text: hasContent ? allText : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    console.error(`RTF解析失败 ${filePath}:`, error.message);
+    
+    // 降级到纯文本读取（RTF 本质上是文本格式）
+    try {
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      // 简单移除 RTF 标记，提取可读文本
+      const text = content.replace(/\\[a-z]+[0-9]*|[{}]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (text && text.length > 10) {
+        return { text, unsupportedPreview: false };
+      }
+    } catch (e: any) {
+      console.error(`RTF文本提取也失败 ${filePath}:`, e.message);
+    }
+    
     return { text: '', unsupportedPreview: true };
   }
 }
