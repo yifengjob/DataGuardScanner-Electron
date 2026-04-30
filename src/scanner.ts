@@ -115,6 +115,22 @@ export async function startScan(
     
     // 【事件驱动】跟踪最后活动时间（必须在前面声明）
     let lastActivityTime = Date.now();
+    
+    // 【新增】统一的进度更新函数，确保前端始终收到最新进度
+    function sendProgressUpdate(currentFile: string = '') {
+        const now = Date.now();
+        if (!lastProgressTime || now - lastProgressTime >= PROGRESS_THROTTLE_INTERVAL) {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('scan-progress', {
+                    currentFile,
+                    scannedCount: consumerProcessedCount,
+                    totalCount: walkerTotalCount,
+                    skippedCount: walkerSkippedCount
+                });
+            }
+            lastProgressTime = now;
+        }
+    }
 
     // 创建 Consumer Worker
     function createConsumer(id: number) {
@@ -174,20 +190,8 @@ export async function startScan(
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
 
-            // 【优化】节流发送进度更新，减少 IPC 开销
-            const now = Date.now();
-            if (!lastProgressTime || now - lastProgressTime >= PROGRESS_THROTTLE_INTERVAL) {
-                // 【修复】检查窗口是否已销毁
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('scan-progress', {
-                        currentFile: result.filePath || '',
-                        scannedCount: consumerProcessedCount,
-                        totalCount: walkerTotalCount,
-                        skippedCount: walkerSkippedCount
-                    });
-                }
-                lastProgressTime = now;
-            }
+            // 【优化】使用统一的进度更新函数
+            sendProgressUpdate(result.filePath || '');
 
             // 处理结果
             if (result.error) {
@@ -355,6 +359,10 @@ export async function startScan(
                     pendingTasks.delete(taskId);
                     activeWorkerCount--; // 【优化】减少活跃计数
                     consumerProcessedCount++; // 超时也要计数
+                    
+                    // 【修复】发送进度更新，确保前端数字继续动
+                    sendProgressUpdate(task.filePath);
+                    
                     pending.reject(new Error(`文件处理超时（${timeout / 1000}秒）`));
                 }
                 
@@ -431,20 +439,8 @@ export async function startScan(
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
             
-            // 更新进度（与 Consumer 保持一致）
-            const now = Date.now();
-            if (!lastProgressTime || now - lastProgressTime >= PROGRESS_THROTTLE_INTERVAL) {
-                // 【修复】检查窗口是否已销毁
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('scan-progress', {
-                        currentFile: message.filePath,
-                        scannedCount: consumerProcessedCount,
-                        totalCount: walkerTotalCount,
-                        skippedCount: walkerSkippedCount
-                    });
-                }
-                lastProgressTime = now;
-            }
+            // 【优化】使用统一的进度更新函数
+            sendProgressUpdate(message.filePath);
 
             // 添加到任务队列
             taskQueue.push({
