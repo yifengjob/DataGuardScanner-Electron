@@ -141,8 +141,9 @@ async function startWalking(config: WalkerConfig) {
       filter: (directory: string, files: string[]) => {
         const dirName = path.basename(directory);
 
-        // 检查是否应该忽略这个目录
+        // 【调试】输出过滤日志
         if (shouldIgnoreDirectory(dirName, directory, config)) {
+          console.log(`[Walker Filter] 跳过忽略目录: ${directory}`);
           return [];
         }
 
@@ -150,6 +151,7 @@ async function startWalking(config: WalkerConfig) {
         const normalizedDir = path.normalize(directory).toLowerCase();
         for (const sysDir of ignoredDirsNormalized) {
           if (normalizedDir.startsWith(sysDir + path.sep) || normalizedDir === sysDir) {
+            console.log(`[Walker Filter] 跳过系统目录: ${directory} (匹配: ${sysDir})`);
             return [];
           }
         }
@@ -232,6 +234,7 @@ async function startWalking(config: WalkerConfig) {
     });
 
     walker.on('error', (err: any) => {
+      console.error(`[Walker Error] 遍历错误 (${rootPath}):`, err.message);
       parentPort?.postMessage({
         type: 'walking-error',
         error: err.message
