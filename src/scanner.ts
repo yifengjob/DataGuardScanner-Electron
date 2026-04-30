@@ -482,7 +482,9 @@ export async function startScan(
         if (message.type === 'walking-complete') {
             log(`Walker 完成: 找到 ${message.fileCount} 个文件, 跳过 ${message.skippedCount} 个`);
             walkerSkippedCount += message.skippedCount;
-            walkerCompleted = true; // 【新增】标记 Walker 已完成
+            walkerCompletedCount++; // 【修复】增加完成计数
+            
+            console.log(`[Walker] 已完成 ${walkerCompletedCount}/${totalWalkerTasks} 个任务`);
             
             // 【事件驱动】检查是否应该结束
             checkAndComplete();
@@ -512,7 +514,8 @@ export async function startScan(
     // 【事件驱动】检查是否应该结束扫描
     let completionCheckTimer: NodeJS.Timeout | null = null;
     let isCleaningUp = false; // 【修复】防止 cleanup 被多次调用
-    let walkerCompleted = false; // 【新增】标记 Walker 是否已完成
+    let walkerCompletedCount = 0; // 【修复】记录已完成的 Walker 任务数
+    const totalWalkerTasks = config.selectedPaths.length; // 【修复】总 Walker 任务数
     
     // 【优化】多指标停滞检测 - 记录上次检查时的状态快照
     let lastStagnationCheckState = {
@@ -532,13 +535,14 @@ export async function startScan(
         }
 
         // 【修复】只有在以下情况才结束扫描：
-        // 1. Walker 已经完成（不再有新文件加入队列）
+        // 1. 所有 Walker 任务都已完成
         // 2. 没有活跃的 Worker
         // 3. 任务队列为空
         // 4. 没有待处理的任务
         const hasPendingTasks = pendingTasks.size > 0;
+        const allWalkersCompleted = walkerCompletedCount >= totalWalkerTasks;
         
-        if (walkerCompleted && activeWorkerCount === 0 && taskQueue.length === 0 && !hasPendingTasks) {
+        if (allWalkersCompleted && activeWorkerCount === 0 && taskQueue.length === 0 && !hasPendingTasks) {
             log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
             cleanup();
             return;
