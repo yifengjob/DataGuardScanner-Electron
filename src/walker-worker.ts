@@ -228,12 +228,15 @@ async function startWalking(config: WalkerConfig) {
     });
 
     walker.on('end', () => {
+      console.log(`[Walker] walker 'end' 事件触发: ${rootPath}, fileCount=${fileCount}, skippedCount=${skippedCount}`);
       parentPort?.postMessage({
         type: 'walking-complete',
         fileCount,
         skippedCount
       });
+      console.log(`[Walker] 即将 resolve Promise: ${rootPath}`);
       resolve(); // 【修复】Promise resolve
+      console.log(`[Walker] Promise 已 resolve: ${rootPath}`);
     });
 
     walker.on('error', (err: any) => {
