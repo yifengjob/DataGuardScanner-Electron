@@ -140,8 +140,19 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
 // 【新增】使用 mammoth 解析 .docx 文件
 async function extractWithMammoth(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
+    // 【诊断】检查文件是否存在和可读
+    const stat = await fs.promises.stat(filePath);
+    console.log(`[mammoth] 开始解析: ${path.basename(filePath)}, 大小: ${stat.size} bytes`);
+    
     // 读取文件
     const data = await fs.promises.readFile(filePath);
+    console.log(`[mammoth] 文件读取成功, Buffer 大小: ${data.length} bytes`);
+    
+    // 【诊断】验证是否为有效的 ZIP 文件（.docx 本质是 ZIP）
+    if (data.length < 4 || data[0] !== 0x50 || data[1] !== 0x4b) {
+      console.warn(`[mammoth] 文件不是有效的 ZIP 格式: ${filePath}`);
+      throw new Error('文件格式无效，不是标准的 .docx 文件');
+    }
     
     // 使用 mammoth 提取文本
     const result = await mammoth.extractRawText({ buffer: data });
@@ -151,8 +162,10 @@ async function extractWithMammoth(filePath: string): Promise<{ text: string; uns
     
     // 【优化】只有当无法提取文本时才输出警告
     if (!hasContent && result.messages && result.messages.length > 0) {
-      console.warn(`mammoth 解析失败 ${filePath}:`, result.messages[0].message);
+      console.warn(`[mammoth] 解析警告 ${path.basename(filePath)}:`, result.messages.map((m: any) => m.message).join(', '));
     }
+    
+    console.log(`[mammoth] 解析完成: ${path.basename(filePath)}, 文本长度: ${text.length}, 有内容: ${hasContent}`);
     
     return {
       text: hasContent ? text : '',
@@ -160,17 +173,18 @@ async function extractWithMammoth(filePath: string): Promise<{ text: string; uns
     };
     
   } catch (error: any) {
-    console.error(`mammoth解析失败 ${filePath}:`, error.message);
+    console.error(`[mammoth] 解析失败 ${path.basename(filePath)}:`, error.message);
     
     // 降级到二进制提取
     try {
       const data = await fs.promises.readFile(filePath);
       const text = extractTextFromBinary(data);
       if (text.trim()) {
+        console.log(`[mammoth] 降级到二进制提取成功: ${path.basename(filePath)}, 文本长度: ${text.length}`);
         return { text, unsupportedPreview: false };
       }
     } catch (e: any) {
-      console.error(`二进制提取也失败 ${filePath}:`, e.message);
+      console.error(`[mammoth] 二进制提取也失败 ${path.basename(filePath)}:`, e.message);
     }
     
     return { text: '', unsupportedPreview: true };
