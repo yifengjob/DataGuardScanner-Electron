@@ -5,11 +5,11 @@
 
 // ==================== Worker 内存限制 ====================
 
-/** Consumer Worker 最大旧生代内存（MB） */
-export const WORKER_MAX_OLD_GENERATION_MB = 256;
+/** Consumer Worker 最大旧生代内存（MB）- 提高到 512MB，支持大型文件解析 */
+export const WORKER_MAX_OLD_GENERATION_MB = 512;
 
-/** Consumer Worker 最大新生代内存（MB） */
-export const WORKER_MAX_YOUNG_GENERATION_MB = 32;
+/** Consumer Worker 最大新生代内存（MB）- 提高到 64MB */
+export const WORKER_MAX_YOUNG_GENERATION_MB = 64;
 
 // ==================== 超时时间配置 ====================
 
