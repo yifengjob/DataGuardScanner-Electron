@@ -1,45 +1,43 @@
 /**
  * 日志工具 - 统一处理日志过滤和抑制
+ * 
+ * 【重要】此模块必须在其他任何模块导入之前被导入和执行
+ * 因为我们需要在 pdfjs-dist 等库加载之前就设置好过滤规则
  */
 
-// 【优化】抑制 pdfjs-dist 的字体警告
-// 这些警告不影响文本提取，但会污染日志
-const PDFJS_WARN_PATTERNS = [
+// 【优化】需要抑制的警告模式
+const SUPPRESS_PATTERNS = [
+  // pdfjs-dist 的字体警告
   'Warning: TT: undefined function',
-  'Warning: Ran out of space in font private use area'
+  'Warning: Ran out of space in font private use area',
 ];
 
+// 【关键】立即执行抑制逻辑（在模块加载时就执行）
+const originalWarn = console.warn;
+console.warn = function(...args: any[]) {
+  const message = args.join(' ');
+  
+  // 检查是否匹配任何抑制模式
+  const shouldSuppress = SUPPRESS_PATTERNS.some(pattern => message.includes(pattern));
+  
+  if (shouldSuppress) {
+    return; // 静默丢弃
+  }
+  
+  originalWarn.apply(console, args);
+};
+
 /**
- * 创建抑制特定警告的 console.warn 包装器
+ * 添加额外的抑制模式
  * @param patterns 要抑制的警告模式数组
- * @returns 原始的 console.warn 函数（用于恢复）
  */
-export function suppressWarnings(patterns: string[]): () => void {
-  const originalWarn = console.warn;
-  
-  console.warn = function(...args: any[]) {
-    const message = args.join(' ');
-    
-    // 检查是否匹配任何抑制模式
-    const shouldSuppress = patterns.some(pattern => message.includes(pattern));
-    
-    if (shouldSuppress) {
-      return; // 静默丢弃
-    }
-    
-    originalWarn.apply(console, args);
-  };
-  
-  // 返回恢复函数
-  return () => {
-    console.warn = originalWarn;
-  };
+export function addSuppressPatterns(patterns: string[]): void {
+  SUPPRESS_PATTERNS.push(...patterns);
 }
 
 /**
- * 初始化默认的日志抑制规则
- * 应该在应用启动时调用一次
+ * 恢复原始的 console.warn（用于调试）
  */
-export function initLogSuppression(): void {
-  suppressWarnings(PDFJS_WARN_PATTERNS);
+export function restoreConsoleWarn(): void {
+  console.warn = originalWarn;
 }
