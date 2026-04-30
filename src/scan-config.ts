@@ -94,14 +94,14 @@ export const WINDOW_TARGET_RATIO = 0.85;
 
 // ==================== 并发数配置 ====================
 
-/** 每个 Worker 预估内存占用（GB） */
-export const MEMORY_PER_WORKER_GB = 0.4;
+/** 每个 Worker 预估内存占用（GB）- 优化为 0.15，SheetJS 非常轻量 */
+export const MEMORY_PER_WORKER_GB = 0.15;
 
 /** 并发数绝对最大值 */
 export const CONCURRENCY_ABSOLUTE_MAX = 6;
 
-/** 并发数计算时使用的安全内存比例 */
-export const CONCURRENCY_MEMORY_RATIO = 0.4;
+/** 并发数计算时使用的安全内存比例 - 提高到 0.7，充分利用可用内存 */
+export const CONCURRENCY_MEMORY_RATIO = 0.7;
 
 /** 默认并发数的 CPU 核心数比例 */
 export const DEFAULT_CONCURRENCY_CPU_RATIO = 0.5;
