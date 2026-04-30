@@ -95,9 +95,43 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  // 方法
+  // 【优化】使用批量更新，避免频繁触发 UI 重渲染
+  const pendingResults: ScanResultItem[] = []
+  let batchTimer: number | null = null
+  
+  // 【优化】日志也使用批量更新
+  const pendingLogs: string[] = []
+  let logBatchTimer: number | null = null
+  
   function addScanResult(item: ScanResultItem) {
-    scanResults.value.push(item)
+    pendingResults.push(item)
+    
+    // 如果还没有定时器，设置一个 100ms 的批处理定时器
+    if (batchTimer === null) {
+      batchTimer = window.setTimeout(() => {
+        // 批量添加所有待处理的结果
+        if (pendingResults.length > 0) {
+          scanResults.value.push(...pendingResults)
+          pendingResults.length = 0  // 清空数组
+        }
+        batchTimer = null
+      }, 100)  // 每 100ms 批量更新一次
+    }
+  }
+  
+  function addLog(log: string) {
+    pendingLogs.push(log)
+    
+    // 如果还没有定时器，设置一个 200ms 的批处理定时器（日志可以更慢）
+    if (logBatchTimer === null) {
+      logBatchTimer = window.setTimeout(() => {
+        if (pendingLogs.length > 0) {
+          logs.value.push(...pendingLogs)
+          pendingLogs.length = 0
+        }
+        logBatchTimer = null
+      }, 200)
+    }
   }
   
   function clearScanResults() {
@@ -213,6 +247,7 @@ export const useAppStore = defineStore('app', () => {
     errorCount,
     totalSensitiveItems,
     addScanResult,
+    addLog,  // 【新增】批量添加日志
     clearScanResults,
     removeResult,
     togglePath,

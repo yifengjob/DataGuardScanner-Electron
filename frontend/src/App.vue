@@ -251,7 +251,7 @@ onMounted(async () => {
   
   // 监听日志事件
   await onScanLog((log) => {
-    appStore.logs.push(log)
+    appStore.addLog(log)  // 【优化】使用批量添加
   })
 })
 
@@ -267,10 +267,6 @@ const handleStartScan = async () => {
   
   // 获取有效的扫描路径（只保留叶子节点）
   const effectivePaths = appStore.getEffectiveScanPaths()
-  console.log('开始扫描，选中的路径:', Array.from(appStore.selectedPaths))
-  console.log('有效的扫描路径:', effectivePaths)
-  console.log('配置的扩展名:', config.value.selectedExtensions)
-  console.log('启用的敏感类型:', config.value.enabledSensitiveTypes)
   
   appStore.clearScanResults()
   appStore.logs = [] // 清空旧日志
