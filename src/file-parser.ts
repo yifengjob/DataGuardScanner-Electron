@@ -72,10 +72,10 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   'pptx': extractPptx,
   'ppt': extractWithBinary,  // .ppt 降级到二进制提取
   'dps': extractWithBinary,
-  // OpenDocument 格式降级到二进制提取
-  'odt': extractWithBinary,
-  'ods': extractWithBinary,
-  'odp': extractWithBinary,
+  // 【优化】OpenDocument 格式使用自定义解压方案
+  'odt': extractOdt,
+  'ods': extractOds,
+  'odp': extractOdp,
   'rtf': extractWithBinary,
 };
 
@@ -372,4 +372,144 @@ function extractTextFromBinary(data: Buffer): string {
   return result.split('\n')
       .filter(line => line.length > 2)
       .join('\n');
+}
+
+// 【新增】解析 .odt (OpenDocument Text) 文件
+async function extractOdt(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    const data = await fs.promises.readFile(filePath);
+    const zip = new AdmZip(data);
+    
+    // ODT 的内容在 content.xml 中
+    const contentEntry = zip.getEntry('content.xml');
+    if (!contentEntry) {
+      return { text: '', unsupportedPreview: true };
+    }
+    
+    const xmlContent = contentEntry.getData().toString('utf-8');
+    
+    // 提取 <text:p> (段落) 和 <text:h> (标题) 标签中的文本
+    const textMatches = xmlContent.match(/<text:[ph][^>]*>(.*?)<\/text:[ph]>/gs);
+    let allText = '';
+    
+    if (textMatches) {
+      for (const match of textMatches) {
+        // 移除内部的 XML 标签，只保留纯文本
+        const text = match.replace(/<[^>]+>/g, '').trim();
+        if (text) {
+          allText += text + '\n';
+        }
+      }
+    }
+    
+    const hasContent = allText && allText.trim().length > 0;
+    
+    return {
+      text: hasContent ? allText : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    console.error(`ODT解析失败 ${filePath}:`, error.message);
+    return { text: '', unsupportedPreview: true };
+  }
+}
+
+// 【新增】解析 .ods (OpenDocument Spreadsheet) 文件
+async function extractOds(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    const data = await fs.promises.readFile(filePath);
+    const zip = new AdmZip(data);
+    
+    // ODS 的内容在 content.xml 中
+    const contentEntry = zip.getEntry('content.xml');
+    if (!contentEntry) {
+      return { text: '', unsupportedPreview: true };
+    }
+    
+    const xmlContent = contentEntry.getData().toString('utf-8');
+    
+    // 提取表格行和单元格
+    const rowMatches = xmlContent.match(/<table:table-row[^>]*>(.*?)<\/table:table-row>/gs);
+    let allText = '';
+    
+    if (rowMatches) {
+      for (const rowMatch of rowMatches) {
+        // 提取单元格
+        const cellMatches = rowMatch.match(/<table:table-cell[^>]*>(.*?)<\/table:table-cell>/gs);
+        if (cellMatches) {
+          const cells: string[] = [];
+          for (const cellMatch of cellMatches) {
+            // 提取单元格内的文本
+            const textMatches = cellMatch.match(/<text:p[^>]*>(.*?)<\/text:p>/gs);
+            if (textMatches) {
+              const cellText = textMatches.map(m => m.replace(/<[^>]+>/g, '').trim()).join(' ');
+              if (cellText) {
+                cells.push(cellText);
+              }
+            }
+          }
+          if (cells.length > 0) {
+            allText += cells.join('\t') + '\n';
+          }
+        }
+      }
+    }
+    
+    const hasContent = allText && allText.trim().length > 0;
+    
+    return {
+      text: hasContent ? allText : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    console.error(`ODS解析失败 ${filePath}:`, error.message);
+    return { text: '', unsupportedPreview: true };
+  }
+}
+
+// 【新增】解析 .odp (OpenDocument Presentation) 文件
+async function extractOdp(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    const data = await fs.promises.readFile(filePath);
+    const zip = new AdmZip(data);
+    
+    // ODP 的内容在 content.xml 中
+    const contentEntry = zip.getEntry('content.xml');
+    if (!contentEntry) {
+      return { text: '', unsupportedPreview: true };
+    }
+    
+    const xmlContent = contentEntry.getData().toString('utf-8');
+    
+    // 提取 <draw:frame> 中的 <text:p> 标签
+    const frameMatches = xmlContent.match(/<draw:frame[^>]*>(.*?)<\/draw:frame>/gs);
+    let allText = '';
+    
+    if (frameMatches) {
+      for (const frameMatch of frameMatches) {
+        const textMatches = frameMatch.match(/<text:p[^>]*>(.*?)<\/text:p>/gs);
+        if (textMatches) {
+          for (const textMatch of textMatches) {
+            const text = textMatch.replace(/<[^>]+>/g, '').trim();
+            if (text) {
+              allText += text + '\n';
+            }
+          }
+        }
+      }
+    }
+    
+    const hasContent = allText && allText.trim().length > 0;
+    
+    return {
+      text: hasContent ? allText : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    console.error(`ODP解析失败 ${filePath}:`, error.message);
+    return { text: '', unsupportedPreview: true };
+  }
 }
