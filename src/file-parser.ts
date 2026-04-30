@@ -139,10 +139,6 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
 // 【新增】使用 word-extractor 解析 .doc 和 .docx 文件
 async function extractWithWordExtractor(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    // 【诊断】检查文件是否存在和可读
-    const stat = await fs.promises.stat(filePath);
-    console.log(`[word-extractor] 开始解析: ${path.basename(filePath)}, 大小: ${stat.size} bytes`);
-    
     // 创建 extractor 实例
     const extractor = new WordExtractor();
     
@@ -152,7 +148,10 @@ async function extractWithWordExtractor(filePath: string): Promise<{ text: strin
     
     const hasContent = text && text.trim().length > 0;
     
-    console.log(`[word-extractor] 解析完成: ${path.basename(filePath)}, 文本长度: ${text.length}, 有内容: ${hasContent}`);
+    // 【优化】只在解析失败时输出日志
+    if (!hasContent) {
+      console.warn(`[word-extractor] 未提取到内容: ${path.basename(filePath)}`);
+    }
     
     return {
       text: hasContent ? text : '',
@@ -167,7 +166,6 @@ async function extractWithWordExtractor(filePath: string): Promise<{ text: strin
       const data = await fs.promises.readFile(filePath);
       const text = extractTextFromBinary(data);
       if (text.trim()) {
-        console.log(`[word-extractor] 降级到二进制提取成功: ${path.basename(filePath)}, 文本长度: ${text.length}`);
         return { text, unsupportedPreview: false };
       }
     } catch (e: any) {
