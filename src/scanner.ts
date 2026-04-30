@@ -554,17 +554,20 @@ export async function startScan(
             
             // 【双层保护策略】
             // 第一层：短时间停滞警告（30秒）
+            const hasPendingTasks = pendingTasks.size > 0;
             if (idleTime > STAGNATION_THRESHOLD && 
                 idleTime <= MAX_IDLE_TIME &&
                 activeWorkerCount === 0 && 
-                taskQueue.length === 0) {
+                taskQueue.length === 0 &&
+                !hasPendingTasks) {  // 【修复】必须没有待处理的任务
                 log(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展，但仍在等待可能的恢复...`);
             }
             
             // 第二层：长时间停滞强制结束（2分钟）
             if (idleTime > MAX_IDLE_TIME && 
                 activeWorkerCount === 0 && 
-                taskQueue.length === 0) {
+                taskQueue.length === 0 &&
+                !hasPendingTasks) {  // 【修复】必须没有待处理的任务
                 log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}），且系统空闲，强制结束`);
                 cleanup();
             }
