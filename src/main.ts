@@ -15,6 +15,9 @@ if (typeof (Promise as any).withResolvers === 'undefined') {
   };
 }
 
+// 【新增】启用 V8 垃圾回收 API（用于扫描完成后释放内存）
+app.commandLine.appendSwitch('js-flags', '--expose-gc');
+
 // 【修复】在 Node.js 环境中全局定义 DOMMatrix，解决 pdfjs-dist 的依赖问题
 // docstream 使用 pdfjs-dist 解析 PDF，需要 DOMMatrix API
 try {

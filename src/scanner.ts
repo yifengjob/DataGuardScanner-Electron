@@ -621,20 +621,29 @@ export async function startScan(
                 console.error('终止 Walker Worker 失败:', error);
             }
 
-            // 终止所有 Consumer Workers
+            // 【修复】终止所有 Consumer Workers 并清除引用
             for (const consumer of consumers) {
                 try {
                     consumer.worker.terminate();
+                    // 【关键】清除引用，帮助垃圾回收
+                    consumer.worker.removeAllListeners();
+                    (consumer as any).worker = null;
                 } catch (error) {
                     console.error('终止 Consumer Worker 失败:', error);
                 }
             }
+            
+            // 【关键】清空 consumers 数组，释放内存
+            consumers.length = 0;
 
             // 清除所有超时定时器
             for (const pending of pendingTasks.values()) {
                 clearTimeout(pending.timeoutId);
             }
             pendingTasks.clear();
+            
+            // 【关键】清空任务队列
+            taskQueue.length = 0;
 
             scanState.isScanning = false;
             log('扫描完成');
@@ -644,6 +653,12 @@ export async function startScan(
             }
             
             console.log('[cleanup] 资源清理完成');
+            
+            // 【新增】强制触发垃圾回收（如果可用）
+            if ((global as any).gc) {
+                console.log('[cleanup] 触发垃圾回收...');
+                (global as any).gc();
+            }
         } catch (error) {
             console.error('[cleanup] 清理过程中出错:', error);
             // 即使出错也要标记为完成
