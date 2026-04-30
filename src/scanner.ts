@@ -502,6 +502,11 @@ export async function startScan(
             // 【事件驱动】检查是否应该结束
             checkAndComplete();
         }
+
+        // 【调试】接收 Walker Worker 的日志
+        if (message.type === 'walker-log') {
+            log(message.message);
+        }
     });
 
     walkerWorker.on('error', (error: any) => {
