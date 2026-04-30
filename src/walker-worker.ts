@@ -247,14 +247,58 @@ async function startWalking(config: WalkerConfig) {
 }
 
 // 监听主线程消息
+let isWalking = false; // 【修复】标记是否正在遍历
+const taskQueue: any[] = []; // 【修复】任务队列
+
 parentPort?.on('message', (message: any) => {
   if (message.type === 'start-walking') {
+    // 【修复】如果正在遍历，将任务加入队列
+    if (isWalking) {
+      console.log(`[Walker] 正在遍历中，将任务加入队列: ${message.config.rootPath}`);
+      taskQueue.push(message.config);
+      return;
+    }
+    
+    // 开始遍历
+    isWalking = true;
+    console.log(`[Walker] 开始遍历: ${message.config.rootPath}`);
+    
     // 处理 Promise，捕获可能的错误
-    startWalking(message.config).catch((error: any) => {
+    startWalking(message.config).then(() => {
+      // 遍历完成，检查队列中是否有待处理的任务
+      isWalking = false;
+      if (taskQueue.length > 0) {
+        const nextConfig = taskQueue.shift();
+        console.log(`[Walker] 从队列中取出下一个任务: ${nextConfig.rootPath}`);
+        isWalking = true;
+        startWalking(nextConfig).catch((error: any) => {
+          parentPort?.postMessage({
+            type: 'walking-error',
+            error: error.message || String(error)
+          });
+          isWalking = false;
+        });
+      }
+    }).catch((error: any) => {
       parentPort?.postMessage({
         type: 'walking-error',
         error: error.message || String(error)
       });
+      isWalking = false;
+      
+      // 即使出错也要继续处理队列中的任务
+      if (taskQueue.length > 0) {
+        const nextConfig = taskQueue.shift();
+        console.log(`[Walker] 从队列中取出下一个任务（错误恢复）: ${nextConfig.rootPath}`);
+        isWalking = true;
+        startWalking(nextConfig).catch((error: any) => {
+          parentPort?.postMessage({
+            type: 'walking-error',
+            error: error.message || String(error)
+          });
+          isWalking = false;
+        });
+      }
     });
   }
 });
