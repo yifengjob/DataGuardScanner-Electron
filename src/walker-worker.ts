@@ -136,6 +136,17 @@ async function startWalking(config: WalkerConfig) {
 
       let fileCount = 0;
       let skippedCount = 0;
+      
+      // 【新增】超时保护 - 如果 5 分钟内没有完成，强制 resolve
+      const timeoutId = setTimeout(() => {
+        console.warn(`[Walker] 遍历超时 (${rootPath})，强制结束`);
+        parentPort?.postMessage({
+          type: 'walking-complete',
+          fileCount,
+          skippedCount
+        });
+        resolve();
+      }, 5 * 60 * 1000); // 5 分钟
 
       const walker = walkdir(rootPath, {
       follow_symlinks: false,
@@ -228,6 +239,7 @@ async function startWalking(config: WalkerConfig) {
     });
 
     walker.on('end', () => {
+      clearTimeout(timeoutId); // 【新增】清除超时定时器
       console.log(`[Walker] walker 'end' 事件触发: ${rootPath}, fileCount=${fileCount}, skippedCount=${skippedCount}`);
       parentPort?.postMessage({
         type: 'walking-complete',
@@ -240,6 +252,7 @@ async function startWalking(config: WalkerConfig) {
     });
 
     walker.on('error', (err: any) => {
+      clearTimeout(timeoutId); // 【新增】清除超时定时器
       console.error(`[Walker Error] 遍历错误 (${rootPath}):`, err.message);
       parentPort?.postMessage({
         type: 'walking-error',
