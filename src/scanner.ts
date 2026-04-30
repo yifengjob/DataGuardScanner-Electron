@@ -158,6 +158,7 @@ export async function startScan(
 
         worker.on('message', (result) => {
             if (result.type === 'ready') {
+                console.log(`[Consumer ${id}] Worker 已就绪，等待任务...`);
                 return;
             }
 
@@ -323,16 +324,25 @@ export async function startScan(
 
     // 尝试调度任务
     function tryDispatch() {
+        console.log(`[tryDispatch] 检查调度: taskQueue=${taskQueue.length}, consumers=${consumers.length}`);
+        let dispatched = 0;
         for (const consumer of consumers) {
             if (!consumer.busy && taskQueue.length > 0) {
+                console.log(`[tryDispatch] 发现空闲 Consumer，准备分发任务...`);
                 // 处理 Promise rejection，避免未捕获的错误
                 const promise = dispatchNextTask(consumer);
                 if (promise) {
+                    dispatched++;
                     promise.catch((error) => {
                         console.error(`[TaskQueue] 任务分发失败:`, error.message);
                     });
                 }
             }
+        }
+        if (dispatched > 0) {
+            console.log(`[tryDispatch] 成功分发 ${dispatched} 个任务`);
+        } else if (taskQueue.length > 0) {
+            console.warn(`[tryDispatch] 有任务但无法分发: taskQueue=${taskQueue.length}, allBusy=${consumers.every(c => c.busy)}`);
         }
     }
 
@@ -380,8 +390,15 @@ export async function startScan(
                 
                 const index = consumers.indexOf(consumer);
                 if (index > -1) {
+                    console.log(`[超时处理] 正在创建新 Worker 替换 Consumer ${index}...`);
                     consumers.splice(index, 1);
                     createConsumer(index);
+                    console.log(`[超时处理] 新 Worker 已创建，当前 Consumers 数量: ${consumers.length}`);
+                    // 【关键】立即尝试调度任务
+                    setTimeout(() => {
+                        console.log(`[超时处理] 尝试调度任务，队列长度: ${taskQueue.length}, Consumers: ${consumers.length}`);
+                        tryDispatch();
+                    }, 50);
                 }
                 
                 resolve(); // 超时处理后继续
