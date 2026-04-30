@@ -663,6 +663,21 @@ export async function startScan(
             break;
         }
 
+        // 【修复】检查路径是否是文件，如果是文件且在 ignoreDirNames 中，则跳过
+        try {
+            const stat = fs.statSync(rootPath);
+            if (stat.isFile()) {
+                const basename = path.basename(rootPath);
+                if (config.ignoreDirNames.includes(basename)) {
+                    log(`跳过忽略的文件: ${rootPath}`);
+                    continue;
+                }
+            }
+        } catch (error: any) {
+            log(`无法访问路径: ${rootPath} - ${error.message}`);
+            continue;
+        }
+
         log(`正在扫描: ${rootPath} (${currentPathIndex}/${totalPaths})`);
 
         if (!fs.existsSync(rootPath)) {
