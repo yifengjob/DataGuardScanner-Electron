@@ -73,6 +73,7 @@ export async function startScan(
     let walkerSkippedCount = 0;    // Walker 跳过的文件数
     let consumerProcessedCount = 0; // Consumer 已处理的文件数
     let resultCount = 0;            // 发现的敏感文件数
+    let totalSensitiveItems = 0;    // 【新增】发现的敏感信息总条数
     let activeWorkerCount = 0;      // 【优化】跟踪活跃的 Worker 数量
 
     // 创建 Consumer Workers 池
@@ -178,6 +179,7 @@ export async function startScan(
             } else {
                 if (result.total && result.total > 0) {
                     resultCount++;
+                    totalSensitiveItems += result.total; // 【新增】累加敏感信息总条数
                     log(`发现敏感文件 [${resultCount}]: ${result.filePath} (总计: ${result.total} 个敏感项)`);
 
                     const resultItem: ScanResultItem = {
@@ -462,7 +464,8 @@ export async function startScan(
         processed: consumerProcessedCount,
         total: walkerTotalCount,
         skipped: walkerSkippedCount,
-        results: resultCount
+        results: resultCount,
+        sensitiveItems: totalSensitiveItems  // 【新增】敏感信息总条数
     };
     let lastStagnationCheckTime = Date.now();
     const stagnationCheckInterval = 30000; // 30秒无进展才判定为停滞
@@ -494,7 +497,8 @@ export async function startScan(
             consumerProcessedCount !== lastStagnationCheckState.processed ||
             walkerTotalCount !== lastStagnationCheckState.total ||
             walkerSkippedCount !== lastStagnationCheckState.skipped ||
-            resultCount !== lastStagnationCheckState.results;
+            resultCount !== lastStagnationCheckState.results ||
+            totalSensitiveItems !== lastStagnationCheckState.sensitiveItems;  // 【新增】敏感信息条数变化
         
         if (hasRealProgress) {
             // 有进展，更新状态快照和时间
@@ -502,7 +506,8 @@ export async function startScan(
                 processed: consumerProcessedCount,
                 total: walkerTotalCount,
                 skipped: walkerSkippedCount,
-                results: resultCount
+                results: resultCount,
+                sensitiveItems: totalSensitiveItems  // 【新增】敏感信息总条数
             };
             lastStagnationCheckTime = now;
         } else {
@@ -517,7 +522,7 @@ export async function startScan(
             if (idleTime > stagnationCheckInterval && 
                 activeWorkerCount === 0 && 
                 taskQueue.length === 0) {
-                log(`警告: ${stagnationCheckInterval / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感:${resultCount}），且系统空闲，强制结束`);
+                log(`警告: ${stagnationCheckInterval / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}），且系统空闲，强制结束`);
                 cleanup();
             }
         }
