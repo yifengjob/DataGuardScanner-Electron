@@ -1,7 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-// 【重构】使用 @jose.espana/docstream 统一解析所有 Office 文档格式
+// 【重构】使用 @jose.espana/docstream 解析 Office 文档
 import docstream from '@jose.espana/docstream';
+// 【修复】PDF 使用专门的 pdf-parse 库，避免 pdfjs-dist 的 Worker 问题
+import pdfParse from 'pdf-parse';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
 type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
@@ -38,8 +40,9 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   'yml': extractTextFile,
   'properties': extractTextFile,
   'toml': extractTextFile,
-  // 【重构】所有 Office 文档和 PDF 统一使用 docstream 解析
-  'pdf': extractWithDocstream,
+  // 【修复】PDF 使用专门的 pdf-parse 库
+  'pdf': extractPdf,
+  // Office 文档使用 docstream
   'docx': extractWithDocstream,
   'doc': extractWithDocstream,
   'wps': extractWithDocstream,
@@ -89,6 +92,25 @@ async function extractTextFile(filePath: string): Promise<{ text: string; unsupp
     // 【修复】Windows 文件锁定或其他读取错误
     console.error(`读取文本文件失败 ${filePath}:`, error.message);
     throw new Error(`无法读取文件: ${error.message}`);
+  }
+}
+
+// 【修复】PDF 使用 pdf-parse 库解析，避免 docstream 的 pdfjs-dist Worker 问题
+async function extractPdf(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    const dataBuffer = await fs.promises.readFile(filePath);
+    const data = await pdfParse(dataBuffer);
+    
+    const hasContent = data.text && data.text.trim().length > 0;
+    
+    return {
+      text: hasContent ? data.text : '',
+      unsupportedPreview: !hasContent
+    };
+  } catch (error: any) {
+    // PDF 解析失败是正常现象（文件损坏或格式不支持），静默处理
+    console.error(`PDF解析失败 ${filePath}:`, error.message);
+    return { text: '', unsupportedPreview: true };
   }
 }
 

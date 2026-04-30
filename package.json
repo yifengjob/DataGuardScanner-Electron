@@ -129,6 +129,7 @@
     "exceljs": "^4.4.0",
     "extract-zip": "^2.0.1",
     "jszip": "^3.10.1",
+    "pdf-parse": "^1.1.4",
     "process": "^0.11.10",
     "readable-stream": "^3.6.2",
     "setimmediate": "^1.0.5",
@@ -137,6 +138,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
+    "@types/pdf-parse": "^1.1.5",
     "concurrently": "^8.2.2",
     "cross-env": "^10.1.0",
     "electron": "^22.3.27",
