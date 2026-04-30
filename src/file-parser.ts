@@ -9,8 +9,6 @@ import pdfParse from 'pdf-parse';
 import * as XLSX from 'xlsx';
 // 【新增】adm-zip 用于解压 .pptx 文件
 import AdmZip from 'adm-zip';
-// 【新增】rtf-parser 用于解析 RTF 文件
-import * as rtfParser from 'rtf-parser';
 
 // 【优化】抑制 pdfjs-dist 的字体警告（TT: undefined function, Ran out of space）
 // 这些警告不影响文本提取，但会污染日志
@@ -517,102 +515,34 @@ async function extractOdp(filePath: string): Promise<{ text: string; unsupported
 }
 
 // 【新增】解析 .rtf (Rich Text Format) 文件
+// RTF 本质上是文本格式，直接用正则表达式提取可读文本
 async function extractRtf(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    // 读取文件
-    const data = await fs.promises.readFile(filePath, 'utf-8');
+    const content = await fs.promises.readFile(filePath, 'utf-8');
     
-    // 使用 rtf-parser 解析（正确的 API 是 rtfParser.string）
-    const document = await new Promise<any>((resolve, reject) => {
-      rtfParser.string(data, (err: any, doc: any) => {
-        if (err) reject(err);
-        else resolve(doc);
-      });
-    });
+    // 移除 RTF 控制字（如 \par, \b, \i 等）
+    let text = content
+      // 移除十六进制转义序列（\'xx）
+      .replace(/\\'[0-9a-fA-F]{2}/g, '')
+      // 移除 Unicode 转义序列（\uN?）
+      .replace(/\\u-?\d+\??/g, '')
+      // 移除 RTF 控制字（\word）
+      .replace(/\\[a-z]+[0-9]*[ ;]?/g, ' ')
+      // 移除花括号
+      .replace(/[{}]/g, ' ')
+      // 合并多余空白
+      .replace(/\s+/g, ' ')
+      .trim();
     
-    // 提取文本内容
-    let allText = '';
-    
-    // rtf-parser 返回的文档结构中，文本分布在各个节点中
-    function extractTextFromNode(node: any): string {
-      if (typeof node === 'string') {
-        return node;
-      }
-      
-      // 处理 value 字段（可能是十六进制编码的文本）
-      if (node.value) {
-        const value = node.value;
-        // 如果是十六进制字符串，尝试解码
-        if (typeof value === 'string' && /^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0) {
-          try {
-            // 将十六进制转换为字节，再转换为 UTF-8 字符串
-            const bytes = Buffer.from(value, 'hex');
-            return bytes.toString('utf-8');
-          } catch (e) {
-            // 如果解码失败，直接返回原始值
-            return String(value);
-          }
-        }
-        return String(value);
-      }
-      
-      // 处理 text 字段
-      if (node.text) {
-        return node.text;
-      }
-      
-      // 递归处理 content 或 children
-      const items = node.content || node.children;
-      if (items && Array.isArray(items)) {
-        return items.map(extractTextFromNode).join('');
-      }
-      
-      return '';
-    }
-    
-    // 尝试多种可能的结构
-    if (document.content && Array.isArray(document.content)) {
-      allText = document.content.map(extractTextFromNode).join('\n');
-    } else if (document.children && Array.isArray(document.children)) {
-      allText = document.children.map(extractTextFromNode).join('\n');
-    } else if (document.text) {
-      allText = document.text;
-    } else {
-      // 如果顶层没有 content/children，尝试直接提取
-      allText = extractTextFromNode(document);
-    }
-    
-    // 清理文本：移除多余空白
-    allText = allText.replace(/\s+/g, ' ').trim();
-    
-    const hasContent = allText && allText.length > 0;
-    
-    // 【调试】输出解析结果
-    if (!hasContent) {
-      console.warn(`RTF 解析未提取到文本 ${filePath}, 文档结构:`, JSON.stringify(document).substring(0, 200));
-    }
+    const hasContent = text && text.length > 10;
     
     return {
-      text: hasContent ? allText : '',
+      text: hasContent ? text : '',
       unsupportedPreview: !hasContent
     };
     
   } catch (error: any) {
     console.error(`RTF解析失败 ${filePath}:`, error.message);
-    
-    // 降级到纯文本读取（RTF 本质上是文本格式）
-    try {
-      const content = await fs.promises.readFile(filePath, 'utf-8');
-      // 简单移除 RTF 标记，提取可读文本
-      const text = content.replace(/\\[a-z]+[0-9]*|[{}]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (text && text.length > 10) {
-        console.log(`RTF 降级提取成功，文本长度: ${text.length}`);
-        return { text, unsupportedPreview: false };
-      }
-    } catch (e: any) {
-      console.error(`RTF文本提取也失败 ${filePath}:`, e.message);
-    }
-    
     return { text: '', unsupportedPreview: true };
   }
 }
