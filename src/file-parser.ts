@@ -522,9 +522,9 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
     // 读取文件
     const data = await fs.promises.readFile(filePath, 'utf-8');
     
-    // 使用 rtf-parser 解析
+    // 使用 rtf-parser 解析（正确的 API 是 rtfParser.string）
     const document = await new Promise<any>((resolve, reject) => {
-      rtfParser.parseString(data, (err: any, doc: any) => {
+      rtfParser.string(data, (err: any, doc: any) => {
         if (err) reject(err);
         else resolve(doc);
       });

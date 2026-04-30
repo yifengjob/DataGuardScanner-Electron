@@ -10,8 +10,10 @@ declare module 'rtf-parser' {
     [key: string]: any;
   }
   
-  export function parseString(
+  export function string(
     rtfString: string,
     callback: (err: any, doc: RTFDocument) => void
   ): void;
+  
+  export function stream(): any;
 }
