@@ -522,8 +522,46 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
   try {
     const content = await fs.promises.readFile(filePath, 'utf-8');
     
-    // 第一步：将十六进制转义序列（\'xx）转换为 GBK 编码的字符
-    // RTF 中的 \'xx 是 GBK/GB2312 编码的字节，需要两个字节组合成一个中文字符
+    // 第一步：检测 RTF 文件的编码（从 \ansicpgN 中提取代码页）
+    const codePageMatch = content.match(/\\ansicpg(\d+)/i);
+    let encoding = 'gbk'; // 默认 GBK（简体中文）
+    
+    if (codePageMatch) {
+      const codePage = parseInt(codePageMatch[1]);
+      // 根据代码页映射到 iconv-lite 支持的编码名称
+      switch (codePage) {
+        case 936:  // 简体中文 GBK
+          encoding = 'gbk';
+          break;
+        case 950:  // 繁体中文 Big5
+          encoding = 'big5';
+          break;
+        case 932:  // 日语 Shift_JIS
+          encoding = 'shift_jis';
+          break;
+        case 949:  // 韩语 EUC-KR
+          encoding = 'euc-kr';
+          break;
+        case 1252: // 西欧 Windows-1252
+          encoding = 'windows-1252';
+          break;
+        case 1251: // 西里尔文 Windows-1251
+          encoding = 'windows-1251';
+          break;
+        case 1250: // 东欧 Windows-1250
+          encoding = 'windows-1250';
+          break;
+        case 65001: // UTF-8
+          encoding = 'utf-8';
+          break;
+        default:
+          // 其他代码页尝试使用 GBK（最常见）
+          console.warn(`未知的 RTF 代码页: ${codePage}，尝试使用 GBK 解码`);
+          encoding = 'gbk';
+      }
+    }
+    
+    // 第二步：将十六进制转义序列（\'xx）转换为对应编码的字符
     let text = content.replace(/(\\'[0-9a-fA-F]{2})+/g, (match) => {
       // 提取所有十六进制字节
       const hexPairs = match.match(/\\'([0-9a-fA-F]{2})/g);
@@ -535,16 +573,23 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
         return parseInt(hex, 16);
       });
       
-      // 使用 iconv-lite 将 GBK 字节解码为字符串
+      // 使用 iconv-lite 将字节解码为字符串
       try {
         const buffer = Buffer.from(bytes);
-        return iconv.decode(buffer, 'gbk');
+        return iconv.decode(buffer, encoding as any);
       } catch (e) {
-        return '';
+        console.warn(`${encoding} 解码失败，尝试 GBK:`, e);
+        // 降级到 GBK
+        try {
+          const gbkBuffer = Buffer.from(bytes);
+          return iconv.decode(gbkBuffer, 'gbk');
+        } catch (e2) {
+          return '';
+        }
       }
     });
     
-    // 第二步：移除其他 RTF 控制字和标记
+    // 第三步：移除其他 RTF 控制字和标记
     text = text
       // 移除 Unicode 转义序列（\uN?）
       .replace(/\\u-?\d+\??/g, '')
