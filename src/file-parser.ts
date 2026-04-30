@@ -1,11 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-// 【重构】使用 @jose.espana/docstream 解析 Office 文档
-import docstream from '@jose.espana/docstream';
+// 【重构】弃用 docstream，使用专门的库解析不同格式
+import mammoth from 'mammoth';  // .docx
 // 【修复】PDF 使用专门的 pdf-parse 库，避免 pdfjs-dist 的 Worker 问题
 import pdfParse from 'pdf-parse';
 // 【新增】SheetJS 用于快速解析 Excel 文件
 import * as XLSX from 'xlsx';
+// 【新增】adm-zip 用于解压 .pptx 文件
+import AdmZip from 'adm-zip';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
 type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
@@ -44,22 +46,23 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   'toml': extractTextFile,
   // 【修复】PDF 使用专门的 pdf-parse 库
   'pdf': extractPdf,
-  // Office 文档使用 docstream
-  'docx': extractWithDocstream,
-  'doc': extractWithDocstream,
-  'wps': extractWithDocstream,
+  // 【优化】Word 文档使用 mammoth（快速、稳定）
+  'docx': extractWithMammoth,
+  'doc': extractWithBinary,  // .doc 降级到二进制提取
+  'wps': extractWithBinary,
   // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
   'xlsx': extractWithSheetJS,
   'xls': extractWithSheetJS,
   'et': extractWithSheetJS,
-  // PPT 和其他格式继续使用 docstream
-  'pptx': extractWithDocstream,
-  'ppt': extractWithDocstream,
-  'dps': extractWithDocstream,
-  'odt': extractWithDocstream,
-  'ods': extractWithDocstream,
-  'odp': extractWithDocstream,
-  'rtf': extractWithDocstream,
+  // 【优化】PPT 文件使用自定义解压方案
+  'pptx': extractPptx,
+  'ppt': extractWithBinary,  // .ppt 降级到二进制提取
+  'dps': extractWithBinary,
+  // OpenDocument 格式降级到二进制提取
+  'odt': extractWithBinary,
+  'ods': extractWithBinary,
+  'odp': extractWithBinary,
+  'rtf': extractWithBinary,
 };
 
 // 【优化】从 EXTRACTOR_MAP 自动生成支持的文件类型列表（单一数据源）
@@ -118,30 +121,21 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
   }
 }
 
-// 【重构】统一使用 docstream 解析 Office 文档和 PDF
-async function extractWithDocstream(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
-  const ext = path.extname(filePath).toLowerCase().substring(1);
-  const isPdf = ext === 'pdf';
-  
+// 【新增】使用 mammoth 解析 .docx 文件
+async function extractWithMammoth(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    // PDF 可能需要特殊配置，但 parseOffice 应该能自动处理
-    // 如果遇到问题，可以添加配置参数
-    const config = isPdf ? {
-      // PDF 特定配置（可选）
-      outputErrorToConsole: false, // 不在控制台输出错误
-    } : {};
+    // 读取文件
+    const data = await fs.promises.readFile(filePath);
     
-    // 使用 docstream 解析文件
-    const ast = await docstream.parseOffice(filePath, config);
+    // 使用 mammoth 提取文本
+    const result = await mammoth.extractRawText({ buffer: data });
     
-    // 提取纯文本
-    const text = ast.toText();
-    
-    // 检查是否有实质性内容
+    const text = result.value || '';
     const hasContent = text && text.trim().length > 0;
     
-    if (isPdf && !hasContent) {
-      console.warn(`PDF 解析未提取到文本 ${filePath}，可能是扫描版或加密 PDF`);
+    // 记录警告信息（如果有）
+    if (result.messages && result.messages.length > 0) {
+      console.warn(`mammoth 解析警告 ${filePath}:`, result.messages.slice(0, 3));
     }
     
     return {
@@ -150,28 +144,84 @@ async function extractWithDocstream(filePath: string): Promise<{ text: string; u
     };
     
   } catch (error: any) {
-    // docstream 解析失败，记录错误
-    if (isPdf) {
-      console.error(`PDF解析失败 ${filePath}:`, error.message);
-      // 【重要】PDF 解析失败时，不要降级到二进制提取（会显示乱码）
-      // 直接返回不支持预览
-      return { text: '', unsupportedPreview: true };
-    } else {
-      console.error(`docstream解析失败 ${filePath}:`, error.message);
-      
-      // Office 文档可以尝试降级到二进制提取
-      try {
-        const data = await fs.promises.readFile(filePath);
-        const text = extractTextFromBinary(data);
-        if (text.trim()) {
-          return { text, unsupportedPreview: false };
-        }
-      } catch (e: any) {
-        console.error(`二进制提取也失败 ${filePath}:`, e.message);
+    console.error(`mammoth解析失败 ${filePath}:`, error.message);
+    
+    // 降级到二进制提取
+    try {
+      const data = await fs.promises.readFile(filePath);
+      const text = extractTextFromBinary(data);
+      if (text.trim()) {
+        return { text, unsupportedPreview: false };
       }
-      
-      return { text: '', unsupportedPreview: true };
+    } catch (e: any) {
+      console.error(`二进制提取也失败 ${filePath}:`, e.message);
     }
+    
+    return { text: '', unsupportedPreview: true };
+  }
+}
+
+// 【新增】使用自定义方案解析 .pptx 文件
+async function extractPptx(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    // 读取文件
+    const data = await fs.promises.readFile(filePath);
+    
+    // 使用 adm-zip 解压
+    const zip = new AdmZip(data);
+    const zipEntries = zip.getEntries();
+    
+    let allText = '';
+    
+    // 查找所有幻灯片 XML 文件
+    for (const entry of zipEntries) {
+      const entryName = entry.entryName;
+      
+      // PPTX 的幻灯片内容在 ppt/slides/slide*.xml 中
+      if (entryName.startsWith('ppt/slides/slide') && entryName.endsWith('.xml')) {
+        try {
+          const xmlContent = entry.getData().toString('utf-8');
+          
+          // 简单提取 <a:t> 标签中的文本（PowerPoint 的文本格式）
+          const textMatches = xmlContent.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+          if (textMatches) {
+            const texts = textMatches.map((match: string) => {
+              const content = match.match(/<a:t[^>]*>([^<]*)<\/a:t>/);
+              return content ? content[1] : '';
+            }).filter((t: string) => t.trim());
+            
+            if (texts.length > 0) {
+              allText += '\n' + texts.join(' ');
+            }
+          }
+        } catch (e) {
+          // 忽略单个幻灯片的解析错误
+        }
+      }
+    }
+    
+    const hasContent = allText && allText.trim().length > 0;
+    
+    return {
+      text: hasContent ? allText : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    console.error(`PPTX解析失败 ${filePath}:`, error.message);
+    
+    // 降级到二进制提取
+    try {
+      const data = await fs.promises.readFile(filePath);
+      const text = extractTextFromBinary(data);
+      if (text.trim()) {
+        return { text, unsupportedPreview: false };
+      }
+    } catch (e: any) {
+      console.error(`二进制提取也失败 ${filePath}:`, e.message);
+    }
+    
+    return { text: '', unsupportedPreview: true };
   }
 }
 
@@ -215,14 +265,25 @@ async function extractWithSheetJS(filePath: string): Promise<{ text: string; uns
     
   } catch (error: any) {
     console.error(`SheetJS解析失败 ${filePath}:`, error.message);
+    return { text: '', unsupportedPreview: true };
+  }
+}
+
+// 【新增】二进制提取（用于 .doc、.ppt 等旧格式）
+async function extractWithBinary(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  try {
+    const data = await fs.promises.readFile(filePath);
+    const text = extractTextFromBinary(data);
     
-    // 降级到 docstream
-    try {
-      return await extractWithDocstream(filePath);
-    } catch (e: any) {
-      console.error(`docstream降级也失败 ${filePath}:`, e.message);
-      return { text: '', unsupportedPreview: true };
-    }
+    const hasContent = text && text.trim().length > 0;
+    
+    return {
+      text: hasContent ? text : '',
+      unsupportedPreview: !hasContent
+    };
+  } catch (error: any) {
+    console.error(`二进制提取失败 ${filePath}:`, error.message);
+    return { text: '', unsupportedPreview: true };
   }
 }
 

@@ -129,6 +129,7 @@
     "exceljs": "^4.4.0",
     "extract-zip": "^2.0.1",
     "jszip": "^3.10.1",
+    "mammoth": "^1.12.0",
     "pdf-parse": "^1.1.4",
     "process": "^0.11.10",
     "readable-stream": "^3.6.2",
@@ -138,6 +139,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.19.39",
     "@types/pdf-parse": "^1.1.5",
     "concurrently": "^8.2.2",
