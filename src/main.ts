@@ -2,6 +2,19 @@ import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu, screen} from 'el
 import * as path from 'path';
 import * as fs from 'fs';
 
+// 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
+// pdfjs-dist v5.x+ 使用了 ES2024 的 Promise.withResolvers，需要 polyfill
+if (typeof (Promise as any).withResolvers === 'undefined') {
+  (Promise as any).withResolvers = function() {
+    let resolve: any, reject: any;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 // 【修复】在 Node.js 环境中全局定义 DOMMatrix，解决 pdfjs-dist 的依赖问题
 // docstream 使用 pdfjs-dist 解析 PDF，需要 DOMMatrix API
 try {

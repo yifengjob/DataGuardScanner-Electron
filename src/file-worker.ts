@@ -4,6 +4,18 @@
  */
 import { parentPort } from 'worker_threads';
 
+// 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
+if (typeof (Promise as any).withResolvers === 'undefined') {
+  (Promise as any).withResolvers = function() {
+    let resolve: any, reject: any;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 // 【修复】在 Worker 线程中也定义 DOMMatrix，解决 PDF 解析问题
 // Worker 线程有独立的全局作用域，需要单独定义
 try {
