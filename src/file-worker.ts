@@ -2,6 +2,23 @@
  * 文件解析 Worker 线程
  * 负责在后台线程中执行 CPU 密集型的文件解析和敏感数据检测
  */
+
+// 【优化】在最开始抑制 pdfjs-dist 的字体警告（必须在其他导入之前）
+const PDFJS_WARN_PATTERNS = [
+  'Warning: TT: undefined function',
+  'Warning: Ran out of space in font private use area'
+];
+
+const originalWarn = console.warn;
+console.warn = function(...args: any[]) {
+  const message = args.join(' ');
+  const shouldSuppress = PDFJS_WARN_PATTERNS.some(pattern => message.includes(pattern));
+  if (shouldSuppress) {
+    return; // 静默丢弃
+  }
+  originalWarn.apply(console, args);
+};
+
 import { parentPort } from 'worker_threads';
 
 // 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
@@ -26,10 +43,6 @@ try {
 } catch (error) {
   // Worker 中静默失败，由主进程的错误处理捕获
 }
-
-// 【优化】初始化日志抑制（Worker 线程也需要）
-import { initLogSuppression } from './log-utils';
-initLogSuppression();
 
 import { extractTextFromFile } from './file-parser';
 import { detectSensitiveData } from './sensitive-detector';
