@@ -484,6 +484,12 @@ export async function startScan(
             walkerSkippedCount += message.skippedCount;
             walkerCompletedCount++; // 【修复】增加完成计数
             
+            // 【内存安全】防止计数器溢出
+            if (walkerCompletedCount > totalWalkerTasks) {
+                console.warn(`[Walker] 警告: 完成计数 (${walkerCompletedCount}) 超过总任务数 (${totalWalkerTasks})`);
+                walkerCompletedCount = totalWalkerTasks;
+            }
+            
             console.log(`[Walker] 已完成 ${walkerCompletedCount}/${totalWalkerTasks} 个任务`);
             
             // 【事件驱动】检查是否应该结束
@@ -620,6 +626,8 @@ export async function startScan(
 
             // 【修复】终止 Walker Worker 并清除引用
             try {
+                // 【内存安全】先发送清空队列的信号
+                walkerWorker.postMessage({ type: 'cancel-all' });
                 walkerWorker.removeAllListeners();
                 walkerWorker.terminate();
                 (walkerWorker as any) = null;

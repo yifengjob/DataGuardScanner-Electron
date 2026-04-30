@@ -303,6 +303,11 @@ parentPort?.on('message', (message: any) => {
         });
       }
     });
+  } else if (message.type === 'cancel-all') {
+    // 【内存安全】清空所有待处理的任务
+    console.log(`[Walker] 收到取消信号，清空队列 (${taskQueue.length} 个任务)`);
+    taskQueue.length = 0;
+    isWalking = false;
   }
 });
 
