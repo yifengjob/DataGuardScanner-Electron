@@ -137,7 +137,10 @@ async function startWalking(config: WalkerConfig) {
       let fileCount = 0;
       let skippedCount = 0;
       
-      // 【新增】超时保护 - 如果 5 分钟内没有完成，强制 resolve
+      // 【调试】输出 walker 配置
+      console.log(`[Walker] 创建 walker: rootPath=${rootPath}, follow_symlinks=false`);
+      
+      // 【新增】超时保护 - 如果 30 秒内没有完成，强制 resolve（调试用）
       const timeoutId = setTimeout(() => {
         console.warn(`[Walker] 遍历超时 (${rootPath})，强制结束`);
         parentPort?.postMessage({
@@ -146,7 +149,7 @@ async function startWalking(config: WalkerConfig) {
           skippedCount
         });
         resolve();
-      }, 5 * 60 * 1000); // 5 分钟
+      }, 30 * 1000); // 30 秒
 
       const walker = walkdir(rootPath, {
       follow_symlinks: false,
@@ -285,6 +288,7 @@ function processNextTask(config: any) {
   });
   
   startWalking(config).then(() => {
+    console.log(`[Walker] .then() 回调被调用: ${config.rootPath}`);
     // 遍历完成，检查队列中是否有待处理的任务
     isWalking = false;
     const queueLength = taskQueue.length;
