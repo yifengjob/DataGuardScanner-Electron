@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 // 【重构】弃用 docstream，使用专门的库解析不同格式
-import mammoth from 'mammoth';  // .docx
-import WordExtractor from 'word-extractor';  // .doc
+import WordExtractor from 'word-extractor';  // .doc 和 .docx 统一使用 word-extractor
 // 【修复】PDF 使用专门的 pdf-parse 库，避免 pdfjs-dist 的 Worker 问题
 import pdfParse from 'pdf-parse';
 // 【新增】SheetJS 用于快速解析 Excel 文件
@@ -62,9 +61,9 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   'toml': extractTextFile,
   // 【修复】PDF 使用专门的 pdf-parse 库
   'pdf': extractPdf,
-  // 【优化】Word 文档使用专门的解析器
-  'docx': extractWithMammoth,
-  'doc': extractWithWordExtractor,  // .doc 使用 word-extractor
+  // 【优化】Word 文档统一使用 word-extractor（支持 .doc 和 .docx）
+  'docx': extractWithWordExtractor,
+  'doc': extractWithWordExtractor,
   'wps': extractWithBinary,  // WPS 旧版格式，暂时使用二进制提取
   // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
   'xlsx': extractWithSheetJS,
@@ -137,63 +136,13 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
   }
 }
 
-// 【新增】使用 mammoth 解析 .docx 文件
-async function extractWithMammoth(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+// 【新增】使用 word-extractor 解析 .doc 和 .docx 文件
+async function extractWithWordExtractor(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
     // 【诊断】检查文件是否存在和可读
     const stat = await fs.promises.stat(filePath);
-    console.log(`[mammoth] 开始解析: ${path.basename(filePath)}, 大小: ${stat.size} bytes`);
+    console.log(`[word-extractor] 开始解析: ${path.basename(filePath)}, 大小: ${stat.size} bytes`);
     
-    // 读取文件
-    const data = await fs.promises.readFile(filePath);
-    console.log(`[mammoth] 文件读取成功, Buffer 大小: ${data.length} bytes`);
-    
-    // 【诊断】验证是否为有效的 ZIP 文件（.docx 本质是 ZIP）
-    if (data.length < 4 || data[0] !== 0x50 || data[1] !== 0x4b) {
-      console.warn(`[mammoth] 文件不是有效的 ZIP 格式: ${filePath}`);
-      throw new Error('文件格式无效，不是标准的 .docx 文件');
-    }
-    
-    // 使用 mammoth 提取文本
-    const result = await mammoth.extractRawText({ buffer: data });
-    
-    const text = result.value || '';
-    const hasContent = text && text.trim().length > 0;
-    
-    // 【优化】只有当无法提取文本时才输出警告
-    if (!hasContent && result.messages && result.messages.length > 0) {
-      console.warn(`[mammoth] 解析警告 ${path.basename(filePath)}:`, result.messages.map((m: any) => m.message).join(', '));
-    }
-    
-    console.log(`[mammoth] 解析完成: ${path.basename(filePath)}, 文本长度: ${text.length}, 有内容: ${hasContent}`);
-    
-    return {
-      text: hasContent ? text : '',
-      unsupportedPreview: !hasContent
-    };
-    
-  } catch (error: any) {
-    console.error(`[mammoth] 解析失败 ${path.basename(filePath)}:`, error.message);
-    
-    // 降级到二进制提取
-    try {
-      const data = await fs.promises.readFile(filePath);
-      const text = extractTextFromBinary(data);
-      if (text.trim()) {
-        console.log(`[mammoth] 降级到二进制提取成功: ${path.basename(filePath)}, 文本长度: ${text.length}`);
-        return { text, unsupportedPreview: false };
-      }
-    } catch (e: any) {
-      console.error(`[mammoth] 二进制提取也失败 ${path.basename(filePath)}:`, e.message);
-    }
-    
-    return { text: '', unsupportedPreview: true };
-  }
-}
-
-// 【新增】使用 word-extractor 解析 .doc 文件
-async function extractWithWordExtractor(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
-  try {
     // 创建 extractor 实例
     const extractor = new WordExtractor();
     
@@ -203,23 +152,26 @@ async function extractWithWordExtractor(filePath: string): Promise<{ text: strin
     
     const hasContent = text && text.trim().length > 0;
     
+    console.log(`[word-extractor] 解析完成: ${path.basename(filePath)}, 文本长度: ${text.length}, 有内容: ${hasContent}`);
+    
     return {
       text: hasContent ? text : '',
       unsupportedPreview: !hasContent
     };
     
   } catch (error: any) {
-    console.error(`word-extractor解析失败 ${filePath}:`, error.message);
+    console.error(`[word-extractor] 解析失败 ${path.basename(filePath)}:`, error.message);
     
     // 降级到二进制提取
     try {
       const data = await fs.promises.readFile(filePath);
       const text = extractTextFromBinary(data);
       if (text.trim()) {
+        console.log(`[word-extractor] 降级到二进制提取成功: ${path.basename(filePath)}, 文本长度: ${text.length}`);
         return { text, unsupportedPreview: false };
       }
     } catch (e: any) {
-      console.error(`二进制提取也失败 ${filePath}:`, e.message);
+      console.error(`[word-extractor] 二进制提取也失败 ${path.basename(filePath)}:`, e.message);
     }
     
     return { text: '', unsupportedPreview: true };
