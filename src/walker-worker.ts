@@ -64,6 +64,7 @@ async function startWalking(config: WalkerConfig) {
     try {
       stat = await fs.promises.stat(rootPath);
     } catch (error: any) {
+      console.error(`[Walker] 无法访问路径: ${rootPath}`, error.message);
       parentPort?.postMessage({
         type: 'walking-error',
         error: `无法访问路径: ${rootPath}`
@@ -73,15 +74,21 @@ async function startWalking(config: WalkerConfig) {
     
     // 如果是文件，直接处理该文件
     if (stat.isFile()) {
+      console.log(`[Walker] 检测到文件: ${rootPath}, 大小: ${stat.size} bytes`);
       const ext = path.extname(rootPath).toLowerCase().replace('.', '');
+      console.log(`[Walker] 文件扩展名: '${ext}'`);
       
       // 检查扩展名
       let shouldProcess = false;
       if (selectedExtensions.includes('*')) {
         shouldProcess = SUPPORTED_EXTENSIONS.includes(ext);
+        console.log(`[Walker] 检查扩展名: ${ext} in SUPPORTED_EXTENSIONS=${SUPPORTED_EXTENSIONS.includes(ext)}`);
       } else {
         shouldProcess = selectedExtensions.includes(ext);
+        console.log(`[Walker] 检查扩展名: ${ext} in selectedExtensions=${selectedExtensions.includes(ext)}`);
       }
+      
+      console.log(`[Walker] shouldProcess=${shouldProcess}, size=${stat.size}`);
       
       if (shouldProcess && stat.size > 0) {
         // 检查文件大小
