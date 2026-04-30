@@ -3,6 +3,18 @@
  * 负责在后台线程中执行 CPU 密集型的文件解析和敏感数据检测
  */
 import { parentPort } from 'worker_threads';
+
+// 【修复】在 Worker 线程中也定义 DOMMatrix，解决 PDF 解析问题
+// Worker 线程有独立的全局作用域，需要单独定义
+try {
+  const { DOMMatrix } = require('@napi-rs/canvas');
+  if (typeof (global as any).DOMMatrix === 'undefined') {
+    (global as any).DOMMatrix = DOMMatrix;
+  }
+} catch (error) {
+  // Worker 中静默失败，由主进程的错误处理捕获
+}
+
 import { extractTextFromFile } from './file-parser';
 import { detectSensitiveData } from './sensitive-detector';
 // 【优化】导入配置常量
