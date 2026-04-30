@@ -73,7 +73,7 @@ function setupLogFile() {
 setupLogFile();
 
 // 【修复】添加全局未处理异常处理器，防止 Windows 闪退
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   console.error('[全局错误] 未处理的 Promise Rejection:', reason);
 });
 
