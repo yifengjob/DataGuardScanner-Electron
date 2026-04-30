@@ -11,8 +11,6 @@ import * as XLSX from 'xlsx';
 import AdmZip from 'adm-zip';
 // 【新增】iconv-lite 用于解码 GBK 编码的 RTF 文件
 import * as iconv from 'iconv-lite';
-// 【新增】cfb 用于解析 OLE2 格式（.wps/.ppt/.dps）
-import * as CFB from 'cfb';
 
 // 【优化】抑制 pdfjs-dist 的字体警告（TT: undefined function, Ran out of space）
 // 这些警告不影响文本提取，但会污染日志
@@ -67,15 +65,15 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   // 【优化】Word 文档使用专门的解析器
   'docx': extractWithMammoth,
   'doc': extractWithWordExtractor,  // .doc 使用 word-extractor
-  'wps': extractWithCfb,  // WPS 旧版格式，使用 CFB 解析
+  'wps': extractWithBinary,  // WPS 旧版格式，暂时使用二进制提取
   // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
   'xlsx': extractWithSheetJS,
   'xls': extractWithSheetJS,
   'et': extractWithSheetJS,
   // 【优化】PPT 文件使用自定义解压方案
   'pptx': extractPptx,
-  'ppt': extractWithCfb,  // .ppt 旧版格式，使用 CFB 解析
-  'dps': extractWithCfb,  // WPS 演示旧版格式，使用 CFB 解析
+  'ppt': extractWithBinary,  // .ppt 旧版格式，暂时使用二进制提取
+  'dps': extractWithBinary,  // WPS 演示旧版格式，暂时使用二进制提取
   // 【优化】OpenDocument 格式使用自定义解压方案
   'odt': extractOdt,
   'ods': extractOds,
@@ -612,97 +610,6 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
     
   } catch (error: any) {
     console.error(`RTF解析失败 ${filePath}:`, error.message);
-    return { text: '', unsupportedPreview: true };
-  }
-}
-
-// 【新增】使用 CFB 解析 OLE2 格式文件（.wps/.ppt/.dps）
-async function extractWithCfb(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
-  try {
-    // 读取文件
-    const data = await fs.promises.readFile(filePath);
-    
-    // 使用 CFB 解析 OLE2 容器
-    const cfb = CFB.read(data, { type: 'buffer' });
-    
-    let allText = '';
-    
-    // 遍历 CFB 中的所有条目，尝试提取文本
-    cfb.FileIndex.forEach((entry: any) => {
-      if (entry.size > 0 && entry.content) {
-        try {
-          const content = entry.content;
-          
-          // 尝试多种编码解码
-          let text = '';
-          
-          // 方法1：先尝试 GBK 解码（中文 WPS 最常用）
-          try {
-            text = iconv.decode(Buffer.from(content), 'gbk');
-          } catch (e) {
-            // 方法2：尝试 UTF-8 解码
-            try {
-              text = content.toString('utf-8');
-            } catch (e2) {
-              // 方法3：尝试 Latin1
-              try {
-                text = content.toString('latin1');
-              } catch (e3) {
-                // 方法4：直接转为字符串
-                text = String.fromCharCode.apply(null, Array.from(content));
-              }
-            }
-          }
-          
-          // 检查是否包含中文字符（Unicode 范围 \u4e00-\u9fff）
-          const hasChinese = /[\u4e00-\u9fff]/.test(text);
-          
-          // 过滤掉纯二进制内容，只保留包含可读字符的文本
-          // 保留中文、英文、数字、常见标点
-          const readableText = text.replace(/[^\u4e00-\u9fff\u3000-\u303f\uff00-\uffef\x20-\x7e\r\n\t]/g, '');
-          
-          if (readableText && readableText.trim().length > 5) {
-            allText += readableText + '\n';
-          }
-        } catch (e) {
-          // 忽略单个条目的解析错误
-        }
-      }
-    });
-    
-    // 清理文本
-    allText = allText
-      .replace(/\s+/g, ' ')  // 合并多余空白
-      .trim();
-    
-    const hasContent = allText && allText.length > 10;
-    
-    // 【调试】输出提取结果
-    if (!hasContent) {
-      console.warn(`CFB 解析未提取到有效文本 ${filePath}`);
-    } else {
-      console.log(`CFB 解析成功 ${filePath}, 文本长度: ${allText.length}, 包含中文: ${/[\u4e00-\u9fff]/.test(allText)}`);
-    }
-    
-    return {
-      text: hasContent ? allText : '',
-      unsupportedPreview: !hasContent
-    };
-    
-  } catch (error: any) {
-    console.error(`CFB解析失败 ${filePath}:`, error.message);
-    
-    // 降级到二进制提取
-    try {
-      const data = await fs.promises.readFile(filePath);
-      const text = extractTextFromBinary(data);
-      if (text.trim()) {
-        return { text, unsupportedPreview: false };
-      }
-    } catch (e: any) {
-      console.error(`二进制提取也失败 ${filePath}:`, e.message);
-    }
-    
     return { text: '', unsupportedPreview: true };
   }
 }
