@@ -5,6 +5,8 @@
 import { parentPort } from 'worker_threads';
 import * as path from 'path';
 import * as fs from 'fs';
+// 【修复】从 file-parser 导入 SUPPORTED_EXTENSIONS，保持单一数据源
+import { SUPPORTED_EXTENSIONS } from './file-parser';
 
 // 动态导入 walkdir（避免顶层 import 导致的问题）
 let walkdir: any;
@@ -17,13 +19,6 @@ interface WalkerConfig {
   maxFileSizeMb: number;
   maxPdfSizeMb: number;
 }
-
-const SUPPORTED_EXTENSIONS = [
-  'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-  'pdf', 'txt', 'rtf', 'odt', 'ods', 'odp',
-  'csv', 'tsv', 'json', 'xml', 'html', 'htm',
-  'md', 'log', 'ini', 'cfg', 'conf', 'yaml', 'yml'
-];
 
 /**
  * 检查是否应该忽略目录
