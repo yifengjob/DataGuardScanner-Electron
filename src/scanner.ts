@@ -6,6 +6,21 @@ import { ScanConfig, ScanResultItem } from './types';
 import { ScanState } from './scan-state';
 import { addAllowedPath, clearAllowedPaths } from './file-operations';
 import { calculateActualConcurrency } from './config-manager';
+// 【优化】导入扫描配置常量
+import {
+    WORKER_MAX_OLD_GENERATION_MB,
+    WORKER_MAX_YOUNG_GENERATION_MB,
+    TIMEOUT_SMALL_FILE,
+    TIMEOUT_MEDIUM_FILE,
+    TIMEOUT_LARGE_FILE,
+    TIMEOUT_HUGE_FILE,
+    STAGNATION_CHECK_INTERVAL,
+    STAGNATION_THRESHOLD,
+    MAX_IDLE_TIME,
+    PROGRESS_THROTTLE_INTERVAL,
+    MAX_LOG_ENTRIES,
+    WORKER_RESTART_DELAY
+} from './scan-config';
 
 export async function startScan(
     config: ScanConfig,
@@ -34,10 +49,10 @@ export async function startScan(
         });
         const logWithTime = `[${timeStr}] ${msg}`;
 
-        // 【修复】限制日志数组大小，防止内存泄漏（最多保留 1000 条）
+        // 【修复】限制日志数组大小，防止内存泄漏
         setImmediate(() => {
             scanState.logs.push(logWithTime);
-            if (scanState.logs.length > 1000) {
+            if (scanState.logs.length > MAX_LOG_ENTRIES) {
                 scanState.logs.shift(); // 移除最旧的日志
             }
         });
@@ -107,8 +122,8 @@ export async function startScan(
         try {
             worker = new Worker(workerPath, {
                 resourceLimits: {
-                    maxOldGenerationSizeMb: 256, // 【修复】降低内存限制，防止内存泄漏导致崩溃
-                    maxYoungGenerationSizeMb: 32,
+                    maxOldGenerationSizeMb: WORKER_MAX_OLD_GENERATION_MB,
+                    maxYoungGenerationSizeMb: WORKER_MAX_YOUNG_GENERATION_MB,
                 }
             });
         } catch (error: any) {
@@ -157,9 +172,9 @@ export async function startScan(
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
 
-            // 【优化】节流发送进度更新（每 500ms 最多一次，减少 IPC 开销）
+            // 【优化】节流发送进度更新，减少 IPC 开销
             const now = Date.now();
-            if (!lastProgressTime || now - lastProgressTime >= 500) {
+            if (!lastProgressTime || now - lastProgressTime >= PROGRESS_THROTTLE_INTERVAL) {
                 // 【修复】检查窗口是否已销毁
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('scan-progress', {
@@ -257,7 +272,7 @@ export async function startScan(
                             createConsumer(id);
                         }
                     }
-                }, 100);
+                }, WORKER_RESTART_DELAY);
             } else {
                 consumer.busy = false;
             }
@@ -276,13 +291,13 @@ export async function startScan(
         const sizeMB = fileSize / 1024 / 1024;
         
         if (sizeMB < 1) {
-            return 30000; // 30 秒
+            return TIMEOUT_SMALL_FILE;
         } else if (sizeMB < 10) {
-            return 60000; // 1 分钟
+            return TIMEOUT_MEDIUM_FILE;
         } else if (sizeMB < 50) {
-            return 120000; // 2 分钟
+            return TIMEOUT_LARGE_FILE;
         } else {
-            return 180000; // 3 分钟
+            return TIMEOUT_HUGE_FILE;
         }
     }
 
@@ -399,9 +414,9 @@ export async function startScan(
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
             
-            // 更新进度（与 Consumer 保持一致，每 500ms 最多一次）
+            // 更新进度（与 Consumer 保持一致）
             const now = Date.now();
-            if (!lastProgressTime || now - lastProgressTime >= 500) {
+            if (!lastProgressTime || now - lastProgressTime >= PROGRESS_THROTTLE_INTERVAL) {
                 // 【修复】检查窗口是否已销毁
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('scan-progress', {
@@ -456,7 +471,6 @@ export async function startScan(
 
     // 【事件驱动】检查是否应该结束扫描
     let completionCheckTimer: NodeJS.Timeout | null = null;
-    const maxIdleTime = 120000; // 2分钟无进展才超时（兜底保护）
     let isCleaningUp = false; // 【修复】防止 cleanup 被多次调用
     
     // 【优化】多指标停滞检测 - 记录上次检查时的状态快照
@@ -468,7 +482,6 @@ export async function startScan(
         sensitiveItems: totalSensitiveItems  // 【新增】敏感信息总条数
     };
     let lastStagnationCheckTime = Date.now();
-    const stagnationCheckInterval = 30000; // 30秒无进展才判定为停滞
 
     function checkAndComplete() {
         // 检查是否取消
@@ -488,7 +501,7 @@ export async function startScan(
         lastActivityTime = Date.now();
     }
 
-    // 【优化】多指标停滞检测 - 每 5 秒检查一次
+    // 【优化】多指标停滞检测 - 定期检查
     completionCheckTimer = setInterval(() => {
         const now = Date.now();
         
@@ -515,18 +528,18 @@ export async function startScan(
             const idleTime = now - lastStagnationCheckTime;
             
             // 【保守策略】只有同时满足以下条件才判定为停滞：
-            // 1. 超过 30 秒无任何进展
+            // 1. 超过阈值时间无任何进展
             // 2. 没有活跃的 Worker（activeWorkerCount === 0）
             // 3. 任务队列为空（taskQueue.length === 0）
             // 这样可以避免误杀正在处理大文件的正常任务
-            if (idleTime > stagnationCheckInterval && 
+            if (idleTime > STAGNATION_THRESHOLD && 
                 activeWorkerCount === 0 && 
                 taskQueue.length === 0) {
-                log(`警告: ${stagnationCheckInterval / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}），且系统空闲，强制结束`);
+                log(`警告: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}），且系统空闲，强制结束`);
                 cleanup();
             }
         }
-    }, 5000); // 每 5 秒检查一次
+    }, STAGNATION_CHECK_INTERVAL); // 定期检查
 
     // 清理资源
     function cleanup() {
