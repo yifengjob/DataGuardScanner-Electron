@@ -285,6 +285,28 @@ async function extractWithSheetJS(filePath: string): Promise<{ text: string; uns
 // 【新增】二进制提取（用于 .doc、.ppt 等旧格式）
 async function extractWithBinary(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
+    const ext = path.extname(filePath).toLowerCase().substring(1);
+    
+    // 【优化】对于 .doc 文件，尝试使用 macOS 的 textutil 命令
+    if (ext === 'doc' && process.platform === 'darwin') {
+      try {
+        const { exec } = await import('child_process');
+        const text = await new Promise<string>((resolve, reject) => {
+          exec(`textutil -convert txt -stdout "${filePath}"`, (error, stdout) => {
+            if (error) reject(error);
+            else resolve(stdout);
+          });
+        });
+        
+        if (text && text.trim().length > 0) {
+          return { text, unsupportedPreview: false };
+        }
+      } catch (e: any) {
+        console.warn(`textutil 转换失败 ${filePath}，降级到二进制提取`);
+      }
+    }
+    
+    // 降级到二进制提取
     const data = await fs.promises.readFile(filePath);
     const text = extractTextFromBinary(data);
     
