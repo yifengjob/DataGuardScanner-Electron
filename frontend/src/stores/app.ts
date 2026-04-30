@@ -178,29 +178,16 @@ export const useAppStore = defineStore('app', () => {
   function getEffectiveScanPaths(): string[] {
     const paths = Array.from(selectedPaths.value)
     
-    // 【修复】过滤掉文件，只保留目录
-    // 注意：这里无法直接判断是否为目录，需要在后端进一步验证
-    // 但可以先过滤掉明显的文件（包含扩展名的路径）
-    const directoryPaths = paths.filter(p => {
-      // macOS 隐藏文件（.DS_Store, .gitignore 等）通常是文件
-      const basename = p.split('/').pop() || p.split('\\').pop() || ''
-      // 如果以点开头的文件名且包含扩展名，很可能是文件
-      if (basename.startsWith('.') && basename.includes('.')) {
-        return false
-      }
-      return true
-    })
-    
     // 按路径长度排序（短的在前）
-    directoryPaths.sort((a, b) => a.length - b.length)
+    paths.sort((a, b) => a.length - b.length)
     
     const effectivePaths: string[] = []
     
-    for (const path of directoryPaths) {
+    for (const path of paths) {
       // 检查这个路径是否是其他已选路径的祖先
       // 根据路径格式自动判断分隔符
       const separator = path.includes('\\') ? '\\' : '/'
-      const hasDescendantSelected = directoryPaths.some(otherPath => 
+      const hasDescendantSelected = paths.some(otherPath => 
         otherPath !== path && otherPath.startsWith(path + separator)
       )
       
