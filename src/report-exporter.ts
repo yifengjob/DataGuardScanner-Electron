@@ -3,6 +3,8 @@ import { dialog } from 'electron';
 import { ScanResultItem } from './types';
 import * as ExcelJS from 'exceljs';
 import { getSensitiveRules } from './sensitive-detector';
+// 【优化】导入配置常量
+import { BYTES_TO_MB } from './scan-config';
 
 export async function exportReport(
   results: ScanResultItem[],
@@ -69,7 +71,7 @@ async function exportToCsv(filePath: string, results: ScanResultItem[]): Promise
   for (const result of results) {
     const row = [
       `"${result.filePath}"`,
-      (result.fileSize / 1024 / 1024).toFixed(2),
+      (result.fileSize / BYTES_TO_MB).toFixed(2),
       result.modifiedTime,
       ...Array.from(allTypes).map(t => (result.counts[t] || 0).toString()),
       result.total.toString()
@@ -117,7 +119,7 @@ async function exportToExcel(filePath: string, results: ScanResultItem[]): Promi
   for (const result of results) {
     const row = [
       result.filePath,
-      parseFloat((result.fileSize / 1024 / 1024).toFixed(2)), // 数字类型
+      parseFloat((result.fileSize / BYTES_TO_MB).toFixed(2)), // 数字类型
       result.modifiedTime,
       ...Array.from(allTypes).map(t => result.counts[t] || 0), // 数字类型
       result.total // 数字类型

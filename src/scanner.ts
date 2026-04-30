@@ -19,7 +19,8 @@ import {
     MAX_IDLE_TIME,
     PROGRESS_THROTTLE_INTERVAL,
     MAX_LOG_ENTRIES,
-    WORKER_RESTART_DELAY
+    WORKER_RESTART_DELAY,
+    BYTES_TO_MB
 } from './scan-config';
 
 export async function startScan(
@@ -288,7 +289,7 @@ export async function startScan(
 
     // 计算动态超时时间
     function calculateTimeout(fileSize: number): number {
-        const sizeMB = fileSize / 1024 / 1024;
+        const sizeMB = fileSize / BYTES_TO_MB;
         
         if (sizeMB < 1) {
             return TIMEOUT_SMALL_FILE;

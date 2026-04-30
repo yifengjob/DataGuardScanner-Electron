@@ -7,6 +7,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 // 【修复】从 file-parser 导入 SUPPORTED_EXTENSIONS，保持单一数据源
 import { SUPPORTED_EXTENSIONS } from './file-parser';
+// 【优化】导入配置常量
+import { BYTES_TO_MB } from './scan-config';
 
 // 动态导入 walkdir（避免顶层 import 导致的问题）
 let walkdir: any;
@@ -120,8 +122,8 @@ async function startWalking(config: WalkerConfig) {
       }
 
       const maxSize = filePath.toLowerCase().endsWith('.pdf')
-        ? maxPdfSizeMb * 1024 * 1024
-        : maxFileSizeMb * 1024 * 1024;
+        ? maxPdfSizeMb * BYTES_TO_MB
+        : maxFileSizeMb * BYTES_TO_MB;
 
       if (fileSize > maxSize) {
         skippedCount++;

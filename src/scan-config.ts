@@ -61,3 +61,69 @@ export const CANCEL_SCAN_CHECK_INTERVAL = 100; // 100ms
 
 /** Worker 异常退出后重启延迟（毫秒） */
 export const WORKER_RESTART_DELAY = 100; // 100ms
+
+// ==================== 预览超时配置 ====================
+
+/** 文件预览超时时间（毫秒） */
+export const PREVIEW_TIMEOUT = 30000; // 30 秒
+
+// ==================== 文件大小限制配置 ====================
+
+/** 默认最大文件大小（MB） */
+export const DEFAULT_MAX_FILE_SIZE_MB = 50;
+
+/** 默认最大 PDF 文件大小（MB） */
+export const DEFAULT_MAX_PDF_SIZE_MB = 100;
+
+// ==================== 窗口配置 ====================
+
+/** 窗口最小宽度（像素） */
+export const WINDOW_MIN_WIDTH = 1000;
+
+/** 窗口最小高度（像素） */
+export const WINDOW_MIN_HEIGHT = 600;
+
+/** 窗口默认宽度（像素） */
+export const WINDOW_DEFAULT_WIDTH = 1024;
+
+/** 窗口默认高度（像素） */
+export const WINDOW_DEFAULT_HEIGHT = 768;
+
+/** 窗口目标尺寸比例（屏幕的百分比） */
+export const WINDOW_TARGET_RATIO = 0.85;
+
+// ==================== 并发数配置 ====================
+
+/** 每个 Worker 预估内存占用（GB） */
+export const MEMORY_PER_WORKER_GB = 0.4;
+
+/** 并发数绝对最大值 */
+export const CONCURRENCY_ABSOLUTE_MAX = 6;
+
+/** 并发数计算时使用的安全内存比例 */
+export const CONCURRENCY_MEMORY_RATIO = 0.4;
+
+/** 默认并发数的 CPU 核心数比例 */
+export const DEFAULT_CONCURRENCY_CPU_RATIO = 0.5;
+
+/** 默认并发数最大值 */
+export const DEFAULT_CONCURRENCY_MAX = 4;
+
+/** 默认并发数最小值 */
+export const DEFAULT_CONCURRENCY_MIN = 2;
+
+// ==================== 缓存清理配置 ====================
+
+/** 日志文件保留天数 */
+export const LOG_RETENTION_DAYS = 30;
+
+// ==================== 单位转换常量 ====================
+
+/** 字节到 MB 的转换因子 */
+export const BYTES_TO_MB = 1024 * 1024;
+
+/** 字节到 GB 的转换因子 */
+export const BYTES_TO_GB = 1024 * 1024 * 1024;
+
+/** 毫秒到天的转换因子 */
+export const MS_TO_DAYS = 1000 * 60 * 60 * 24;

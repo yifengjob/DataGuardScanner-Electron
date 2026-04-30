@@ -14,7 +14,15 @@ import {
     CANCEL_SCAN_MAX_WAIT,
     CANCEL_SCAN_CHECK_INTERVAL,
     WORKER_MAX_OLD_GENERATION_MB,
-    WORKER_MAX_YOUNG_GENERATION_MB
+    WORKER_MAX_YOUNG_GENERATION_MB,
+    PREVIEW_TIMEOUT,
+    WINDOW_MIN_WIDTH,
+    WINDOW_MIN_HEIGHT,
+    WINDOW_DEFAULT_WIDTH,
+    WINDOW_DEFAULT_HEIGHT,
+    WINDOW_TARGET_RATIO,
+    MS_TO_DAYS,
+    BYTES_TO_MB
 } from './scan-config';
 
 // 【新增】设置日志文件
@@ -91,18 +99,13 @@ function getWindowBounds(): { x?: number; y?: number; width: number; height: num
         // 获取工作区（排除任务栏/Dock）
         const workArea = display.workArea;
         
-        // 计算目标尺寸（85%）
-        const targetWidth = Math.floor(workArea.width * 0.85);
-        const targetHeight = Math.floor(workArea.height * 0.85);
+        // 计算目标尺寸
+        const targetWidth = Math.floor(workArea.width * WINDOW_TARGET_RATIO);
+        const targetHeight = Math.floor(workArea.height * WINDOW_TARGET_RATIO);
         
         // 应用尺寸限制
-        const minWidth = 1000;
-        const minHeight = 600;
-        const maxWidth = 1920;
-        const maxHeight = 1080;
-        
-        const width = Math.max(minWidth, Math.min(maxWidth, targetWidth));
-        const height = Math.max(minHeight, Math.min(maxHeight, targetHeight));
+        const width = Math.max(WINDOW_MIN_WIDTH, Math.min(1920, targetWidth));
+        const height = Math.max(WINDOW_MIN_HEIGHT, Math.min(1080, targetHeight));
         
         // 居中计算
         const x = workArea.x + Math.floor((workArea.width - width) / 2);
@@ -115,7 +118,7 @@ function getWindowBounds(): { x?: number; y?: number; width: number; height: num
     } catch (error) {
         console.error('计算窗口位置失败，使用默认值:', error);
         // 降级方案：使用默认尺寸，系统会自动居中
-        return { width: 1024, height: 768 };
+        return { width: WINDOW_DEFAULT_WIDTH, height: WINDOW_DEFAULT_HEIGHT };
     }
 }
 
@@ -147,8 +150,8 @@ function createWindow() {
         y: bounds.y,
         width: bounds.width,
         height: bounds.height,
-        minWidth: 1000,
-        minHeight: 600,
+        minWidth: WINDOW_MIN_WIDTH,
+        minHeight: WINDOW_MIN_HEIGHT,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -356,7 +359,7 @@ function setupIpcHandlers() {
                         worker.terminate();
                         resolve({ error: '预览超时，文件可能太大或太复杂' });
                     }
-                }, 30000); // 30秒超时
+                }, PREVIEW_TIMEOUT);
                 
                 worker.on('message', async (result: any) => {
                     // 跳过 ready 消息
@@ -579,7 +582,7 @@ function setupIpcHandlers() {
                     const filePath = path.join(tempDir, file);
                     try {
                         const stat = fs.statSync(filePath);
-                        const daysOld = (Date.now() - stat.mtimeMs) / (1000 * 60 * 60 * 24);
+                        const daysOld = (Date.now() - stat.mtimeMs) / MS_TO_DAYS;
                         if (daysOld > 7 && stat.isFile()) {
                             fs.unlinkSync(filePath);
                             cleanedSize += stat.size;
@@ -591,7 +594,7 @@ function setupIpcHandlers() {
                 }
             }
             
-            const cleanedSizeMB = Math.round(cleanedSize / 1024 / 1024);
+            const cleanedSizeMB = Math.round(cleanedSize / BYTES_TO_MB);
             console.log(`[clear-cache] 缓存清理完成，释放 ${cleanedSizeMB} MB 空间`);
             console.log(`[clear-cache] 清理的文件: ${cleanedFiles.join(', ') || '无'}`);
             

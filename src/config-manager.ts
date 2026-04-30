@@ -3,6 +3,18 @@ import * as path from 'path';
 import * as os from 'os';
 import {app} from 'electron';
 import {AppConfig} from './types';
+// 【优化】导入配置常量
+import {
+    DEFAULT_MAX_FILE_SIZE_MB,
+    DEFAULT_MAX_PDF_SIZE_MB,
+    MEMORY_PER_WORKER_GB,
+    CONCURRENCY_ABSOLUTE_MAX,
+    CONCURRENCY_MEMORY_RATIO,
+    DEFAULT_CONCURRENCY_CPU_RATIO,
+    DEFAULT_CONCURRENCY_MAX,
+    DEFAULT_CONCURRENCY_MIN,
+    BYTES_TO_GB
+} from './scan-config';
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
 
@@ -120,8 +132,8 @@ export function getDefaultConfig(): AppConfig {
     ],
     ignoreDirNames,
     systemDirs: generateSystemDirs(false), // 默认只忽略C盘系统目录
-    maxFileSizeMb: 50,
-    maxPdfSizeMb: 100,
+    maxFileSizeMb: DEFAULT_MAX_FILE_SIZE_MB,
+    maxPdfSizeMb: DEFAULT_MAX_PDF_SIZE_MB,
     scanConcurrency: 4, // 默认并发数，scanner.ts 会根据硬件智能调整
     theme: 'system',
     language: 'zh-CN',
@@ -167,12 +179,10 @@ export async function saveConfig(config: AppConfig): Promise<void> {
  */
 export function calculateRecommendedConcurrency(): number {
   const cpuCount = os.cpus().length;
-  const freeMemoryGB = os.freemem() / (1024 * 1024 * 1024);
-  const memoryPerWorker = 0.4; // GB
-  const maxByMemory = Math.floor(freeMemoryGB * 0.4 / memoryPerWorker);
-  const absoluteMax = 6;
-  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, absoluteMax);
-  return Math.max(calculatedMaxConcurrency, 2);
+  const freeMemoryGB = os.freemem() / BYTES_TO_GB;
+  const maxByMemory = Math.floor(freeMemoryGB * CONCURRENCY_MEMORY_RATIO / MEMORY_PER_WORKER_GB);
+  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, CONCURRENCY_ABSOLUTE_MAX);
+  return Math.max(calculatedMaxConcurrency, DEFAULT_CONCURRENCY_MIN);
 }
 
 /**
@@ -187,12 +197,10 @@ export function calculateActualConcurrency(configuredConcurrency: number): {
   freeMemoryGB: number;
 } {
   const cpuCount = os.cpus().length;
-  const freeMemoryGB = os.freemem() / (1024 * 1024 * 1024);
-  const memoryPerWorker = 0.4; // GB
-  const maxByMemory = Math.floor(freeMemoryGB * 0.4 / memoryPerWorker);
-  const absoluteMax = 6;
-  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, absoluteMax);
-  const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, 2);
+  const freeMemoryGB = os.freemem() / BYTES_TO_GB;
+  const maxByMemory = Math.floor(freeMemoryGB * CONCURRENCY_MEMORY_RATIO / MEMORY_PER_WORKER_GB);
+  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, CONCURRENCY_ABSOLUTE_MAX);
+  const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, DEFAULT_CONCURRENCY_MIN);
   
   let actualConcurrency: number;
   if (configuredConcurrency && configuredConcurrency > 0) {
@@ -200,8 +208,11 @@ export function calculateActualConcurrency(configuredConcurrency: number): {
   } else {
     // 【优化】更保守的默认并发数，避免 CPU 过载
     // Mac M2/M3 等高性能 CPU 也需要限制，避免风扇狂转
-    // 使用 CPU 核心数的 1/2，但不超过 4，最少 2
-    actualConcurrency = Math.min(Math.max(Math.floor(cpuCount / 2), 2), 4);
+    // 使用 CPU 核心数的比例，但不超过最大值，最少最小值
+    actualConcurrency = Math.min(
+      Math.max(Math.floor(cpuCount * DEFAULT_CONCURRENCY_CPU_RATIO), DEFAULT_CONCURRENCY_MIN),
+      DEFAULT_CONCURRENCY_MAX
+    );
   }
   
   return {
