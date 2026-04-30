@@ -133,9 +133,9 @@ async function extractWithMammoth(filePath: string): Promise<{ text: string; uns
     const text = result.value || '';
     const hasContent = text && text.trim().length > 0;
     
-    // 记录警告信息（如果有）
-    if (result.messages && result.messages.length > 0) {
-      console.warn(`mammoth 解析警告 ${filePath}:`, result.messages.slice(0, 3));
+    // 【优化】只在开发模式下输出警告，且只输出第一个警告
+    if (result.messages && result.messages.length > 0 && process.env.NODE_ENV === 'development') {
+      console.warn(`mammoth 解析警告 ${filePath}:`, result.messages[0].message);
     }
     
     return {
