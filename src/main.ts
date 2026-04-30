@@ -22,7 +22,8 @@ import {
     WINDOW_DEFAULT_HEIGHT,
     WINDOW_TARGET_RATIO,
     MS_TO_DAYS,
-    BYTES_TO_MB
+    BYTES_TO_MB,
+    LOG_RETENTION_DAYS
 } from './scan-config';
 
 // 【新增】设置日志文件
@@ -578,12 +579,12 @@ function setupIpcHandlers() {
             if (fs.existsSync(tempDir)) {
                 const files = fs.readdirSync(tempDir);
                 for (const file of files) {
-                    // 清理超过7天的临时文件
+                    // 清理超过指定天数的临时文件
                     const filePath = path.join(tempDir, file);
                     try {
                         const stat = fs.statSync(filePath);
                         const daysOld = (Date.now() - stat.mtimeMs) / MS_TO_DAYS;
-                        if (daysOld > 7 && stat.isFile()) {
+                        if (daysOld > LOG_RETENTION_DAYS && stat.isFile()) {
                             fs.unlinkSync(filePath);
                             cleanedSize += stat.size;
                             cleanedFiles.push(`temp/${file}`);
