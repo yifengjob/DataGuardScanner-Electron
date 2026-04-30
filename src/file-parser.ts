@@ -631,25 +631,36 @@ async function extractWithCfb(filePath: string): Promise<{ text: string; unsuppo
     cfb.FileIndex.forEach((entry: any) => {
       if (entry.size > 0 && entry.content) {
         try {
-          // 尝试将内容解码为文本
           const content = entry.content;
           
-          // 方法1：尝试 UTF-8 解码
+          // 尝试多种编码解码
           let text = '';
+          
+          // 方法1：先尝试 GBK 解码（中文 WPS 最常用）
           try {
-            text = content.toString('utf-8');
+            text = iconv.decode(Buffer.from(content), 'gbk');
           } catch (e) {
-            // 方法2：尝试 GBK 解码（中文 WPS 文件常用）
+            // 方法2：尝试 UTF-8 解码
             try {
-              text = iconv.decode(Buffer.from(content), 'gbk');
+              text = content.toString('utf-8');
             } catch (e2) {
-              // 方法3：直接转为字符串
-              text = String.fromCharCode.apply(null, Array.from(content));
+              // 方法3：尝试 Latin1
+              try {
+                text = content.toString('latin1');
+              } catch (e3) {
+                // 方法4：直接转为字符串
+                text = String.fromCharCode.apply(null, Array.from(content));
+              }
             }
           }
           
+          // 检查是否包含中文字符（Unicode 范围 \u4e00-\u9fff）
+          const hasChinese = /[\u4e00-\u9fff]/.test(text);
+          
           // 过滤掉纯二进制内容，只保留包含可读字符的文本
-          const readableText = text.replace(/[\x00-\x08\x0E-\x1F]/g, '');
+          // 保留中文、英文、数字、常见标点
+          const readableText = text.replace(/[^\u4e00-\u9fff\u3000-\u303f\uff00-\uffef\x20-\x7e\r\n\t]/g, '');
+          
           if (readableText && readableText.trim().length > 5) {
             allText += readableText + '\n';
           }
@@ -665,6 +676,13 @@ async function extractWithCfb(filePath: string): Promise<{ text: string; unsuppo
       .trim();
     
     const hasContent = allText && allText.length > 10;
+    
+    // 【调试】输出提取结果
+    if (!hasContent) {
+      console.warn(`CFB 解析未提取到有效文本 ${filePath}`);
+    } else {
+      console.log(`CFB 解析成功 ${filePath}, 文本长度: ${allText.length}, 包含中文: ${/[\u4e00-\u9fff]/.test(allText)}`);
+    }
     
     return {
       text: hasContent ? allText : '',
