@@ -539,30 +539,46 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
         return node;
       }
       
+      // 处理 value 字段（可能是十六进制编码的文本）
+      if (node.value) {
+        const value = node.value;
+        // 如果是十六进制字符串，尝试解码
+        if (typeof value === 'string' && /^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0) {
+          try {
+            // 将十六进制转换为字节，再转换为 UTF-8 字符串
+            const bytes = Buffer.from(value, 'hex');
+            return bytes.toString('utf-8');
+          } catch (e) {
+            // 如果解码失败，直接返回原始值
+            return String(value);
+          }
+        }
+        return String(value);
+      }
+      
+      // 处理 text 字段
       if (node.text) {
         return node.text;
       }
       
-      // 递归处理 children
-      if (node.children && Array.isArray(node.children)) {
-        return node.children.map(extractTextFromNode).join('');
-      }
-      
-      // 处理其他可能的属性
-      if (node.value) {
-        return String(node.value);
+      // 递归处理 content 或 children
+      const items = node.content || node.children;
+      if (items && Array.isArray(items)) {
+        return items.map(extractTextFromNode).join('');
       }
       
       return '';
     }
     
     // 尝试多种可能的结构
-    if (document.children && Array.isArray(document.children)) {
+    if (document.content && Array.isArray(document.content)) {
+      allText = document.content.map(extractTextFromNode).join('\n');
+    } else if (document.children && Array.isArray(document.children)) {
       allText = document.children.map(extractTextFromNode).join('\n');
     } else if (document.text) {
       allText = document.text;
     } else {
-      // 如果顶层没有 children，尝试直接提取
+      // 如果顶层没有 content/children，尝试直接提取
       allText = extractTextFromNode(document);
     }
     
