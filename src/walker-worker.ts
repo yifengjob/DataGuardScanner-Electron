@@ -126,16 +126,18 @@ async function startWalking(config: WalkerConfig) {
       return;
     }
     
-    // 预处理：构建快速查找的忽略目录集合
-    const ignoredDirsNormalized = new Set<string>();
-    systemDirs.forEach(dir => {
-      ignoredDirsNormalized.add(path.normalize(dir).toLowerCase());
-    });
+    // 【修复】将 walker 事件包装成 Promise
+    return new Promise<void>((resolve, reject) => {
+      // 预处理：构建快速查找的忽略目录集合
+      const ignoredDirsNormalized = new Set<string>();
+      systemDirs.forEach(dir => {
+        ignoredDirsNormalized.add(path.normalize(dir).toLowerCase());
+      });
 
-    let fileCount = 0;
-    let skippedCount = 0;
+      let fileCount = 0;
+      let skippedCount = 0;
 
-    const walker = walkdir(rootPath, {
+      const walker = walkdir(rootPath, {
       follow_symlinks: false,
       no_recurse: false,
       filter: (directory: string, files: string[]) => {
@@ -231,6 +233,7 @@ async function startWalking(config: WalkerConfig) {
         fileCount,
         skippedCount
       });
+      resolve(); // 【修复】Promise resolve
     });
 
     walker.on('error', (err: any) => {
@@ -239,13 +242,17 @@ async function startWalking(config: WalkerConfig) {
         type: 'walking-error',
         error: err.message
       });
+      reject(err); // 【修复】Promise reject
     });
+
+    }); // 【修复】关闭 Promise
 
   } catch (error: any) {
     parentPort?.postMessage({
       type: 'walking-error',
       error: error.message
     });
+    throw error; // 【修复】重新抛出错误
   }
 }
 
