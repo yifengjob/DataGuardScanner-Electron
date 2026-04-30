@@ -454,8 +454,18 @@ export async function startScan(
 
     // 【事件驱动】检查是否应该结束扫描
     let completionCheckTimer: NodeJS.Timeout | null = null;
-    const maxIdleTime = 120000; // 2分钟无进展才超时
+    const maxIdleTime = 120000; // 2分钟无进展才超时（兜底保护）
     let isCleaningUp = false; // 【修复】防止 cleanup 被多次调用
+    
+    // 【优化】多指标停滞检测 - 记录上次检查时的状态快照
+    let lastStagnationCheckState = {
+        processed: consumerProcessedCount,
+        total: walkerTotalCount,
+        skipped: walkerSkippedCount,
+        results: resultCount
+    };
+    let lastStagnationCheckTime = Date.now();
+    const stagnationCheckInterval = 30000; // 30秒无进展才判定为停滞
 
     function checkAndComplete() {
         // 检查是否取消
@@ -475,14 +485,43 @@ export async function startScan(
         lastActivityTime = Date.now();
     }
 
-    // 【超时检测】单独的定时器，每 10 秒检查一次是否有进展
+    // 【优化】多指标停滞检测 - 每 5 秒检查一次
     completionCheckTimer = setInterval(() => {
-        const idleTime = Date.now() - lastActivityTime;
-        if (idleTime > maxIdleTime) {
-            log(`警告: 扫描停滞超过${maxIdleTime / 1000}秒，强制结束`);
-            cleanup();
+        const now = Date.now();
+        
+        // 检查是否有任何实质性进展
+        const hasRealProgress = 
+            consumerProcessedCount !== lastStagnationCheckState.processed ||
+            walkerTotalCount !== lastStagnationCheckState.total ||
+            walkerSkippedCount !== lastStagnationCheckState.skipped ||
+            resultCount !== lastStagnationCheckState.results;
+        
+        if (hasRealProgress) {
+            // 有进展，更新状态快照和时间
+            lastStagnationCheckState = {
+                processed: consumerProcessedCount,
+                total: walkerTotalCount,
+                skipped: walkerSkippedCount,
+                results: resultCount
+            };
+            lastStagnationCheckTime = now;
+        } else {
+            // 无进展，检查是否应该超时
+            const idleTime = now - lastStagnationCheckTime;
+            
+            // 【保守策略】只有同时满足以下条件才判定为停滞：
+            // 1. 超过 30 秒无任何进展
+            // 2. 没有活跃的 Worker（activeWorkerCount === 0）
+            // 3. 任务队列为空（taskQueue.length === 0）
+            // 这样可以避免误杀正在处理大文件的正常任务
+            if (idleTime > stagnationCheckInterval && 
+                activeWorkerCount === 0 && 
+                taskQueue.length === 0) {
+                log(`警告: ${stagnationCheckInterval / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感:${resultCount}），且系统空闲，强制结束`);
+                cleanup();
+            }
         }
-    }, 10000); // 每 10 秒检查一次
+    }, 5000); // 每 5 秒检查一次
 
     // 清理资源
     function cleanup() {
