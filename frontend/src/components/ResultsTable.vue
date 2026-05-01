@@ -170,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import {ref, computed, onMounted, watch} from 'vue'
+import {ref, computed, onMounted, onUnmounted, watch} from 'vue'
 import {useAppStore} from '../stores/app'
 import {storeToRefs} from 'pinia'
 import {formatFileSize, formatTime} from '../utils/format'
@@ -201,17 +201,38 @@ const headerRef = ref<HTMLDivElement | null>(null)
 
 // 【优化】容器查询断点配置（按宽度从小到大排序）
 const CONTAINER_BREAKPOINTS = [
-  { minWidth: 800, idealWidth: '35cqi' },   // 中等容器
-  { minWidth: 1200, idealWidth: '45cqi' },  // 大容器
-  { minWidth: 1600, idealWidth: '55cqi' },  // 超大容器
+  {minWidth: 800, idealWidth: '20cqi'},   // 中等容器
+  {minWidth: 1000, idealWidth: '25cqi'},
+  {minWidth: 1200, idealWidth: '30cqi'},  // 大容器
+  {minWidth: 1400, idealWidth: '35cqi'},  // 超大容器
+  {minWidth: 1600, idealWidth: '40cqi'},
+  {minWidth: 1800, idealWidth: '45cqi'},
+  {minWidth: 2000, idealWidth: '50cqi'},
+  {minWidth: 2200, idealWidth: '55cqi'},
+  {minWidth: 2400, idealWidth: '60cqi'},
+  {minWidth: 2600, idealWidth: '65cqi'},
+  {minWidth: 2800, idealWidth: '70cqi'},
+  {minWidth: 3000, idealWidth: '75cqi'},
 ] as const
 
-const DEFAULT_IDEAL_WIDTH = '25cqi'  // 默认小容器
+const DEFAULT_IDEAL_WIDTH = '15cqi'  // 默认小容器
 const RESIZE_THRESHOLD = 50           // 宽度变化阈值（像素）
 
 // 监听窗口 resize
 let resizeTimer: number | null = null
 let scrollSyncSetup = false  // 【修复】标记是否已设置滚动同步
+
+// 【安全】组件卸载时清理
+onUnmounted(() => {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  
+  // 清理 ResizeObserver
+  const cleanup = (window as any).__resultsTableCleanup
+  if (cleanup) {
+    cleanup()
+    delete (window as any).__resultsTableCleanup
+  }
+})
 
 onMounted(() => {
   const handleResize = () => {
@@ -354,7 +375,6 @@ const setupScrollSync = () => {
 const setupContainerQuery = () => {
   const tableElement = document.querySelector('.results-table') as HTMLElement
   if (!tableElement) {
-    console.warn('未找到 .results-table 元素')
     return
   }
 
@@ -377,11 +397,10 @@ const setupContainerQuery = () => {
   const updateIdealWidth = (width: number) => {
     const idealWidth = calculateIdealWidth(width)
     const currentWidth = tableElement.style.getPropertyValue('--path-col-ideal-width').trim()
-    
-    // 优化 3：只有值变化才设置
+
+    // 只有值变化才设置
     if (currentWidth !== idealWidth) {
       tableElement.style.setProperty('--path-col-ideal-width', idealWidth)
-      console.log(`容器宽度: ${width}px, ideal-width: ${idealWidth}`)
     }
   }
 
@@ -393,8 +412,8 @@ const setupContainerQuery = () => {
   // 监听容器宽度变化
   const observer = new ResizeObserver((entries) => {
     const width = Math.round(entries[0].contentRect.width)
-    
-    // 优化 1：只有宽度变化超过阈值才处理
+
+    // 只有宽度变化超过阈值才处理
     if (Math.abs(width - lastWidth) < RESIZE_THRESHOLD) {
       return
     }
@@ -402,7 +421,7 @@ const setupContainerQuery = () => {
     // 保存最新宽度
     pendingWidth = width
 
-    // 优化 2：使用 rAF 批量处理
+    // 使用 rAF 批量处理
     if (!rafId) {
       rafId = requestAnimationFrame(() => {
         if (pendingWidth !== null) {
@@ -416,7 +435,18 @@ const setupContainerQuery = () => {
   })
 
   observer.observe(tableElement)
-  console.log('容器查询已启用（ResizeObserver + rAF 优化）')
+
+  // 【安全】组件卸载时清理 observer
+  const cleanup = () => {
+    if (rafId) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+    observer.disconnect()
+  }
+
+  // 将 cleanup 函数挂载到组件实例上，在 onUnmounted 中调用
+  ;(window as any).__resultsTableCleanup = cleanup
 }
 
 // 【关键】处理滚动事件，同步表头
@@ -596,10 +626,10 @@ const handleBatchDelete = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  
+
   /* 【优化】路径列宽度配置（CSS 自定义属性） */
   --path-col-min-width: 12em;
-  --path-col-ideal-width: 25cqi;  /* 小容器默认值（由 JS 动态更新） */
+  --path-col-ideal-width: 25cqi; /* 小容器默认值（由 JS 动态更新） */
   --path-col-max-width: 100em;
   --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
 }
@@ -761,6 +791,7 @@ const handleBatchDelete = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: max-width 0.2s ease-out;  /* 【优化】宽度变化平滑过渡 */
 }
 
 .time-cell {
@@ -773,6 +804,7 @@ const handleBatchDelete = async () => {
   /* 【简化】只有文件名列显示省略号 */
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: max-width 0.2s ease-out;  /* 【优化】宽度变化平滑过渡 */
 }
 
 /* 【修复】数字列完全显示，不截断 */
