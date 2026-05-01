@@ -517,6 +517,7 @@ const handleBatchDelete = async () => {
   flex-direction: column;
   height: 100%;
   container-type: inline-size;  /* 【关键】启用容器查询 */
+  container-name: results-table;  /* 【关键】设置容器名称 */
   
   /* 【优化】路径列宽度配置（CSS 自定义属性） */
   --path-col-min-width: 12em;
@@ -526,21 +527,21 @@ const handleBatchDelete = async () => {
 }
 
 /* 容器宽度 ≥ 1000px - 中等容器 */
-@container (min-width: 1000px) {
+@container results-table (min-width: 1000px) {
   .results-table {
     --path-col-ideal-width: 35vw;
   }
 }
 
 /* 容器宽度 ≥ 1400px - 大容器 */
-@container (min-width: 1400px) {
+@container results-table (min-width: 1400px) {
   .results-table {
     --path-col-ideal-width: 45vw;
   }
 }
 
 /* 容器宽度 ≥ 1800px - 超大容器 */
-@container (min-width: 1800px) {
+@container results-table (min-width: 1800px) {
   .results-table {
     --path-col-ideal-width: 55vw;
   }
