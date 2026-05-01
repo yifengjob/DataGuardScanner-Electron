@@ -597,118 +597,11 @@ const handleBatchDelete = async () => {
   z-index: auto !important;
 }
 
-/* 优化表格渲染性能 */
-table {
-  width: max-content;                /* 表格宽度根据内容自适应 */
-  min-width: 100%;                   /* 至少占满容器 */
-  border-collapse: collapse;
-  font-size: 0.95em;                 /* 表格字体略大于默认 */
-  transform: translateZ(0);          /* ← 启用 GPU 加速 */
-  backface-visibility: hidden;       /* ← 减少重绘 */
-  -webkit-backface-visibility: hidden;
-}
-
-thead {
-  position: sticky;
-  top: 0;
-  background-color: var(--bg-hover);
-  z-index: 20;                       /* 高于所有固定列 */
-}
-
-th {
-  padding: 0.5em 0.75em;             /* 8px 12px - VS Code 风格 */
-  text-align: left;
-  font-weight: 600;
-  border-bottom: var(--border-width-thick) solid var(--border-color);
-  user-select: none;
-  /* transition: background-color 0.15s ease; */  /* ← 移除 transition 提升性能 */
-  position: relative;
-  font-size: 0.9em;                  /* VS Code 表头略小 */
-  white-space: nowrap;               /* 防止表头换行 */
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-th.path-col {
-  min-width: var(--path-col-min-width);
-  max-width: var(--path-col-clamp);
-  /* 【简化】文件名列可以截断 */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-th.sortable {
-  cursor: pointer;
-}
-
-th.sortable:hover {
-  background-color: var(--bg-selected);
-}
-
-th.checkbox-col {
-  min-width: 3.5em;                  /* 56px - 最小宽度 */
-  max-width: 3.5em;                  /* 固定宽度 */
-  width: 3.5em;
-  text-align: center;
-  cursor: default;
-}
-
-/* 操作列固定宽度 */
-th.actions-col {
-  width: 10.5em;                     /* 168px */
-  text-align: center;
-  cursor: default;
-}
-
-th.actions-col:hover {
-  background-color: var(--bg-selected);
-}
-
 .sort-indicator {
   display: inline-block;
   margin-left: var(--spacing-xs);
   font-size: 0.9em;  /* 相对于表头字体 */
   opacity: 0.8;
-}
-
-td {
-  padding: 0.4375em 0.75em;          /* 7px 12px - VS Code 风格 */
-  border-bottom: var(--border-width) solid var(--border-color);
-  color: var(--text-color);
-  font-size: 0.9em;                  /* 与表头一致 */
-  /* 【修复】默认不换行，但不显示省略号 */
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-td.checkbox-col {
-  min-width: 3.5em;                  /* 56px */
-  max-width: 3.5em;                  /* 固定宽度 */
-  width: 3.5em;
-  text-align: center;
-  overflow: visible;                 /* 复选框完整显示 */
-  text-overflow: clip;
-}
-
-/* 操作列固定宽度 */
-td.actions-col {
-  width: 10.5em;                     /* 168px */
-  text-align: center;
-  padding: 0.3125em 0.5em;          /* 5px 8px - 舒适的垂直间距 */
-  overflow: visible;                 /* 按钮完整显示 */
-  text-overflow: clip;               /* 不显示省略号 */
-}
-
-td.checkbox-col input[type="checkbox"] {
-  cursor: pointer;
-  width: var(--btn-icon-size);
-  height: var(--btn-icon-size);
-}
-
-tr {
-  /* transition: background-color 0.15s ease; */  /* ← 移除 transition 提升性能 */
 }
 
 /* 【C4 优化】虚拟滚动优化 - vue-virtual-scroller */
@@ -717,40 +610,6 @@ tr {
   flex-direction: column;
   height: 100%;                     /* 【关键】父容器必须有固定高度 */
   overflow: hidden;                 /* 不处理滚动，交给子元素 */
-}
-
-/* 【修复】使用 colgroup 统一定义列宽，确保同一列宽度一致 */
-.col-checkbox {
-  width: 3.5em;
-  min-width: 3.5em;
-  max-width: 3.5em;
-}
-
-.col-path {
-  min-width: var(--path-col-min-width);
-  max-width: var(--path-col-clamp);
-}
-
-.col-size {
-  min-width: 6em;
-}
-
-.col-time {
-  min-width: 11em;
-}
-
-.col-count {
-  min-width: 5em;
-}
-
-.col-total {
-  min-width: 5em;
-}
-
-.col-actions {
-  width: 10.5em;
-  min-width: 10.5em;
-  max-width: 10.5em;
 }
 
 .table-header-grid {
@@ -830,8 +689,8 @@ tr {
 }
 
 .path-cell {
-  min-width: 12em;                   /* 192px - 最小宽度 */
-  max-width: 30em;                   /* 480px - 最大宽度 */
+  min-width: var(--path-col-min-width);
+  max-width: var(--path-col-clamp);
   /* 【简化】只有文件名列显示省略号 */
   overflow: hidden;
   text-overflow: ellipsis;
