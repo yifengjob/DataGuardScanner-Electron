@@ -23,162 +23,155 @@
       <!-- 【虚拟滚动优化】使用 vue-virtual-scroller -->
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
-        <table class="table-header-fixed">
-          <colgroup>
-            <col class="col-checkbox" />
-            <col class="col-path" />
-            <col class="col-size" />
-            <col class="col-time" />
-            <col v-for="type in sensitiveTypes" :key="type.id" class="col-count" />
-            <col class="col-total" />
-            <col class="col-actions" />
-          </colgroup>
-          <thead>
-          <tr>
-            <th class="checkbox-col">
-              <input 
-                type="checkbox" 
-                ref="selectAllCheckbox"
-                :checked="isAllSelected"
-                @change="toggleSelectAll"
-                title="全选/取消全选"
-              />
-            </th>
-            <th 
-              class="sortable path-col"
-              :class="{ 'sorted-asc': sortField === 'file_path' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_path' && sortOrder === 'desc' }"
-              @click="sortBy('file_path')"
-              title="点击排序"
-            >
-              文件名
-              <span v-if="sortField === 'file_path'" class="sort-indicator">
-                {{ sortOrder === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th 
-              class="sortable number-header" 
-              :class="{ 'sorted-asc': sortField === 'file_size' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_size' && sortOrder === 'desc' }"
-              @click="sortBy('file_size')"
-              title="点击排序"
-            >
-              文件大小
-              <span v-if="sortField === 'file_size'" class="sort-indicator">
-                {{ sortOrder === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th 
-              class="sortable" 
-              :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
-              @click="sortBy('modified_time')"
-              title="点击排序"
-            >
-              修改时间
-              <span v-if="sortField === 'modified_time'" class="sort-indicator">
-                {{ sortOrder === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th 
-              v-for="type in sensitiveTypes" 
-              :key="type.id"
-              class="sortable number-header"
-              :class="{ 'sorted-asc': sortField === `counts.${type.id}` && sortOrder === 'asc', 'sorted-desc': sortField === `counts.${type.id}` && sortOrder === 'desc' }"
-              @click="sortBy(`counts.${type.id}`)"
-              title="点击排序"
-            >
-              {{ type.name }}
-              <span v-if="sortField === `counts.${type.id}`" class="sort-indicator">
-                {{ sortOrder === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th 
-              class="sortable number-header"
-              :class="{ 'sorted-asc': sortField === 'total' && sortOrder === 'asc', 'sorted-desc': sortField === 'total' && sortOrder === 'desc' }"
-              @click="sortBy('total')"
-              title="点击排序"
-            >
-              总计
-              <span v-if="sortField === 'total'" class="sort-indicator">
-                {{ sortOrder === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th class="actions-col">操作</th>
-          </tr>
-          </thead>
-        </table>
+        <div class="table-header-container">
+          <table class="table-header-fixed">
+            <colgroup>
+              <col class="col-checkbox" />
+              <col class="col-path" />
+              <col class="col-size" />
+              <col class="col-time" />
+              <col v-for="type in sensitiveTypes" :key="type.id" class="col-count" />
+              <col class="col-total" />
+              <col class="col-actions" />
+            </colgroup>
+            <thead>
+            <tr>
+              <th class="checkbox-col">
+                <input 
+                  type="checkbox" 
+                  ref="selectAllCheckbox"
+                  :checked="isAllSelected"
+                  @change="toggleSelectAll"
+                  title="全选/取消全选"
+                />
+              </th>
+              <th 
+                class="sortable path-col"
+                :class="{ 'sorted-asc': sortField === 'file_path' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_path' && sortOrder === 'desc' }"
+                @click="sortBy('file_path')"
+                title="点击排序"
+              >
+                文件名
+                <span v-if="sortField === 'file_path'" class="sort-indicator">
+                  {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th 
+                class="sortable number-header" 
+                :class="{ 'sorted-asc': sortField === 'file_size' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_size' && sortOrder === 'desc' }"
+                @click="sortBy('file_size')"
+                title="点击排序"
+              >
+                文件大小
+                <span v-if="sortField === 'file_size'" class="sort-indicator">
+                  {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th 
+                class="sortable" 
+                :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
+                @click="sortBy('modified_time')"
+                title="点击排序"
+              >
+                修改时间
+                <span v-if="sortField === 'modified_time'" class="sort-indicator">
+                  {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th 
+                v-for="type in sensitiveTypes" 
+                :key="type.id"
+                class="sortable number-header"
+                :class="{ 'sorted-asc': sortField === `counts.${type.id}` && sortOrder === 'asc', 'sorted-desc': sortField === `counts.${type.id}` && sortOrder === 'desc' }"
+                @click="sortBy(`counts.${type.id}`)"
+                title="点击排序"
+              >
+                {{ type.name }}
+                <span v-if="sortField === `counts.${type.id}`" class="sort-indicator">
+                  {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th 
+                class="sortable number-header"
+                :class="{ 'sorted-asc': sortField === 'total' && sortOrder === 'asc', 'sorted-desc': sortField === 'total' && sortOrder === 'desc' }"
+                @click="sortBy('total')"
+                title="点击排序"
+              >
+                总计
+                <span v-if="sortField === 'total'" class="sort-indicator">
+                  {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th class="actions-col">操作</th>
+            </tr>
+            </thead>
+          </table>
+        </div>
         
         <!-- 虚拟滚动内容 - 支持动态行高 -->
-        <DynamicScroller
-          class="virtual-scroller"
-          :items="filteredResults"
-          :min-item-size="40"
-          key-field="filePath"
-          v-slot="{ item, index, active }"
-        >
-          <DynamicScrollerItem
-            :item="item"
-            :active="active"
-            :size-dependencies="[
-              item.filePath,
-              item.fileSize,
-              item.modifiedTime,
-              item.total
-            ]"
-            :data-index="index"
+        <div class="table-body-container">
+          <DynamicScroller
+            class="virtual-scroller"
+            :items="filteredResults"
+            :min-item-size="40"
+            key-field="filePath"
+            v-slot="{ item, index, active }"
           >
-            <table class="virtual-row-table">
-              <colgroup>
-                <col class="col-checkbox" />
-                <col class="col-path" />
-                <col class="col-size" />
-                <col class="col-time" />
-                <col v-for="type in sensitiveTypes" :key="type.id" class="col-count" />
-                <col class="col-total" />
-                <col class="col-actions" />
-              </colgroup>
-              <tr class="virtual-row">
-          <td class="checkbox-col">
-            <input 
-              type="checkbox" 
-              :checked="selectedFiles.has(item.filePath)"
-              @change="toggleSelectFile(item.filePath)"
-            />
-          </td>
-          <td class="path-cell" :title="item.filePath">{{ getFileName(item.filePath) }}</td>
-          <td class="size-cell mono-font">{{ formatFileSize(item.fileSize) }}</td>
-          <td class="mono-font">{{ formatTime(item.modifiedTime) }}</td>
-          <td v-for="type in sensitiveTypes" :key="type.id" class="number-cell mono-font"
-              :class="{ 'highlight-count': (item.counts[type.id] || 0) > 0 }">
-            {{ (item.counts[type.id] || 0) > 0 ? Number(item.counts[type.id]).toLocaleString() : '-' }}
-          </td>
-          <td class="total-cell mono-font">{{ item.total.toLocaleString() }}</td>
-          <td class="actions-col">
-            <div class="actions-cell">
-            <button class="btn-action" @click="handlePreview(item)" title="预览">
-              <svg class="action-icon">
-                <use href="#icon-preview"></use>
-              </svg>
-            </button>
-            <button class="btn-action" @click="handleOpen(item)" title="打开">
-              <svg class="action-icon">
-                <use href="#icon-openfile"></use>
-              </svg>
-            </button>
-            <button class="btn-action" @click="handleOpenLocation(item)" title="所在目录">
-              <svg class="action-icon">
-                <use href="#icon-directory"></use>
-              </svg>
-            </button>
-            <button class="btn-action btn-delete" @click="handleDelete(item)" title="删除">
-              <svg class="action-icon delete-icon">
-                <use href="#icon-delete"></use>
-              </svg>
-            </button>
-            </div>
-          </td>
-        </tr>
-            </table>
-          </DynamicScrollerItem>
-        </DynamicScroller>
+            <DynamicScrollerItem
+              :item="item"
+              :active="active"
+              :size-dependencies="[
+                item.filePath,
+                item.fileSize,
+                item.modifiedTime,
+                item.total
+              ]"
+              :data-index="index"
+            >
+              <div class="virtual-row">
+                <div class="cell checkbox-col">
+                  <input 
+                    type="checkbox" 
+                    :checked="selectedFiles.has(item.filePath)"
+                    @change="toggleSelectFile(item.filePath)"
+                  />
+                </div>
+                <div class="cell path-cell" :title="item.filePath">{{ getFileName(item.filePath) }}</div>
+                <div class="cell size-cell mono-font">{{ formatFileSize(item.fileSize) }}</div>
+                <div class="cell mono-font">{{ formatTime(item.modifiedTime) }}</div>
+                <div v-for="type in sensitiveTypes" :key="type.id" class="cell number-cell mono-font"
+                    :class="{ 'highlight-count': (item.counts[type.id] || 0) > 0 }">
+                  {{ (item.counts[type.id] || 0) > 0 ? Number(item.counts[type.id]).toLocaleString() : '-' }}
+                </div>
+                <div class="cell total-cell mono-font">{{ item.total.toLocaleString() }}</div>
+                <div class="cell actions-col">
+                  <div class="actions-cell">
+                  <button class="btn-action" @click="handlePreview(item)" title="预览">
+                    <svg class="action-icon">
+                      <use href="#icon-preview"></use>
+                    </svg>
+                  </button>
+                  <button class="btn-action" @click="handleOpen(item)" title="打开">
+                    <svg class="action-icon">
+                      <use href="#icon-openfile"></use>
+                    </svg>
+                  </button>
+                  <button class="btn-action" @click="handleOpenLocation(item)" title="所在目录">
+                    <svg class="action-icon">
+                      <use href="#icon-directory"></use>
+                    </svg>
+                  </button>
+                  <button class="btn-action btn-delete" @click="handleDelete(item)" title="删除">
+                    <svg class="action-icon delete-icon">
+                      <use href="#icon-delete"></use>
+                    </svg>
+                  </button>
+                  </div>
+                </div>
+              </div>
+            </DynamicScrollerItem>
+          </DynamicScroller>
+        </div>
       </div>
 
       <div v-else class="empty-state">
@@ -670,6 +663,18 @@ tr {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;  /* 【修复】防止内容溢出 */
+}
+
+.table-header-container {
+  flex-shrink: 0;  /* 表头不压缩 */
+  overflow-x: auto;  /* 允许横向滚动 */
+  overflow-y: hidden;
+}
+
+.table-body-container {
+  flex: 1;
+  overflow: hidden;  /* 由 DynamicScroller 控制滚动 */
 }
 
 /* 【修复】统一定义列宽，确保所有行列宽一致 */
@@ -716,23 +721,39 @@ tr {
 }
 
 .virtual-scroller {
-  flex: 1;
-  overflow: auto !important;           /* 【修复】允许横向和纵向滚动 */
+  height: 100%;
   width: 100%;
 }
 
-/* 【修复】虚拟滚动中的每行都是独立的table，需要固定布局 */
-.virtual-row-table {
-  display: table;
-  table-layout: auto;                  /* 【关键】自动布局，根据内容调整列宽 */
-  width: auto;                         /* 【关键】不强制100%，允许超出 */
-  min-width: 100%;                     /* 至少占满容器 */
-  border-collapse: collapse;           /* 合并边框 */
+/* 【修复】虚拟滚动中的每行使用 Grid 布局 */
+.virtual-row {
+  display: grid;
+  /* 【关键】根据实际敏感类型数量调整，这里假设最多5个 */
+  grid-template-columns: 
+    3.5em           /* checkbox - 固定 */
+    minmax(12em, 30em)  /* path - 自适应，可省略 */
+    minmax(6em, max-content)   /* size */
+    minmax(11em, max-content)  /* time */
+    minmax(4em, max-content)   /* count 1 */
+    minmax(4em, max-content)   /* count 2 */
+    minmax(4em, max-content)   /* count 3 */
+    minmax(4em, max-content)   /* count 4 */
+    minmax(4em, max-content)   /* count 5 */
+    minmax(5em, max-content)   /* total */
+    10.5em;         /* actions - 固定 */
+  align-items: center;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background-color: var(--bg-color);
+  min-height: 40px;  /* 最小行高 */
 }
 
-.virtual-row {
-  display: table-row;
-  /* 【动态行高】移除固定高度，让浏览器自动计算 */
+.cell {
+  padding: 0.4375em 0.75em;          /* 7px 12px - VS Code 风格 */
+  color: var(--text-color);
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 tr:hover {
