@@ -97,15 +97,26 @@
           </thead>
         </table>
         
-        <!-- 虚拟滚动内容 -->
-        <RecycleScroller
+        <!-- 虚拟滚动内容 - 支持动态行高 -->
+        <DynamicScroller
           class="virtual-scroller"
           :items="filteredResults"
-          :item-size="40"
+          :min-item-size="40"
           key-field="filePath"
-          v-slot="{ item }"
+          v-slot="{ item, index, active }"
         >
-          <tr class="virtual-row">
+          <DynamicScrollerItem
+            :item="item"
+            :active="active"
+            :size-dependencies="[
+              item.filePath,
+              item.fileSize,
+              item.modifiedTime,
+              item.total
+            ]"
+            :data-index="index"
+          >
+            <tr class="virtual-row">
           <td class="checkbox-col">
             <input 
               type="checkbox" 
@@ -146,7 +157,8 @@
             </div>
           </td>
         </tr>
-        </RecycleScroller>
+          </DynamicScrollerItem>
+        </DynamicScroller>
       </div>
 
       <div v-else class="empty-state">
@@ -164,8 +176,8 @@ import {storeToRefs} from 'pinia'
 import {formatFileSize, formatTime} from '../utils/format'
 import {openFile, openFileLocation, deleteFile, getSensitiveRules} from '../utils/electron-api'
 import {ask} from "@tauri-apps/plugin-dialog"
-// 【虚拟滚动优化】导入 vue-virtual-scroller
-import { RecycleScroller } from 'vue-virtual-scroller'
+// 【虚拟滚动优化】导入 vue-virtual-scroller（支持动态行高）
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
 const appStore = useAppStore()
@@ -653,7 +665,7 @@ tr {
 
 .virtual-row {
   display: table-row;
-  height: 40px;  /* 与 item-size 一致 */
+  /* 【动态行高】移除固定高度，让浏览器自动计算 */
 }
 
 tr:hover {
