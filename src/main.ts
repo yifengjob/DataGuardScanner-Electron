@@ -71,8 +71,22 @@ function setupLogFile() {
   
   // 【修复】使用北京时间生成日志文件名
   const now = new Date();
-  const beijingTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
-  const timeStr = beijingTime.toISOString().replace(/[:.]/g, '-').slice(0, -5); // 去掉毫秒和Z
+  // 直接格式化为北京时间的字符串
+  const beijingTimeStr = now.toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  // 将 "2026/5/1 18:45:50" 转换为 "2026-05-01T18-45-50"
+  const timeStr = beijingTimeStr
+    .replace(/\//g, '-')
+    .replace(/ /g, 'T')
+    .replace(/:/g, '-');
   const logFile = path.join(logDir, `app-${timeStr}.log`);
   const logStream = fs.createWriteStream(logFile, { flags: 'a' });
   
