@@ -235,18 +235,18 @@ const sensitiveTypes = computed(() => {
 // 【修复】动态计算 Grid 列模板
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
-  // 【关键】敏感信息列使用固定宽度，确保完全一致
-  const countColDefs = '6em '.repeat(countCols)
+  // 【关键】敏感信息列使用minmax智能调整
+  const countColDefs = 'minmax(4em, max-content) '.repeat(countCols)
   
   return {
     gridTemplateColumns: `
-      3.5em                           /* checkbox - 固定 */
-      minmax(12em, 30em)              /* path - 自适应 */
-      7em                             /* size - 固定 */
-      13em                            /* time - 固定（增加宽度） */
-      ${countColDefs}                 /* counts - 固定（增加宽度） */
-      minmax(4em, max-content)        /* total - 动态调整 */
-      10.5em                          /* actions - 固定 */
+      minmax(3.5em, max-content)        /* checkbox - 智能调整 */
+      minmax(12em, 30em)                /* path - 自适应（限制最大30em） */
+      minmax(6em, max-content)          /* size - 智能调整 */
+      minmax(13em, max-content)         /* time - 智能调整 */
+      ${countColDefs}                   /* counts - 智能调整 */
+      minmax(4em, max-content)          /* total - 智能调整 */
+      minmax(10.5em, max-content)       /* actions - 智能调整 */
     `.trim()
   }
 })
