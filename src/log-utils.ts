@@ -12,32 +12,38 @@ const SUPPRESS_PATTERNS = [
   'Warning: Ran out of space in font private use area',
 ];
 
-// 【关键】立即执行抑制逻辑（在模块加载时就执行）
-const originalWarn = console.warn;
-console.warn = function(...args: any[]) {
-  const message = args.join(' ');
-  
-  // 检查是否匹配任何抑制模式
-  const shouldSuppress = SUPPRESS_PATTERNS.some(pattern => message.includes(pattern));
-  
-  if (shouldSuppress) {
-    return; // 静默丢弃
-  }
-  
-  originalWarn.apply(console, args);
-};
-
-// 【新增】拦截 process.stderr.write，彻底抑制 PDF 字体警告
-const originalStderrWrite = process.stderr.write.bind(process.stderr);
-(process.stderr as any).write = function(chunk: any, ...args: any[]) {
-  if (typeof chunk === 'string') {
-    const shouldSuppress = SUPPRESS_PATTERNS.some(pattern => chunk.includes(pattern));
+/**
+ * 初始化日志抑制（拦截 console.warn 和 stderr）
+ * 应该在应用启动时立即调用
+ */
+export function setupLogSuppression(): void {
+  // 1. 拦截 console.warn
+  const originalWarn = console.warn;
+  console.warn = function(...args: any[]) {
+    const message = args.join(' ');
+    
+    // 检查是否匹配任何抑制模式
+    const shouldSuppress = SUPPRESS_PATTERNS.some(pattern => message.includes(pattern));
+    
     if (shouldSuppress) {
-      return true; // 抑制输出
+      return; // 静默丢弃
     }
-  }
-  return originalStderrWrite(chunk, ...args);
-};
+    
+    originalWarn.apply(console, args);
+  };
+
+  // 2. 拦截 process.stderr.write
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  (process.stderr as any).write = function(chunk: any, ...args: any[]) {
+    if (typeof chunk === 'string') {
+      const shouldSuppress = SUPPRESS_PATTERNS.some(pattern => chunk.includes(pattern));
+      if (shouldSuppress) {
+        return true; // 抑制输出
+      }
+    }
+    return originalStderrWrite(chunk, ...args);
+  };
+}
 
 /**
  * 添加额外的抑制模式
@@ -51,5 +57,16 @@ export function addSuppressPatterns(patterns: string[]): void {
  * 恢复原始的 console.warn（用于调试）
  */
 export function restoreConsoleWarn(): void {
-  console.warn = originalWarn;
+  // 注意：这只恢复 console.warn，不恢复 stderr
+  // 如果需要完全恢复，需要保存更多的原始引用
+  console.warn = function(...args: any[]) {
+    const message = args.join(' ');
+    const originalWarn = (console as any)._originalWarn;
+    if (originalWarn) {
+      originalWarn.apply(console, args);
+    }
+  };
 }
+
+// 【关键】模块加载时立即执行抑制逻辑
+setupLogSuppression();

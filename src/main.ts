@@ -2,6 +2,9 @@ import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu, screen} from 'el
 import * as path from 'path';
 import * as fs from 'fs';
 
+// 【关键】首先导入日志抑制工具（必须在任何其他导入之前）
+import './log-utils';
+
 // 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
 // pdfjs-dist v5.x+ 使用了 ES2024 的 Promise.withResolvers，需要 polyfill
 if (typeof (Promise as any).withResolvers === 'undefined') {
@@ -85,30 +88,11 @@ function setupLogFile() {
   };
   
   console.warn = function(...args) {
-    // 抑制 pdf-parse 的字体警告
-    if (args[0] && typeof args[0] === 'string') {
-      const msg = args[0];
-      if (msg.includes('Warning: TT: undefined function') ||
-          msg.includes('Ran out of space in font private use area')) {
-        return; // 完全抑制这些警告
-      }
-    }
+    // 注意：具体的警告过滤已由 log-utils 统一处理
     const timestamp = new Date().toISOString();
     const message = `[${timestamp}] [WARN] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
     logStream.write(message);
     originalWarn.apply(console, args);
-  };
-  
-  // 【新增】拦截 process.stderr.write，抑制 PDF 字体警告
-  const originalStderrWrite = process.stderr.write.bind(process.stderr);
-  (process.stderr as any).write = function(chunk: any, ...args: any[]) {
-    if (typeof chunk === 'string') {
-      if (chunk.includes('Warning: TT: undefined function') ||
-          chunk.includes('Ran out of space in font private use area')) {
-        return true; // 抑制输出
-      }
-    }
-    return originalStderrWrite(chunk, ...args);
   };
   
   console.log(`日志文件已创建: ${logFile}`);
