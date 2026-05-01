@@ -511,13 +511,19 @@ const handleBatchDelete = async () => {
 }
 </script>
 
+<style>
+/* 【容器查询】必须使用非 scoped 样式 */
+.results-table {
+  container-type: inline-size !important;
+  container-name: results-table !important;
+}
+</style>
+
 <style scoped>
 .results-table {
   display: flex;
   flex-direction: column;
   height: 100%;
-  container-type: inline-size;  /* 【关键】启用容器查询 */
-  container-name: results-table;  /* 【关键】设置容器名称 */
   
   /* 【优化】路径列宽度配置（CSS 自定义属性） */
   --path-col-min-width: 12em;
