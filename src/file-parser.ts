@@ -98,7 +98,6 @@ export async function extractTextFromFile(filePath: string): Promise<{ text: str
     return { text: '', unsupportedPreview: true };
   } catch (error: any) {
     logError('extractTextFromFile', error);
-    // 如果是 AppError，直接抛出；否则转换
     throw error;
   }
 }

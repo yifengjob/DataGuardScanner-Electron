@@ -70,10 +70,15 @@ export function createPermissionError(filePath: string, originalError?: any): Ap
   );
 }
 
+/**
+ * 文件大小显示精度（MB）
+ */
+const FILE_SIZE_DECIMAL_PLACES = 1;
+
 export function createFileTooLargeError(filePath: string, sizeMB: number, limitMB: number): AppError {
   return new AppError(
     ErrorCodes.FILE_TOO_LARGE,
-    `文件过大 (${sizeMB.toFixed(1)}MB)，超过限制 (${limitMB}MB): ${path.basename(filePath)}`
+    `文件过大 (${sizeMB.toFixed(FILE_SIZE_DECIMAL_PLACES)}MB)，超过限制 (${limitMB}MB): ${path.basename(filePath)}`
   );
 }
 
