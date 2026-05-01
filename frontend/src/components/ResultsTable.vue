@@ -522,14 +522,44 @@ const handleBatchDelete = async () => {
   /* 【优化】路径列宽度配置（CSS 自定义属性） */
   --path-col-min-width: 12em;
   --path-col-ideal-width: 25cqi;  /* 小容器默认值（使用容器单位） */
-  --path-col-max-width: 80em;
+  --path-col-max-width: 100em;
   --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
+}
+
+/* 【调试】小容器标签 */
+.results-table::after {
+  content: '⚪ 小容器 (<1000px)';
+  position: fixed;
+  top: 60px;
+  right: 10px;
+  background: #9e9e9e;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 9999;
+  pointer-events: none;
 }
 
 /* 容器宽度 ≥ 1000px - 中等容器 */
 @container results-table (min-width: 1000px) {
   .results-table {
     --path-col-ideal-width: 35cqi;  /* 使用容器单位 */
+  }
+  
+  /* 【调试】显示当前断点 */
+  .results-table::after {
+    content: '🔵 中等容器 (≥1000px)';
+    position: fixed;
+    top: 60px;
+    right: 10px;
+    background: #2196f3;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 9999;
+    pointer-events: none;
   }
 }
 
@@ -538,12 +568,24 @@ const handleBatchDelete = async () => {
   .results-table {
     --path-col-ideal-width: 45cqi;  /* 使用容器单位 */
   }
+  
+  /* 【调试】覆盖之前的标签 */
+  .results-table::after {
+    content: '🟢 大容器 (≥1400px)';
+    background: #4caf50;
+  }
 }
 
 /* 容器宽度 ≥ 1800px - 超大容器 */
 @container results-table (min-width: 1800px) {
   .results-table {
     --path-col-ideal-width: 55cqi;  /* 使用容器单位 */
+  }
+  
+  /* 【调试】覆盖之前的标签 */
+  .results-table::after {
+    content: '🟣 超大容器 (≥1800px)';
+    background: #9c27b0;
   }
 }
 
