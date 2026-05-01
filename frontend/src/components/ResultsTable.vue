@@ -199,6 +199,17 @@ const isResizing = ref(false)
 const scrollerRef = ref<any>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
 
+// 【优化】容器查询断点配置（按宽度从小到大排序）
+const CONTAINER_BREAKPOINTS = [
+  { minWidth: 800, idealWidth: '35cqi' },   // 中等容器
+  { minWidth: 1200, idealWidth: '45cqi' },  // 大容器
+  { minWidth: 1600, idealWidth: '55cqi' },  // 超大容器
+] as const
+
+const DEFAULT_IDEAL_WIDTH = '25cqi'  // 默认小容器
+const RESIZE_DEBOUNCE_DELAY = 100     // 防抖延迟（毫秒）
+const RESIZE_THRESHOLD = 50           // 宽度变化阈值（像素）
+
 // 监听窗口 resize
 let resizeTimer: number | null = null
 let scrollSyncSetup = false  // 【修复】标记是否已设置滚动同步
@@ -239,7 +250,7 @@ const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
   // 【关键】所有列使用固定宽度，确保完全对齐
   const countColDefs = '6em '.repeat(countCols)
-  
+
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
@@ -316,6 +327,7 @@ watch(
         // 等待 DOM 更新
         setTimeout(() => {
           setupScrollSync()
+          setupContainerQuery()  // 【新增】设置容器查询
         }, 1000)
       }
     },
@@ -337,6 +349,67 @@ const setupScrollSync = () => {
   }
 
   scrollSyncSetup = true
+}
+
+// 【新增】设置容器查询（使用 ResizeObserver + 防抖优化）
+const setupContainerQuery = () => {
+  const tableElement = document.querySelector('.results-table') as HTMLElement
+  if (!tableElement) {
+    console.warn('未找到 .results-table 元素')
+    return
+  }
+
+  let resizeTimer: number | null = null
+  let lastWidth = 0
+
+  // 根据宽度计算 ideal-width
+  const calculateIdealWidth = (width: number): string => {
+    // 从大到小遍历断点，找到第一个匹配的
+    for (let i = CONTAINER_BREAKPOINTS.length - 1; i >= 0; i--) {
+      if (width >= CONTAINER_BREAKPOINTS[i].minWidth) {
+        return CONTAINER_BREAKPOINTS[i].idealWidth
+      }
+    }
+    return DEFAULT_IDEAL_WIDTH  // 默认值
+  }
+
+  // 更新 CSS 变量
+  const updateIdealWidth = (width: number) => {
+    const idealWidth = calculateIdealWidth(width)
+    const currentWidth = tableElement.style.getPropertyValue('--path-col-ideal-width').trim()
+    
+    // 优化 3：只有值变化才设置
+    if (currentWidth !== idealWidth) {
+      tableElement.style.setProperty('--path-col-ideal-width', idealWidth)
+      console.log(`容器宽度: ${width}px, ideal-width: ${idealWidth}`)
+    }
+  }
+
+  // 初始设置
+  const initialWidth = tableElement.offsetWidth
+  updateIdealWidth(initialWidth)
+  lastWidth = initialWidth
+
+  // 监听容器宽度变化
+  const observer = new ResizeObserver((entries) => {
+    const width = Math.round(entries[0].contentRect.width)
+    
+    // 优化 1：只有宽度变化超过阈值才处理
+    if (Math.abs(width - lastWidth) < RESIZE_THRESHOLD) {
+      return
+    }
+
+    // 优化 2：防抖
+    if (resizeTimer) clearTimeout(resizeTimer)
+    
+    resizeTimer = window.setTimeout(() => {
+      updateIdealWidth(width)
+      lastWidth = width
+    }, RESIZE_DEBOUNCE_DELAY)
+  })
+
+  observer.observe(tableElement)
+  console.log('容器查询已启用（ResizeObserver + 防抖优化）')
 }
 
 // 【关键】处理滚动事件，同步表头
@@ -511,14 +584,6 @@ const handleBatchDelete = async () => {
 }
 </script>
 
-<style>
-/* 【容器查询】必须使用非 scoped 样式 */
-.results-table {
-  container-type: inline-size !important;
-  container-name: results-table !important;
-}
-</style>
-
 <style scoped>
 .results-table {
   display: flex;
@@ -527,30 +592,9 @@ const handleBatchDelete = async () => {
   
   /* 【优化】路径列宽度配置（CSS 自定义属性） */
   --path-col-min-width: 12em;
-  --path-col-ideal-width: 25cqi;  /* 小容器默认值（使用容器单位） */
+  --path-col-ideal-width: 25cqi;  /* 小容器默认值（由 JS 动态更新） */
   --path-col-max-width: 100em;
   --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
-}
-
-/* 容器宽度 ≥ 800px - 中等容器 */
-@container results-table (min-width: 800px) {
-  .results-table {
-    --path-col-ideal-width: 35cqi;  /* 使用容器单位 */
-  }
-}
-
-/* 容器宽度 ≥ 1200px - 大容器 */
-@container results-table (min-width: 1200px) {
-  .results-table {
-    --path-col-ideal-width: 45cqi;  /* 使用容器单位 */
-  }
-}
-
-/* 容器宽度 ≥ 1600px - 超大容器 */
-@container results-table (min-width: 1600px) {
-  .results-table {
-    --path-col-ideal-width: 55cqi;  /* 使用容器单位 */
-  }
 }
 
 .table-header {
