@@ -15,9 +15,6 @@ import * as iconv from 'iconv-lite';
 import { unzipFile, findZipEntries, extractEntriesText } from './zip-utils';
 // 【D3 优化】导入错误处理工具
 import {
-  createReadError,
-  createParseError,
-  createUnsupportedFormatError,
   logError,
   convertNodeError
 } from './error-utils';
