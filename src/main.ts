@@ -99,6 +99,18 @@ function setupLogFile() {
     originalWarn.apply(console, args);
   };
   
+  // 【新增】拦截 process.stderr.write，抑制 PDF 字体警告
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  (process.stderr as any).write = function(chunk: any, ...args: any[]) {
+    if (typeof chunk === 'string') {
+      if (chunk.includes('Warning: TT: undefined function') ||
+          chunk.includes('Ran out of space in font private use area')) {
+        return true; // 抑制输出
+      }
+    }
+    return originalStderrWrite(chunk, ...args);
+  };
+  
   console.log(`日志文件已创建: ${logFile}`);
 }
 
