@@ -200,18 +200,18 @@ const scrollerRef = ref<any>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
 
 // 【优化】路径列宽度配置
-const MIN_PATH_WIDTH_PX = 192  // 最小路径列宽度（12em × 16px）
+const MIN_PATH_WIDTH_PX = 120  // 最小路径列宽度（7.5em × 16px，基本可读）
 const RESIZE_THRESHOLD = 50    // 宽度变化阈值（像素）
 
-// 计算固定列总宽度（px）
+// 计算固定列总宽度（px）- 基于优化后的列宽
 const calculateFixedColumnsTotal = (sensitiveTypesCount: number): number => {
   return (
     64 +   // checkbox: 4em × 16
     112 +  // size: 7em × 16
     192 +  // time: 12em × 16
-    (96 * sensitiveTypesCount) +  // counts: 6em × 16 × 数量
+    (72 * sensitiveTypesCount) +  // counts: 4.5em × 16 × 数量（优化后）
     112 +  // total: 7em × 16
-    176    // actions: 11em × 16
+    144    // actions: 9em × 16（优化后）
   )
 }
 
@@ -292,7 +292,7 @@ watch(sensitiveTypes, () => {
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
   // 【关键】所有列使用固定宽度，确保完全对齐
-  const countColDefs = '6em '.repeat(countCols)
+  const countColDefs = '4.5em '.repeat(countCols)  // 优化：6em → 4.5em（72px，足够显示 "99,999"）
 
   return {
     gridTemplateColumns: `
@@ -300,9 +300,9 @@ const gridStyle = computed(() => {
       var(--path-col-width)           /* path - 自适应（由JS精准计算） */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
-      ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
+      ${countColDefs}                 /* counts - 优化后（可显示7位，含千分位） */
       7em                             /* total - 固定（可显示11-12位，比counts多1-2位） */
-      11em                            /* actions - 固定 */
+      9em                             /* actions - 优化：11em → 9em（144px，4个按钮足够） */
     `.trim()
   }
 })
@@ -406,8 +406,11 @@ const setupScrollSync = () => {
 const setupPathColumnWidth = () => {
   const tableElement = document.querySelector('.results-table') as HTMLElement
   if (!tableElement) {
+    console.warn('未找到 .results-table 元素')
     return
   }
+
+  console.log('开始设置路径列宽度监听器')
 
   let rafId: number | null = null
   let pendingWidth: number | null = null
@@ -415,14 +418,29 @@ const setupPathColumnWidth = () => {
 
   // 更新路径列宽度
   const updatePathWidth = (containerWidth: number) => {
+    console.log(`\n=== 开始更新路径列宽度 ===`)
+    console.log(`容器宽度: ${containerWidth}px`)
+    
     // 计算固定列总宽度
-    const fixedTotalPx = calculateFixedColumnsTotal(sensitiveTypes.value.length)
+    const sensitiveCount = sensitiveTypes.value.length
+    const fixedTotalPx = calculateFixedColumnsTotal(sensitiveCount)
+    
+    console.log(`\n固定列明细:`)
+    console.log(`  - checkbox: 4em = 64px`)
+    console.log(`  - size: 7em = 112px`)
+    console.log(`  - time: 12em = 192px`)
+    console.log(`  - counts: 6em × ${sensitiveCount} = ${96 * sensitiveCount}px`)
+    console.log(`  - total: 7em = 112px`)
+    console.log(`  - actions: 11em = 176px`)
+    console.log(`  固定列总计: ${fixedTotalPx}px`)
     
     // 计算路径列宽度 = 容器宽度 - 固定列总宽度
     let pathWidthPx = containerWidth - fixedTotalPx
+    console.log(`\n路径列计算: ${containerWidth} - ${fixedTotalPx} = ${pathWidthPx}px`)
     
     // 应用最小值限制
     if (pathWidthPx < MIN_PATH_WIDTH_PX) {
+      console.log(`⚠️  路径列宽度 (${pathWidthPx}px) 小于最小值 (${MIN_PATH_WIDTH_PX}px)，应用最小值`)
       pathWidthPx = MIN_PATH_WIDTH_PX
     }
     
@@ -431,19 +449,24 @@ const setupPathColumnWidth = () => {
     
     // 设置 CSS 变量
     tableElement.style.setProperty('--path-col-width', `${pathWidthEm}em`)
+    console.log(`✅ 设置 --path-col-width: ${pathWidthEm}em (${pathWidthPx}px)`)
+    console.log(`=== 更新完成 ===\n`)
   }
 
   // 初始设置
   const initialWidth = tableElement.offsetWidth
+  console.log(`初始容器宽度: ${initialWidth}px`)
   updatePathWidth(initialWidth)
   lastWidth = initialWidth
 
   // 监听容器宽度变化
   const observer = new ResizeObserver((entries) => {
     const width = Math.round(entries[0].contentRect.width)
+    console.log(`ResizeObserver 触发: ${width}px (上次: ${lastWidth}px, 差异: ${Math.abs(width - lastWidth)}px)`)
 
     // 只有宽度变化超过阈值才处理
     if (Math.abs(width - lastWidth) < RESIZE_THRESHOLD) {
+      console.log('宽度变化小于阈值，忽略')
       return
     }
 
@@ -454,6 +477,7 @@ const setupPathColumnWidth = () => {
     if (!rafId) {
       rafId = requestAnimationFrame(() => {
         if (pendingWidth !== null) {
+          console.log('rAF 执行更新')
           updatePathWidth(pendingWidth)
           lastWidth = pendingWidth
           pendingWidth = null
@@ -464,6 +488,7 @@ const setupPathColumnWidth = () => {
   })
 
   observer.observe(tableElement)
+  console.log('ResizeObserver 已设置，开始监听 .results-table')
 
   // 【安全】组件卸载时清理 observer，挂载到 window 供 onUnmounted 调用
   ;(window as any).__resultsTableCleanup = () => {
@@ -472,6 +497,7 @@ const setupPathColumnWidth = () => {
       rafId = null
     }
     observer.disconnect()
+    console.log('ResizeObserver 已清理')
   }
 }
 
