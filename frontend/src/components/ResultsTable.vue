@@ -23,7 +23,7 @@
       <!-- 【虚拟滚动优化】使用 vue-virtual-scroller -->
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
-        <div class="table-header-container">
+        <div class="table-header-container" ref="headerContainer">
           <table class="table-header-fixed">
             <colgroup>
               <col class="col-checkbox" />
@@ -109,7 +109,7 @@
         </div>
         
         <!-- 虚拟滚动内容 - 支持动态行高 -->
-        <div class="table-body-container">
+        <div class="table-body-container" ref="bodyContainer">
           <DynamicScroller
             class="virtual-scroller"
             :items="filteredResults"
@@ -128,7 +128,7 @@
               ]"
               :data-index="index"
             >
-              <div class="virtual-row">
+              <div class="virtual-row" :style="gridStyle">
                 <div class="cell checkbox-col">
                   <input 
                     type="checkbox" 
@@ -210,6 +210,9 @@ const isResizing = ref(false)  // ← 新增：标记是否正在 resize
 
 // 监听窗口 resize
 let resizeTimer: number | null = null
+const headerContainer = ref<HTMLDivElement | null>(null)
+const bodyContainer = ref<HTMLDivElement | null>(null)
+
 onMounted(() => {
   const handleResize = () => {
     isResizing.value = true
@@ -221,6 +224,17 @@ onMounted(() => {
   
   // 使用 passive listener 提升性能
   window.addEventListener('resize', handleResize, { passive: true })
+  
+  // 【修复】同步表头和内容的横向滚动
+  const syncScroll = () => {
+    if (headerContainer.value && bodyContainer.value) {
+      headerContainer.value.scrollLeft = bodyContainer.value.scrollLeft
+    }
+  }
+  
+  if (bodyContainer.value) {
+    bodyContainer.value.addEventListener('scroll', syncScroll)
+  }
 })
 
 // 加载敏感类型定义
@@ -239,6 +253,24 @@ const sensitiveTypes = computed(() => {
   return allSensitiveTypes.value.filter(type =>
       config.value.enabledSensitiveTypes.includes(type.id)
   )
+})
+
+// 【修复】动态计算 Grid 列模板
+const gridStyle = computed(() => {
+  const countCols = sensitiveTypes.value.length
+  const countColDefs = 'minmax(4em, max-content) '.repeat(countCols)
+  
+  return {
+    gridTemplateColumns: `
+      3.5em                           /* checkbox - 固定 */
+      minmax(12em, 30em)              /* path - 自适应 */
+      minmax(6em, max-content)        /* size */
+      minmax(11em, max-content)       /* time */
+      ${countColDefs}                 /* counts - 动态 */
+      minmax(5em, max-content)        /* total */
+      10.5em                          /* actions - 固定 */
+    `.trim()
+  }
 })
 
 const filteredResults = computed(() => {
@@ -674,7 +706,8 @@ tr {
 
 .table-body-container {
   flex: 1;
-  overflow: hidden;  /* 由 DynamicScroller 控制滚动 */
+  overflow-x: auto;  /* 【修复】允许横向滚动 */
+  overflow-y: hidden;
 }
 
 /* 【修复】统一定义列宽，确保所有行列宽一致 */
