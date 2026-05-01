@@ -547,15 +547,15 @@ const handleBatchDelete = async () => {
   pointer-events: none;
 }
 
-/* 容器宽度 ≥ 1000px - 中等容器 */
-@container results-table (min-width: 1000px) {
+/* 容器宽度 ≥ 800px - 中等容器 */
+@container results-table (min-width: 800px) {
   .results-table {
     --path-col-ideal-width: 35cqi;  /* 使用容器单位 */
   }
   
   /* 【调试】显示当前断点 */
   .results-table::after {
-    content: '🔵 中等容器 (≥1000px)';
+    content: '🔵 中等容器 (≥800px)';
     position: fixed;
     top: 60px;
     right: 10px;
@@ -569,28 +569,28 @@ const handleBatchDelete = async () => {
   }
 }
 
-/* 容器宽度 ≥ 1400px - 大容器 */
-@container results-table (min-width: 1400px) {
+/* 容器宽度 ≥ 1200px - 大容器 */
+@container results-table (min-width: 1200px) {
   .results-table {
     --path-col-ideal-width: 45cqi;  /* 使用容器单位 */
   }
   
   /* 【调试】覆盖之前的标签 */
   .results-table::after {
-    content: '🟢 大容器 (≥1400px)';
+    content: '🟢 大容器 (≥1200px)';
     background: #4caf50;
   }
 }
 
-/* 容器宽度 ≥ 1800px - 超大容器 */
-@container results-table (min-width: 1800px) {
+/* 容器宽度 ≥ 1600px - 超大容器 */
+@container results-table (min-width: 1600px) {
   .results-table {
     --path-col-ideal-width: 55cqi;  /* 使用容器单位 */
   }
   
   /* 【调试】覆盖之前的标签 */
   .results-table::after {
-    content: '🟣 超大容器 (≥1800px)';
+    content: '🟣 超大容器 (≥1600px)';
     background: #9c27b0;
   }
 }
