@@ -1,88 +1,92 @@
 <template>
   <div class="app-container">
-    <!-- 菜单栏 -->
-    <div class="menu-bar">
-      <div class="menu-dropdown" @click.stop>
-        <div class="menu-item menu-trigger" @click="showMenuDropdown = !showMenuDropdown">
-          菜单
-          <svg class="dropdown-arrow" :class="{ open: showMenuDropdown }"><use href="#icon-chevron-down" /></svg>
-        </div>
-        <Transition name="dropdown">
-          <div v-if="showMenuDropdown" class="dropdown-menu" @click="showMenuDropdown = false">
-            <div class="dropdown-item" @click="showSettings = true">
-              <svg class="item-icon"><use href="#icon-setting" /></svg>
-              设置
-            </div>
-            <div 
-              class="dropdown-item" 
-              :class="{ disabled: scanResults.length === 0 }"
-              @click="handleExportReport"
-            >
-              <svg class="item-icon"><use href="#icon-export" /></svg>
-              导出报告
-            </div>
-            <div class="dropdown-item" @click="showLogs = true">
-              <svg class="item-icon"><use href="#icon-logger" /></svg>
-              查看日志
-            </div>
-            <div class="dropdown-item" @click="handleOpenDevTools">
-              <svg class="item-icon"><use href="#icon-dev-tools" /></svg>
-              打开开发者工具
-            </div>
-            <div class="dropdown-item" @click="showAbout = true">
-              <svg class="item-icon"><use href="#icon-about" /></svg>
-              关于
-            </div>
-          </div>
-        </Transition>
-      </div>
-    </div>
+
 
     <!-- 工具栏 -->
     <div class="toolbar">
-      <button 
-        class="btn btn-primary" 
-        @click="handleStartScan"
-        :disabled="isScanning"
-        title="开始扫描选中的目录"
+      <button
+          class="btn btn-primary"
+          @click="handleStartScan"
+          :disabled="isScanning || isCancelling"
+          title="开始扫描选中的目录"
       >
-        <svg class="btn-icon"><use href="#icon-play" /></svg>
-        <span>{{ isScanning ? '扫描中...' : '开始扫描' }}</span>
+        <svg class="btn-icon">
+          <use href="#icon-play"/>
+        </svg>
+        <span>{{ isScanning ? '扫描中...' : isCancelling ? '取消中...' : '开始扫描' }}</span>
       </button>
-      <button 
-        class="btn btn-danger" 
-        @click="handleCancelScan"
-        :disabled="!isScanning"
-        title="取消当前扫描任务"
+      <button
+          class="btn btn-danger"
+          @click="handleCancelScan"
+          :disabled="!isScanning || isCancelling"
+          title="取消当前扫描任务"
       >
-        <svg class="btn-icon"><use href="#icon-pause" /></svg>
-        <span>取消</span>
+        <svg class="btn-icon">
+          <use href="#icon-pause"/>
+        </svg>
+        <span>{{ isCancelling ? '取消中...' : '取消' }}</span>
       </button>
-      <button 
-        class="btn btn-icon-only" 
-        @click="handleExportReport"
-        :disabled="scanResults.length === 0"
-        :title="scanResults.length === 0 ? '暂无扫描结果，无法导出' : '导出报告'"
+      <button
+          class="btn btn-icon-only"
+          @click="handleExportReport"
+          :disabled="scanResults.length === 0"
+          :title="scanResults.length === 0 ? '暂无扫描结果，无法导出' : '导出报告'"
       >
-        <svg class="btn-icon"><use href="#icon-export" /></svg>
+        <svg class="btn-icon">
+          <use href="#icon-export"/>
+        </svg>
       </button>
-      <button 
-        class="btn btn-icon-only" 
-        @click="showSettings = true"
-        title="打开设置"
+      <button
+          class="btn btn-icon-only"
+          @click="showSettings = true"
+          title="打开设置"
       >
-        <svg class="btn-icon"><use href="#icon-setting" /></svg>
+        <svg class="btn-icon">
+          <use href="#icon-setting"/>
+        </svg>
       </button>
-      <button 
-        class="btn btn-icon-only theme-toggle" 
-        @click="toggleTheme" 
-        :title="getThemeTooltip()"
+      <button
+          class="btn btn-icon-only"
+          @click="showLogs = true"
+          title="查看日志"
+      >
+        <svg class="btn-icon">
+          <use href="#icon-log"/>
+        </svg>
+      </button>
+      <button
+          class="btn btn-icon-only"
+          @click="handleOpenDevTools"
+          title="打开开发者工具"
+      >
+        <svg class="btn-icon">
+          <use href="#icon-dev-tools"/>
+        </svg>
+      </button>
+      <button
+          class="btn btn-icon-only theme-toggle"
+          @click="toggleTheme"
+          :title="getThemeTooltip()"
       >
         <!-- 跟随系统主题 -->
-        <svg v-if="currentTheme === 'system'" class="btn-icon"><use href="#icon-system-theme" /></svg>
+        <svg v-if="currentTheme === 'system'" class="btn-icon">
+          <use href="#icon-system-theme"/>
+        </svg>
         <!-- 浅色/深色主题 -->
-        <svg v-else class="btn-icon"><use href="#icon-light-dark" /></svg>
+        <svg v-else class="btn-icon">
+          <use href="#icon-light-dark"/>
+        </svg>
       </button>
+      <button
+          class="btn btn-icon-only"
+          @click="showAbout = true"
+          title="关于"
+      >
+        <svg class="btn-icon">
+          <use href="#icon-about"/>
+        </svg>
+      </button>
+
     </div>
 
     <!-- 主内容区 -->
@@ -92,17 +96,17 @@
         <!-- 侧边栏 -->
         <div class="sidebar">
           <!-- 目录树 -->
-          <DirectoryTree />
-          
+          <DirectoryTree/>
+
           <!-- 文件类型筛选 -->
-          <FileTypeFilter />
+          <FileTypeFilter/>
         </div>
-        
+
         <!-- 折叠按钮（独立于侧边栏，始终可见） -->
-        <div 
-          class="sidebar-toggle" 
-          @click="isSidebarCollapsed = !isSidebarCollapsed"
-          :title="isSidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        <div
+            class="sidebar-toggle"
+            @click="isSidebarCollapsed = !isSidebarCollapsed"
+            :title="isSidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
         >
           {{ isSidebarCollapsed ? '▶' : '◀' }}
         </div>
@@ -110,53 +114,71 @@
 
       <!-- 右侧结果表格 -->
       <div class="results-panel">
-        <ResultsTable @preview="handlePreview" />
+        <ResultsTable @preview="handlePreview"/>
       </div>
     </div>
 
     <!-- 状态栏 -->
     <div class="status-bar">
-      <span>{{ isScanning ? '扫描中...' : '就绪' }}</span>
-      <span v-if="totalCount > 0">已扫描 {{ scannedCount }} / {{ totalCount }} 个文件</span>
-      <span v-else>已扫描 {{ scannedCount }} 个文件</span>
-      <span>非文档类型文件 {{ errorCount }} 个</span>
-      <span>敏感文件 {{ sensitiveFilesCount }} 个</span>
-      <span>敏感信息 {{ totalSensitiveItems.toLocaleString() }} 条</span>
+      <div class="status-item status-status">
+        <span class="status-dot" :class="{ scanning: isScanning, cancelling: isCancelling }"></span>
+        <span>{{ isCancelling ? '取消中...' : isScanning ? '扫描中...' : '就绪' }}</span>
+      </div>
+      <div class="status-divider"></div>
+      <div class="status-item">
+        <span class="status-label">已扫描：</span>
+        <span class="status-value">{{ formatNumber(scannedCount) }}{{ totalCount > 0 ? ' / ' + formatNumber(totalCount) : '' }}</span>
+      </div>
+      <div class="status-divider"></div>
+      <div class="status-item">
+        <span class="status-label">非文档：</span>
+        <span class="status-value error">{{ formatNumber(errorCount) }}</span>
+      </div>
+      <div class="status-divider"></div>
+      <div class="status-item">
+        <span class="status-label">敏感文件：</span>
+        <span class="status-value warning">{{ formatNumber(sensitiveFilesCount) }}</span>
+      </div>
+      <div class="status-divider"></div>
+      <div class="status-item">
+        <span class="status-label">敏感信息：</span>
+        <span class="status-value danger">{{ formatNumber(totalSensitiveItems) }} 条</span>
+      </div>
     </div>
 
     <!-- 预览弹窗 -->
-    <PreviewModal :file-path="previewFilePath" :visible="showPreview" @close="showPreview = false" />
-    
+    <PreviewModal :file-path="previewFilePath" :visible="showPreview" @close="showPreview = false"/>
+
     <!-- 设置窗口 -->
     <Transition name="modal">
-      <SettingsModal v-if="showSettings" @close="showSettings = false" />
+      <SettingsModal v-if="showSettings" @close="showSettings = false"/>
     </Transition>
-    
+
     <!-- 日志窗口 -->
     <Transition name="modal">
-      <LogsModal v-if="showLogs" @close="showLogs = false" />
+      <LogsModal v-if="showLogs" @close="showLogs = false"/>
     </Transition>
-    
+
     <!-- 关于窗口 -->
     <Transition name="modal">
-      <AboutModal v-if="showAbout" @close="showAbout = false" />
+      <AboutModal v-if="showAbout" @close="showAbout = false"/>
     </Transition>
-    
+
     <!-- 导出窗口 -->
     <Transition name="modal">
-      <ExportModal v-if="showExport" :results="scanResults" @close="showExport = false" />
+      <ExportModal v-if="showExport" :results="scanResults" @close="showExport = false"/>
     </Transition>
-    
+
     <!-- 环境检查窗口 -->
-    <EnvironmentCheck />
+    <EnvironmentCheck/>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useAppStore } from './stores/app'
-import { storeToRefs } from 'pinia'
-import { showMessage } from './utils/electron-api'
+import {ref, onMounted} from 'vue'
+import {useAppStore} from './stores/app'
+import {storeToRefs} from 'pinia'
+import {showMessage} from './utils/electron-api'
 import DirectoryTree from './components/DirectoryTree.vue'
 import FileTypeFilter from './components/FileTypeFilter.vue'
 import ResultsTable from './components/ResultsTable.vue'
@@ -166,15 +188,35 @@ import LogsModal from './components/LogsModal.vue'
 import AboutModal from './components/AboutModal.vue'
 import ExportModal from './components/ExportModal.vue'
 import EnvironmentCheck from './components/EnvironmentCheck.vue'
-import { startScan, cancelScan, loadConfig, getRecommendedConcurrency, onScanProgress, onScanResult, onScanFinished, onScanError, onScanLog } from './utils/electron-api'
-import { applyTheme, loadTheme, watchSystemTheme } from './utils/theme'
-import type { ThemeMode } from './utils/theme'
+import {
+  startScan,
+  cancelScan,
+  loadConfig,
+  getRecommendedConcurrency,
+  onScanProgress,
+  onScanResult,
+  onScanFinished,
+  onScanError,
+  onScanLog
+} from './utils/electron-api'
+import {applyTheme, loadTheme, watchSystemTheme} from './utils/theme'
+import type {ThemeMode} from './utils/theme'
+import {formatNumber} from './utils/format'
 
 // 不再需要导入 SVG 文件
 // 插件会自动将 src/assets 下的 SVG 转换为 sprite
 
 const appStore = useAppStore()
-const { isScanning, scannedCount, totalCount, sensitiveFilesCount, errorCount, totalSensitiveItems, config, scanResults } = storeToRefs(appStore)
+const {
+  isScanning,
+  scannedCount,
+  totalCount,
+  sensitiveFilesCount,
+  errorCount,
+  totalSensitiveItems,
+  config,
+  scanResults
+} = storeToRefs(appStore)
 
 const showPreview = ref(false)
 const previewFilePath = ref('')
@@ -182,16 +224,16 @@ const showSettings = ref(false)
 const showLogs = ref(false)
 const showAbout = ref(false)
 const showExport = ref(false)
-const showMenuDropdown = ref(false) // 【新增】菜单下拉状态
 const isSidebarCollapsed = ref(false)
 const currentTheme = ref<ThemeMode>('system')
+const isCancelling = ref(false) // 【新增】取消扫描状态
 
 // 加载配置
 onMounted(async () => {
   try {
     const loadedConfig = await loadConfig()
     Object.assign(config.value, loadedConfig)
-    
+
     // 如果配置中的并发数为 0，则使用系统推荐的值
     if (config.value.scanConcurrency === 0) {
       const recommended = await getRecommendedConcurrency()
@@ -201,23 +243,18 @@ onMounted(async () => {
   } catch (error) {
     console.error('加载配置失败:', error)
   }
-  
+
   // 初始化主题
   currentTheme.value = loadTheme()
   applyTheme(currentTheme.value)
-  
+
   // 监听系统主题变化（仅在 system 模式下）
   watchSystemTheme(() => {
     if (currentTheme.value === 'system') {
       applyTheme('system')
     }
   })
-  
-  // 【新增】点击外部关闭菜单下拉
-  document.addEventListener('click', () => {
-    showMenuDropdown.value = false
-  })
-  
+
   // 监听扫描事件
   await onScanProgress((data) => {
     scannedCount.value = data.scannedCount
@@ -230,25 +267,27 @@ onMounted(async () => {
       appStore.errorCount = data.skippedCount
     }
   })
-  
+
   await onScanResult((item) => {
     appStore.addScanResult(item)
   })
-  
+
   await onScanFinished(() => {
     console.log('扫描完成')
     isScanning.value = false
+    isCancelling.value = false // 【新增】重置取消状态
   })
-  
+
   await onScanError(async (error) => {
     console.error('扫描错误:', error)
     isScanning.value = false
+    isCancelling.value = false // 【新增】重置取消状态
     await showMessage(`扫描出错: ${error}`, {
       title: '错误',
       type: 'error'
     })
   })
-  
+
   // 监听日志事件
   await onScanLog((log) => {
     appStore.addLog(log)  // 【优化】使用批量添加
@@ -264,14 +303,14 @@ const handleStartScan = async () => {
     })
     return
   }
-  
+
   // 获取有效的扫描路径（只保留叶子节点）
   const effectivePaths = appStore.getEffectiveScanPaths()
-  
+
   appStore.clearScanResults()
   appStore.logs = [] // 清空旧日志
   isScanning.value = true
-  
+
   // 将Proxy对象转换为普通对象，以便通过IPC传递
   const scanConfig = {
     selectedPaths: effectivePaths,
@@ -283,7 +322,7 @@ const handleStartScan = async () => {
     maxPdfSizeMb: config.value.maxPdfSizeMb,
     scanConcurrency: config.value.scanConcurrency,
   }
-  
+
   try {
     await startScan(scanConfig)
   } catch (error) {
@@ -294,11 +333,14 @@ const handleStartScan = async () => {
 
 // 取消扫描
 const handleCancelScan = async () => {
+  isCancelling.value = true // 【新增】设置取消状态
   try {
     await cancelScan()
     isScanning.value = false
+    isCancelling.value = false // 【新增】重置取消状态
   } catch (error) {
     console.error('取消扫描失败:', error)
+    isCancelling.value = false // 【新增】重置取消状态
   }
 }
 
@@ -365,144 +407,42 @@ const getThemeTooltip = () => {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  will-change: auto;                 /* ← 优化整体布局 */
-  contain: layout style;             /* ← 限制重排范围 */
-}
-
-.menu-bar {
-  display: flex;
-  gap: var(--spacing-lg);
-  padding: 0.375em 1em;              /* 6px 16px - 紧凑的菜单栏 */
-  background-color: var(--menu-bg);
-  border-bottom: var(--border-width) solid var(--border-color);
-  contain: layout style;             /* ← 限制重排范围 */
-  position: relative;                /* 【修复】为下拉菜单提供定位上下文 */
-  z-index: 100;                      /* 【修复】确保菜单栏在内容区之上 */
-}
-
-.menu-item {
-  cursor: pointer;
-  padding: 0.25em 0.5em;             /* 4px 8px - 菜单项内边距 */
-  border-radius: var(--radius-sm);
-  transition: all 0.15s ease;
-  font-size: 0.95em;                 /* 接近基础字体 */
-}
-
-.menu-item:hover {
-  background-color: var(--bg-hover);
-}
-
-.menu-item.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-/* 【新增】菜单下拉样式 */
-.menu-dropdown {
-  position: relative;
-}
-
-.menu-trigger {
-  display: flex;
-  align-items: center;
-  gap: 0.25em;
-}
-
-.dropdown-arrow {
-  width: 0.8em;
-  height: 0.8em;
-  transition: transform 0.2s ease;
-}
-
-.dropdown-arrow.open {
-  transform: rotate(180deg);
-}
-
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 160px;
-  background-color: var(--bg-color);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 10000;                    /* 【修复】提高 z-index，确保在最上层 */
-  margin-top: 0.25em;
-  overflow: visible;                 /* 【修复】允许内容溢出 */
-}
-
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  padding: 0.5em 1em;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  font-size: 0.95em;
-}
-
-.dropdown-item:hover:not(.disabled) {
-  background-color: var(--bg-hover);
-}
-
-.dropdown-item.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-.item-icon {
-  width: 1em;
-  height: 1em;
-  flex-shrink: 0;
-}
-
-/* 下拉菜单动画 */
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: all 0.2s ease;
-}
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
+  will-change: auto; /* ← 优化整体布局 */
+  contain: layout style; /* ← 限制重排范围 */
 }
 
 .toolbar {
   display: flex;
   gap: var(--spacing-sm);
-  padding: 0.5em 1em;                /* 8px 16px - 工具栏内边距 */
+  padding: 0.5em 1em; /* 8px 16px - 工具栏内边距 */
   background-color: var(--toolbar-bg);
   border-bottom: var(--border-width) solid var(--border-color);
-  contain: layout style;             /* ← 限制重排范围 */
+  contain: layout style; /* ← 限制重排范围 */
 }
 
 .btn {
-  padding: 0.375em 1em;              /* 6px 16px - 按钮内边距 */
+  padding: 0.375em 1em; /* 6px 16px - 按钮内边距 */
   border: var(--border-width) solid var(--border-color);
   background-color: var(--bg-color);
   color: var(--text-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.95em;                 /* 接近基础字体 */
+  font-size: 0.95em; /* 接近基础字体 */
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 0.375em;                      /* 6px - 图标与文字间距 */
+  gap: 0.375em; /* 6px - 图标与文字间距 */
 }
 
 .btn-icon {
-  width: 1.1em;                      /* 相对于按钮字体 */
-  height: 1.1em;
+  width: 1.5em; /* 相对于按钮字体 */
+  height: 1.5em;
   flex-shrink: 0;
   color: currentColor;
 }
 
 .btn-icon-only {
-  padding: 0.375em 0.625em;          /* 6px 10px - 图标按钮 */
+  padding: 0.375em 0.625em; /* 6px 10px - 图标按钮 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -510,7 +450,7 @@ const getThemeTooltip = () => {
 
 .btn:hover:not(:disabled) {
   background-color: var(--bg-hover);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);  /* 轻微阴影 */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* 轻微阴影 */
 }
 
 .btn:active:not(:disabled) {
@@ -573,7 +513,7 @@ const getThemeTooltip = () => {
   display: flex;
   flex: 1;
   overflow: hidden;
-  contain: layout style;             /* ← 限制重排范围 */
+  contain: layout style; /* ← 限制重排范围 */
 }
 
 /* 左侧区域容器 */
@@ -582,7 +522,7 @@ const getThemeTooltip = () => {
   flex-shrink: 0;
   position: relative; /* 为按钮提供定位上下文 */
   width: 300px; /* 固定宽度，与侧边栏一致 */
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);  /* ← 恢复动画 */
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* ← 恢复动画 */
 }
 
 .sidebar-area.collapsed {
@@ -595,14 +535,14 @@ const getThemeTooltip = () => {
   height: 100%;
   border-right: 1px solid var(--border-color);
   overflow-y: auto;
-  overflow-x: hidden;                /* 防止横向滚动 */
+  overflow-x: hidden; /* 防止横向滚动 */
   display: flex;
   flex-direction: column;
   background-color: var(--sidebar-bg);
   position: absolute; /* 绝对定位，脱离文档流 */
   left: 0;
   top: 0;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);  /* ← 恢复动画 */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* ← 恢复动画 */
   transform: translateX(0);
 }
 
@@ -613,11 +553,11 @@ const getThemeTooltip = () => {
 /* 折叠按钮 - 绝对定位，紧贴侧边栏右侧边缘 */
 .sidebar-toggle {
   position: absolute;
-  right: -1em;                       /* 16px - 完全在侧边栏外部 */
+  right: -1em; /* 16px - 完全在侧边栏外部 */
   top: 50%;
   transform: translateY(-50%);
-  width: 1em;                        /* 16px - 紧凑宽度 */
-  height: 3.75em;                    /* 60px */
+  width: 1em; /* 16px - 紧凑宽度 */
+  height: 3.75em; /* 60px */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -627,11 +567,11 @@ const getThemeTooltip = () => {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   cursor: pointer;
   user-select: none;
-  font-size: 0.75em;                 /* 12px */
+  font-size: 0.75em; /* 12px */
   color: var(--text-secondary);
-  transition: all 0.2s ease;  /* ← 恢复动画 */
-  z-index: 100;                      /* 高于所有表格固定列 */
-  contain: layout style;             /* ← 限制重排范围 */
+  transition: all 0.2s ease; /* ← 恢复动画 */
+  z-index: 100; /* 高于所有表格固定列 */
+  contain: layout style; /* ← 限制重排范围 */
 }
 
 .sidebar-toggle:hover {
@@ -643,18 +583,97 @@ const getThemeTooltip = () => {
 .results-panel {
   flex: 1;
   overflow: hidden;
-  contain: layout style paint;       /* ← 限制重排范围 */
+  contain: layout style paint; /* ← 限制重排范围 */
 }
 
 .status-bar {
   display: flex;
-  gap: 30px;
-  padding: 6px 16px;
+  align-items: center;
+  gap: 0;
+  padding: 8px 16px;
   background-color: var(--menu-bg);
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   font-size: 13px;
   color: var(--text-secondary);
-  contain: layout style;             /* ← 限制重排范围 */
+  contain: layout style; /* ← 限制重排范围 */
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  flex-shrink: 0; /* 防止压缩 */
+}
+
+.status-status {
+  gap: 8px;
+  font-weight: 500;
+  min-width: 90px; /* 容纳 "取消中..." */
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--success-color);
+  transition: all 0.3s ease;
+}
+
+.status-dot.scanning {
+  background-color: var(--primary-color);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-dot.cancelling {
+  background-color: var(--warning-color);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+.status-divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-color);
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+.status-label {
+  color: var(--text-secondary);
+}
+
+.status-value {
+  color: var(--text-color);
+  font-weight: 500;
+  min-width: 60px; /* 容纳 "12,345" */
+  text-align: right;
+}
+
+.status-value.error {
+  color: var(--error-color);
+  min-width: 40px; /* 容纳 "999" */
+}
+
+.status-value.warning {
+  color: var(--warning-color);
+  min-width: 40px; /* 容纳 "999" */
+}
+
+.status-value.danger {
+  color: #ff4d4f;
+  font-weight: 600;
+  min-width: 90px; /* 容纳 "123,456 条" */
 }
 
 /* 模态框过渡动画 */

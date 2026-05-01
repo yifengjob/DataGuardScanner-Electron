@@ -9,6 +9,11 @@ export function formatFileSize(bytes: number): string {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
+// 格式化数字为千分位
+export function formatNumber(num: number): string {
+  return num.toLocaleString('zh-CN')
+}
+
 // 格式化时间
 export function formatTime(isoString: string): string {
   if (!isoString || isoString === '未知') return '未知'

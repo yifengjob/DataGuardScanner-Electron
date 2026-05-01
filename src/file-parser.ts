@@ -9,10 +9,10 @@ import WordExtractor from 'word-extractor';  // .doc 和 .docx 统一使用 word
 import pdfParse from 'pdf-parse';
 // 【新增】SheetJS 用于快速解析 Excel 文件
 import * as XLSX from 'xlsx';
-// 【新增】adm-zip 用于解压 .pptx 文件
-import AdmZip from 'adm-zip';
 // 【新增】iconv-lite 用于解码 GBK 编码的 RTF 文件
 import * as iconv from 'iconv-lite';
+// 【新增】ZIP 解压工具（使用 fflate 替代 adm-zip）
+import { unzipFile, findZipEntries, extractEntriesText } from './zip-utils';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
 type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
@@ -54,15 +54,16 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   // 【优化】Word 文档统一使用 word-extractor（支持 .doc 和 .docx）
   'docx': extractWithWordExtractor,
   'doc': extractWithWordExtractor,
-  'wps': extractWithBinary,  // WPS 旧版格式，暂时使用二进制提取
+  // 【修复】WPS 旧版格式是 OLE2，使用 word-extractor 解析（与 .doc 相同）
+  'wps': extractWithWordExtractor,
+  'dps': extractWithBinary,  // WPS 演示暂时使用二进制扫描
   // 【优化】Excel 文件使用 SheetJS，速度更快且不会内存溢出
   'xlsx': extractWithSheetJS,
   'xls': extractWithSheetJS,
-  'et': extractWithSheetJS,
+  'et': extractWithSheetJS,   // WPS 表格
   // 【优化】PPT 文件使用自定义解压方案
   'pptx': extractPptx,
   'ppt': extractWithBinary,  // .ppt 旧版格式，暂时使用二进制提取
-  'dps': extractWithBinary,  // WPS 演示旧版格式，暂时使用二进制提取
   // 【优化】OpenDocument 格式使用自定义解压方案
   'odt': extractOdt,
   'ods': extractOds,
@@ -166,42 +167,36 @@ async function extractWithWordExtractor(filePath: string): Promise<{ text: strin
   }
 }
 
-// 【新增】使用自定义方案解析 .pptx 文件
+// 【新增】使用自定义方案解析 .pptx 文件（使用 fflate）
 async function extractPptx(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    // 读取文件
-    const data = await fs.promises.readFile(filePath);
+    // 使用 fflate 解压
+    const entries = await unzipFile(filePath);
     
-    // 使用 adm-zip 解压
-    const zip = new AdmZip(data);
-    const zipEntries = zip.getEntries();
+    // 查找所有幻灯片 XML 文件
+    const slideEntries = findZipEntries(entries, 'ppt/slides/slide');
     
     let allText = '';
     
-    // 查找所有幻灯片 XML 文件
-    for (const entry of zipEntries) {
-      const entryName = entry.entryName;
-      
-      // PPTX 的幻灯片内容在 ppt/slides/slide*.xml 中
-      if (entryName.startsWith('ppt/slides/slide') && entryName.endsWith('.xml')) {
-        try {
-          const xmlContent = entry.getData().toString('utf-8');
+    for (const entry of slideEntries) {
+      try {
+        const xmlContent = extractEntriesText([entry])[0];
+        if (!xmlContent) continue;
+        
+        // 简单提取 <a:t> 标签中的文本（PowerPoint 的文本格式）
+        const textMatches = xmlContent.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+        if (textMatches) {
+          const texts = textMatches.map((match: string) => {
+            const content = match.match(/<a:t[^>]*>([^<]*)<\/a:t>/);
+            return content ? content[1] : '';
+          }).filter((t: string) => t.trim());
           
-          // 简单提取 <a:t> 标签中的文本（PowerPoint 的文本格式）
-          const textMatches = xmlContent.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
-          if (textMatches) {
-            const texts = textMatches.map((match: string) => {
-              const content = match.match(/<a:t[^>]*>([^<]*)<\/a:t>/);
-              return content ? content[1] : '';
-            }).filter((t: string) => t.trim());
-            
-            if (texts.length > 0) {
-              allText += '\n' + texts.join(' ');
-            }
+          if (texts.length > 0) {
+            allText += '\n' + texts.join(' ');
           }
-        } catch (e) {
-          // 忽略单个幻灯片的解析错误
         }
+      } catch (e) {
+        // 忽略单个幻灯片的解析错误
       }
     }
     
@@ -330,19 +325,21 @@ function extractTextFromBinary(data: Buffer): string {
       .join('\n');
 }
 
-// 【新增】解析 .odt (OpenDocument Text) 文件
+// 【新增】解析 .odt (OpenDocument Text) 文件（使用 fflate）
 async function extractOdt(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    const data = await fs.promises.readFile(filePath);
-    const zip = new AdmZip(data);
+    const entries = await unzipFile(filePath);
     
     // ODT 的内容在 content.xml 中
-    const contentEntry = zip.getEntry('content.xml');
+    const contentEntry = entries.find(e => e.name === 'content.xml');
     if (!contentEntry) {
       return { text: '', unsupportedPreview: true };
     }
     
-    const xmlContent = contentEntry.getData().toString('utf-8');
+    const xmlContent = extractEntriesText([contentEntry])[0];
+    if (!xmlContent) {
+      return { text: '', unsupportedPreview: true };
+    }
     
     // 提取 <text:p> (段落) 和 <text:h> (标题) 标签中的文本
     const textMatches = xmlContent.match(/<text:[ph][^>]*>(.*?)<\/text:[ph]>/gs);
@@ -371,19 +368,21 @@ async function extractOdt(filePath: string): Promise<{ text: string; unsupported
   }
 }
 
-// 【新增】解析 .ods (OpenDocument Spreadsheet) 文件
+// 【新增】解析 .ods (OpenDocument Spreadsheet) 文件（使用 fflate）
 async function extractOds(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    const data = await fs.promises.readFile(filePath);
-    const zip = new AdmZip(data);
+    const entries = await unzipFile(filePath);
     
     // ODS 的内容在 content.xml 中
-    const contentEntry = zip.getEntry('content.xml');
+    const contentEntry = entries.find(e => e.name === 'content.xml');
     if (!contentEntry) {
       return { text: '', unsupportedPreview: true };
     }
     
-    const xmlContent = contentEntry.getData().toString('utf-8');
+    const xmlContent = extractEntriesText([contentEntry])[0];
+    if (!xmlContent) {
+      return { text: '', unsupportedPreview: true };
+    }
     
     // 提取表格行和单元格
     const rowMatches = xmlContent.match(/<table:table-row[^>]*>(.*?)<\/table:table-row>/gs);
@@ -425,19 +424,21 @@ async function extractOds(filePath: string): Promise<{ text: string; unsupported
   }
 }
 
-// 【新增】解析 .odp (OpenDocument Presentation) 文件
+// 【新增】解析 .odp (OpenDocument Presentation) 文件（使用 fflate）
 async function extractOdp(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
   try {
-    const data = await fs.promises.readFile(filePath);
-    const zip = new AdmZip(data);
+    const entries = await unzipFile(filePath);
     
     // ODP 的内容在 content.xml 中
-    const contentEntry = zip.getEntry('content.xml');
+    const contentEntry = entries.find(e => e.name === 'content.xml');
     if (!contentEntry) {
       return { text: '', unsupportedPreview: true };
     }
     
-    const xmlContent = contentEntry.getData().toString('utf-8');
+    const xmlContent = extractEntriesText([contentEntry])[0];
+    if (!xmlContent) {
+      return { text: '', unsupportedPreview: true };
+    }
     
     // 提取 <draw:frame> 中的 <text:p> 标签
     const frameMatches = xmlContent.match(/<draw:frame[^>]*>(.*?)<\/draw:frame>/gs);

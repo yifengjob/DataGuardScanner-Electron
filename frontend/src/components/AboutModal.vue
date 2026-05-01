@@ -31,8 +31,9 @@
             <p>
               软件采用便携设计，无需安装即可使用（同时提供安装版），支持 Windows 7/10/11、macOS 和 Linux 平台。
             </p>
-            <p style="color: var(--success-color); font-weight: 500;">
-              ✅ 完全兼容 Windows 7 SP1+ (需要 .NET Framework 4.5+)
+            <p class="win7-compatible">
+              <img src="../assets/checked.svg" alt="check" class="check-icon" />
+              完全兼容 Windows 7 SP1+
             </p>
           </div>
           
@@ -46,16 +47,16 @@
           <div class="features">
             <h4>主要功能</h4>
             <ul>
-              <li>✅ 支持多种敏感数据类型检测（身份证、手机、邮箱、银行卡等）</li>
-              <li>✅ 智能目录树选择与过滤</li>
-              <li>✅ 实时扫描进度显示</li>
-              <li>✅ 敏感内容高亮预览（Worker 线程处理，界面流畅）</li>
-              <li>✅ 支持 PDF、Excel、Word、PPT 等文档解析</li>
-              <li>✅ 扫描结果导出为 XLSX/CSV/JSON</li>
-              <li>✅ 跨平台支持（Windows 7/10/11、macOS、Linux）</li>
-              <li>✅ 便携免安装设计</li>
-              <li>✅ 智能并发控制（根据硬件配置自动调整）</li>
-              <li>✅ 多线程架构（CPU 密集型任务隔离）</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />支持多种敏感数据类型检测（身份证、手机、邮箱、银行卡等）</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />智能目录树选择与过滤</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />实时扫描进度显示</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />敏感内容高亮预览（Worker 线程处理，界面流畅）</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />支持 PDF、Excel、Word、PPT 等文档解析</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />扫描结果导出为 XLSX/CSV/JSON</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />跨平台支持（Windows 7/10/11、macOS、Linux）</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />便携免安装设计</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />智能并发控制（根据硬件配置自动调整）</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />多线程架构（CPU 密集型任务隔离）</li>
             </ul>
           </div>
           
@@ -212,6 +213,18 @@ defineEmits<{
   color: var(--text-secondary);
   padding: 6px 0;
   line-height: 1.6;
+}
+
+.check-icon {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.win7-compatible {
+  color: var(--success-color);
+  font-weight: 500;
 }
 
 .copyright {
