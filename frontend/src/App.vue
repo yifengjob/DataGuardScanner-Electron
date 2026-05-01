@@ -207,6 +207,7 @@ import {
 import {applyTheme, loadTheme, watchSystemTheme} from './utils/theme'
 import type {ThemeMode} from './utils/theme'
 import {formatNumber} from './utils/format'
+import {classifyError} from "@/utils/error-handler.ts";
 
 // 不再需要导入 SVG 文件
 // 插件会自动将 src/assets 下的 SVG 转换为 sprite
@@ -294,9 +295,17 @@ onMounted(async () => {
     isScanning.value = false
     isCancelling.value = false // 【新增】重置取消状态
     stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
-    await showMessage(`扫描出错: ${error}`, {
-      title: '错误',
-      type: 'error'
+    
+    // 【C2优化】使用友好错误提示
+    const errorInfo = classifyError(error)
+    let message = errorInfo.message
+    if (errorInfo.suggestion) {
+      message += `\n\n${errorInfo.suggestion}`
+    }
+    
+    await showMessage(message, {
+      title: '扫描错误',
+      type: errorInfo.severity === 'error' ? 'error' : errorInfo.severity === 'warning' ? 'warning' : 'info'
     })
   })
 

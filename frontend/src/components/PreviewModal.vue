@@ -12,9 +12,10 @@
           <div class="loading-text">加载中...</div>
           <div class="loading-hint">正在读取文件内容，请稍候</div>
         </div>
-        <div v-else-if="error" class="error">
-          <div class="error-icon">⚠️</div>
-          <div class="error-text">{{ error }}</div>
+        <div v-else-if="error" class="error" :class="errorSeverity">
+          <div class="error-icon">{{ errorIcon }}</div>
+          <div class="error-title">{{ errorTitle }}</div>
+          <div class="error-text">{{ errorSuggestion }}</div>
         </div>
         <div v-else class="preview-content">
           <pre v-html="highlightedContent"></pre>
@@ -34,6 +35,7 @@
 import { ref, computed, watch } from 'vue'
 import { previewFile, openFile, cancelPreview } from '../utils/electron-api'
 import { highlightText } from '../utils/format'
+import { getFriendlyErrorMessage, getErrorSeverity } from '../utils/error-handler'
 
 const props = defineProps<{
   filePath: string
@@ -49,6 +51,31 @@ const error = ref('')
 const content = ref('')
 const highlights = ref<Array<{start: number, end: number, type_id: string, type_name: string}>>([])
 const currentTaskId = ref<number | null>(null)  // 当前任务 ID
+const errorSeverity = ref<'info' | 'warning' | 'error'>('error')  // 【C2优化】错误严重程度
+
+// 【C2优化】错误图标
+const errorIcon = computed(() => {
+  switch (errorSeverity.value) {
+    case 'info': return 'ℹ️'
+    case 'warning': return '⚠️'
+    case 'error': return '❌'
+    default: return '⚠️'
+  }
+})
+
+// 【C2优化】错误标题
+const errorTitle = computed(() => {
+  if (!error.value) return ''
+  const lines = error.value.split('\n\n')
+  return lines[0] || '未知错误'
+})
+
+// 【C2优化】错误建议
+const errorSuggestion = computed(() => {
+  if (!error.value) return ''
+  const lines = error.value.split('\n\n')
+  return lines[1] || ''
+})
 
 const highlightedContent = computed(() => {
   if (!content.value) return ''
@@ -101,7 +128,9 @@ async function loadFile(filePath: string) {
     
     // 检查是否有错误
     if (result.error) {
-      error.value = result.error
+      // 【C2优化】使用友好错误提示
+      error.value = getFriendlyErrorMessage(result.error)
+      errorSeverity.value = getErrorSeverity(result.error)
       return
     }
     
@@ -112,7 +141,9 @@ async function loadFile(filePath: string) {
     if (String(err).includes('已取消')) {
       return
     }
-    error.value = `预览失败: ${err}`
+    // 【C2优化】使用友好错误提示
+    error.value = getFriendlyErrorMessage(err)
+    errorSeverity.value = getErrorSeverity(err)
   } finally {
     // 总是清除 loading 状态（无论是否被取消）
     // 但只在当前任务是最新任务时才清除 currentTaskId
@@ -273,6 +304,18 @@ const handleCopyContent = async () => {
   justify-content: center;
   height: 100%;
   gap: 12px;
+}
+
+/* 【C2优化】不同严重程度的错误样式 */
+.error.info {
+  color: var(--primary-color);
+}
+
+.error.warning {
+  color: #faad14;
+}
+
+.error.error {
   color: var(--error-color);
 }
 
@@ -280,10 +323,18 @@ const handleCopyContent = async () => {
   font-size: 48px;
 }
 
+.error-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
 .error-text {
   font-size: 14px;
   text-align: center;
   max-width: 80%;
+  white-space: pre-line;
+  line-height: 1.6;
 }
 
 .preview-content pre {
