@@ -352,8 +352,15 @@ const handleScroll = (event: Event) => {
 
 const sortBy = (field: string) => {
   if (sortField.value === field) {
-    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+    // 同一列：升序 -> 降序 -> 默认（取消排序）
+    if (sortOrder.value === 'asc') {
+      sortOrder.value = 'desc'
+    } else if (sortOrder.value === 'desc') {
+      sortField.value = ''
+      sortOrder.value = 'asc'
+    }
   } else {
+    // 不同列：设置为升序
     sortField.value = field
     sortOrder.value = 'asc'
   }
