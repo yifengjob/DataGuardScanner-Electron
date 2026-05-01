@@ -243,7 +243,7 @@ const gridStyle = computed(() => {
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
-      minmax(8em, 1fr)                /* path - 自适应（可压缩到8em，最大占据剩余空间） */
+      minmax(12em, 50em)              /* path - 自适应（最小12em，最大50em） */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
@@ -670,7 +670,8 @@ const handleBatchDelete = async () => {
 }
 
 .path-col {
-  min-width: 8em;
+  min-width: 12em;
+  max-width: 50em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -681,7 +682,8 @@ const handleBatchDelete = async () => {
 }
 
 .path-cell {
-  min-width: 8em;
+  min-width: 12em;
+  max-width: 50em;
   /* 【简化】只有文件名列显示省略号 */
   overflow: hidden;
   text-overflow: ellipsis;
