@@ -192,8 +192,7 @@ const sortOrder = ref<'asc' | 'desc'>('asc')
 const allSensitiveTypes = ref<Array<{ id: string; name: string }>>([])
 const selectedFiles = ref<Set<string>>(new Set())
 const selectAllCheckbox = ref<HTMLInputElement | null>(null)
-const isResizing = ref(false)  // ← 新增：标记是否正在 resize
-const headerRef = ref<HTMLDivElement | null>(null)
+const isResizing = ref(false)
 const scrollerRef = ref<any>(null)
 
 // 监听窗口 resize
@@ -250,6 +249,7 @@ const gridStyle = computed(() => {
 })
 
 const filteredResults = computed(() => {
+  console.log('scanResults.value.length:', scanResults.value.length)
   let results = scanResults.value
 
   // 搜索过滤
@@ -306,13 +306,15 @@ const filteredResults = computed(() => {
 
 // 【修复】监听 filteredResults 变化，在数据加载后设置滚动同步
 watch(
-  () => filteredResults.value,
-  (newVal) => {
-    if (newVal.length > 0 && !scrollSyncSetup) {
+  () => filteredResults.value.length,
+  (newLength) => {
+    console.log('filteredResults.length 变化:', newLength)
+    if (newLength > 0 && !scrollSyncSetup) {
+      console.log('准备设置滚动同步...')
       // 等待 DOM 更新
       setTimeout(() => {
         setupScrollSync()
-      }, 500)
+      }, 1000)
     }
   },
   { immediate: true }
@@ -322,8 +324,8 @@ watch(
 const setupScrollSync = () => {
   if (scrollSyncSetup) return
   
-  if (!headerRef.value || !scrollerRef.value) {
-    console.error('ref 未绑定', { headerRef: headerRef.value, scrollerRef: scrollerRef.value })
+  if (!scrollerRef.value) {
+    console.error('scrollerRef 未绑定')
     return
   }
   
@@ -334,27 +336,31 @@ const setupScrollSync = () => {
     return
   }
   
-  console.log('表头元素:', {
-    width: headerRef.value.offsetWidth,
-    scrollWidth: headerRef.value.scrollWidth,
-    clientWidth: headerRef.value.clientWidth
-  })
-  console.log('滚动容器:', {
-    width: scrollerElement.offsetWidth,
-    scrollWidth: scrollerElement.scrollWidth,
-    clientWidth: scrollerElement.clientWidth
-  })
+  // 【调试】输出 DOM 结构信息
+  console.log('=== DynamicScroller DOM 结构 ===')
+  console.log('scrollerElement:', scrollerElement)
+  console.log('scrollerElement tagName:', scrollerElement.tagName)
+  console.log('scrollerElement class:', scrollerElement.className)
+  console.log('scrollerElement style.overflow:', scrollerElement.style.overflow)
+  console.log('computedStyle overflow:', window.getComputedStyle(scrollerElement).overflow)
+  console.log('offsetWidth:', scrollerElement.offsetWidth)
+  console.log('scrollWidth:', scrollerElement.scrollWidth)
+  console.log('clientWidth:', scrollerElement.clientWidth)
   
-  // 同步表头和内容滚动
-  const syncScroll = () => {
-    if (headerRef.value && scrollerElement) {
-      headerRef.value.scrollLeft = scrollerElement.scrollLeft
-    }
+  // 查找所有子元素
+  const children = scrollerElement.children
+  console.log('子元素数量:', children.length)
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i]
+    console.log(`子元素[${i}]:`, {
+      tagName: child.tagName,
+      className: child.className,
+      offsetWidth: child.offsetWidth,
+      scrollWidth: child.scrollWidth
+    })
   }
   
-  scrollerElement.addEventListener('scroll', syncScroll)
   scrollSyncSetup = true
-  console.log('滚动同步已设置')
 }
 
 const sortBy = (field: string) => {
@@ -760,6 +766,12 @@ tr {
 .virtual-scroller {
   flex: 1;                            /* 【关键】占据剩余空间 */
   overflow: auto !important;          /* 【关键】DynamicScroller自己处理所有滚动 */
+}
+
+/* 【关键】强制内部容器撑开外层 */
+.virtual-scroller :deep(.vue-recycle-scroller__item-wrapper) {
+  width: max-content !important;
+  min-width: 100% !important;
 }
 
 /* 【关键】包裹层，强制撑开宽度 */
