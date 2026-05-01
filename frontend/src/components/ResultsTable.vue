@@ -113,7 +113,8 @@
             ]"
             :data-index="index"
           >
-            <div class="virtual-row" :style="gridStyle">
+            <div class="row-wrapper">
+              <div class="virtual-row" :style="gridStyle">
               <div class="cell checkbox-col">
                 <input 
                   type="checkbox" 
@@ -153,6 +154,7 @@
                 </button>
                 </div>
               </div>
+            </div>
             </div>
           </DynamicScrollerItem>
         </DynamicScroller>
@@ -758,6 +760,12 @@ tr {
 .virtual-scroller {
   flex: 1;                            /* 【关键】占据剩余空间 */
   overflow: auto !important;          /* 【关键】DynamicScroller自己处理所有滚动 */
+}
+
+/* 【关键】包裹层，强制撑开宽度 */
+.row-wrapper {
+  width: max-content;
+  min-width: 100%;
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
