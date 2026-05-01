@@ -24,7 +24,7 @@
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
         <div class="table-header-grid" ref="headerRef" :style="gridStyle">
-          <div class="cell checkbox-col header-cell">
+          <div class="cell checkbox-col header-cell center-header">
             <input 
               type="checkbox" 
               ref="selectAllCheckbox"
@@ -56,7 +56,7 @@
             </span>
           </div>
           <div 
-            class="cell header-cell sortable number-header"
+            class="cell header-cell sortable number-header time-header"
             :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
             @click="sortBy('modified_time')"
             title="点击排序"
@@ -125,7 +125,7 @@
               </div>
               <div class="cell path-cell" :title="item.filePath">{{ getFileName(item.filePath) }}</div>
               <div class="cell size-cell mono-font">{{ formatFileSize(item.fileSize) }}</div>
-              <div class="cell mono-font">{{ formatTime(item.modifiedTime) }}</div>
+              <div class="cell mono-font time-cell">{{ formatTime(item.modifiedTime) }}</div>
               <div v-for="type in sensitiveTypes" :key="type.id" class="cell number-cell mono-font"
                   :class="{ 'highlight-count': (item.counts[type.id] || 0) > 0 }">
                 {{ (item.counts[type.id] || 0) > 0 ? Number(item.counts[type.id]).toLocaleString() : '-' }}
@@ -809,6 +809,14 @@ tr {
   text-overflow: ellipsis;
 }
 
+.checkbox-col {
+  text-align: center;
+}
+
+.time-cell {
+  text-align: center;
+}
+
 .path-cell {
   min-width: 12em;                   /* 192px - 最小宽度 */
   max-width: 30em;                   /* 480px - 最大宽度 */
@@ -828,6 +836,14 @@ tr {
 
 .number-header {
   text-align: right;
+}
+
+.time-header {
+  text-align: center;
+}
+
+.center-header {
+  text-align: center;
 }
 
 .actions-header {
