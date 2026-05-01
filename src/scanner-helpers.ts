@@ -17,6 +17,11 @@ export function createLogger(
     scanState: ScanState,
     mainWindow: BrowserWindow | null
 ): (msg: string) => void {
+    // 【B1 优化】使用环形缓冲区替代数组 shift()
+    const logs = new Array<string>(MAX_LOG_ENTRIES);
+    let logIndex = 0;
+    let logCount = 0;
+
     return (msg: string) => {
         const now = new Date();
         const timeStr = now.toLocaleTimeString('zh-CN', {
@@ -29,9 +34,22 @@ export function createLogger(
 
         // 【修复】限制日志数组大小，防止内存泄漏
         setImmediate(() => {
-            scanState.logs.push(logWithTime);
-            if (scanState.logs.length > MAX_LOG_ENTRIES) {
-                scanState.logs.shift(); // 移除最旧的日志
+            // 【B1 优化】环形缓冲区：O(1) 时间复杂度
+            logs[logIndex % MAX_LOG_ENTRIES] = logWithTime;
+            logIndex++;
+            logCount = Math.min(logCount + 1, MAX_LOG_ENTRIES);
+            
+            // 将环形缓冲区转换为普通数组（供前端显示）
+            if (logCount < MAX_LOG_ENTRIES) {
+                // 未满时，直接截取
+                scanState.logs = logs.slice(0, logCount);
+            } else {
+                // 已满时，从当前位置开始循环读取
+                const start = logIndex % MAX_LOG_ENTRIES;
+                scanState.logs = [
+                    ...logs.slice(start),
+                    ...logs.slice(0, start)
+                ];
             }
         });
 
