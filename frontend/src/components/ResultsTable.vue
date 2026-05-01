@@ -93,7 +93,11 @@
         </tr>
         </thead>
         <tbody>
-        <tr v-for="item in filteredResults" :key="item.filePath">
+        <tr 
+          v-for="item in filteredResults" 
+          :key="item.filePath"
+          class="virtual-row"
+        >
           <td class="checkbox-col">
             <input 
               type="checkbox" 
@@ -613,6 +617,12 @@ td.checkbox-col input[type="checkbox"] {
 
 tr {
   /* transition: background-color 0.15s ease; */  /* ← 移除 transition 提升性能 */
+}
+
+/* 【C4 优化】虚拟滚动优化 - content-visibility */
+.virtual-row {
+  content-visibility: auto;           /* 启用内容可见性优化 */
+  contain-intrinsic-size: 0 2.5em;    /* 预估行高 40px，浏览器据此计算滚动条 */
 }
 
 tr:hover {
