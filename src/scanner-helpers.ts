@@ -63,12 +63,12 @@ export function createLogger(
 }
 
 /**
- * 创建进度更新函数（带节流）
+ * 创建进度更新函数（带自适应节流）
  * @param mainWindow 主窗口
  * @param getConsumerProcessedCount 获取已处理文件数的回调
  * @param getWalkerTotalCount 获取总文件数的回调
  * @param getWalkerSkippedCount 获取跳过文件数的回调
- * @param throttleInterval 节流间隔（毫秒）
+ * @param baseThrottleInterval 基础节流间隔（毫秒）
  * @returns 进度更新函数
  */
 export function createProgressUpdater(
@@ -76,13 +76,36 @@ export function createProgressUpdater(
     getConsumerProcessedCount: () => number,
     getWalkerTotalCount: () => number,
     getWalkerSkippedCount: () => number,
-    throttleInterval: number = 500
+    baseThrottleInterval: number = 500
 ): (currentFile?: string) => void {
     let lastProgressTime = 0;
+    let lastScannedCount = 0;
+    
+    // 【B3 优化】自适应节流参数
+    const MIN_THROTTLE = 200;   // 最小间隔 200ms（快速更新）
+    const MAX_THROTTLE = 1000;  // 最大间隔 1000ms（慢速更新）
+    const FAST_THRESHOLD = 50;  // 每秒处理 > 50 个文件视为快速
+    const SLOW_THRESHOLD = 10;  // 每秒处理 < 10 个文件视为慢速
 
     return (currentFile: string = '') => {
         const now = Date.now();
-        if (!lastProgressTime || now - lastProgressTime >= throttleInterval) {
+        
+        // 【B3 优化】计算当前扫描速度（文件/秒）
+        const timeDiff = (now - lastProgressTime) / 1000; // 转换为秒
+        const countDiff = getConsumerProcessedCount() - lastScannedCount;
+        const speed = timeDiff > 0 ? countDiff / timeDiff : 0;
+        
+        // 【B3 优化】根据速度动态调整节流间隔
+        let adaptiveInterval = baseThrottleInterval;
+        if (speed > FAST_THRESHOLD) {
+            // 快速扫描：减少更新频率，降低 UI 压力
+            adaptiveInterval = Math.min(MAX_THROTTLE, baseThrottleInterval * 1.5);
+        } else if (speed < SLOW_THRESHOLD && speed > 0) {
+            // 慢速扫描：增加更新频率，提升用户体验
+            adaptiveInterval = Math.max(MIN_THROTTLE, baseThrottleInterval * 0.7);
+        }
+        
+        if (!lastProgressTime || now - lastProgressTime >= adaptiveInterval) {
             if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send('scan-progress', {
                     currentFile,
@@ -92,6 +115,7 @@ export function createProgressUpdater(
                 });
             }
             lastProgressTime = now;
+            lastScannedCount = getConsumerProcessedCount();
         }
     };
 }

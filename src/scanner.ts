@@ -19,7 +19,8 @@ import {
     STAGNATION_THRESHOLD,
     MAX_IDLE_TIME,
     PROGRESS_THROTTLE_INTERVAL,
-    WORKER_RESTART_DELAY
+    WORKER_RESTART_DELAY,
+    BYTES_TO_MB  // 【A1 优化】用于计算平均文件大小
 } from './scan-config';
 // 【新增】导入辅助函数
 import {
@@ -107,28 +108,62 @@ export async function startScan(
         PROGRESS_THROTTLE_INTERVAL
     );
 
-    // 【A1 优化】根据系统可用内存动态计算每个 Worker 的内存限制
+    // 【A1 优化】根据系统可用内存和文件大小动态计算每个 Worker 的内存限制
     const freeMemoryMB = os.freemem() / (1024 * 1024);
-    const memoryPerWorker = Math.min(
-        WORKER_MAX_OLD_GENERATION_MB + WORKER_MAX_YOUNG_GENERATION_MB,  // 上限 640MB
-        Math.floor(freeMemoryMB * 0.6 / poolSize)  // 使用 60% 可用内存，平均分配
-    );
     
-    const dynamicOldGenMB = Math.floor(memoryPerWorker * 0.8);  // 80% 给老生代
-    const dynamicYoungGenMB = Math.floor(memoryPerWorker * 0.2); // 20% 给新生代
+    // 【新增】等待 taskQueue 填充后计算平均文件大小
+    // 这里先使用默认值，在 Walker 完成后会重新调整
+    let dynamicOldGenMB = Math.floor(WORKER_MAX_OLD_GENERATION_MB * 0.8);  // 默认 80%
+    let dynamicYoungGenMB = Math.floor(WORKER_MAX_YOUNG_GENERATION_MB * 0.8);
     
-    log(`【内存优化】可用内存: ${freeMemoryMB.toFixed(0)}MB, 每 Worker 限制: ${memoryPerWorker}MB (老生代: ${dynamicOldGenMB}MB, 新生代: ${dynamicYoungGenMB}MB)`);
+    // 【新增】计算智能内存配置的函数
+    function calculateSmartMemoryLimits(avgFileSizeMB: number, workerCount: number): { oldGen: number; youngGen: number } {
+        // 根据平均文件大小调整内存分配策略
+        let memoryMultiplier = 1.0;
+        
+        if (avgFileSizeMB > 50) {
+            // 超大文件：增加内存限制，减少并发压力
+            memoryMultiplier = 1.5;
+            log(`【智能内存】检测到大文件（平均 ${avgFileSizeMB.toFixed(1)}MB），增加 Worker 内存至 ${memoryMultiplier}x`);
+        } else if (avgFileSizeMB > 10) {
+            // 大文件：适度增加内存
+            memoryMultiplier = 1.2;
+            log(`【智能内存】检测到中大文件（平均 ${avgFileSizeMB.toFixed(1)}MB），适度增加 Worker 内存`);
+        } else if (avgFileSizeMB < 1) {
+            // 小文件：降低内存限制，提高并发效率
+            memoryMultiplier = 0.6;
+            log(`【智能内存】检测到小文件（平均 ${avgFileSizeMB.toFixed(2)}MB），降低 Worker 内存以节省资源`);
+        }
+        
+        // 基础内存计算
+        const baseMemoryPerWorker = Math.min(
+            (WORKER_MAX_OLD_GENERATION_MB + WORKER_MAX_YOUNG_GENERATION_MB) * memoryMultiplier,
+            Math.floor(freeMemoryMB * 0.6 / workerCount)
+        );
+        
+        return {
+            oldGen: Math.floor(baseMemoryPerWorker * 0.8),
+            youngGen: Math.floor(baseMemoryPerWorker * 0.2)
+        };
+    }
+    
+    // 初始日志
+    log(`【内存优化】可用内存: ${freeMemoryMB.toFixed(0)}MB, 初始每 Worker 限制: ${dynamicOldGenMB + dynamicYoungGenMB}MB`);
 
     // 创建 Consumer Worker
-    function createConsumer(id: number) {
+    function createConsumer(id: number, customOldGen?: number, customYoungGen?: number) {
         const workerPath = path.join(__dirname, 'file-worker.js');
+        
+        // 使用自定义内存限制或默认值
+        const oldGenLimit = customOldGen || dynamicOldGenMB;
+        const youngGenLimit = customYoungGen || dynamicYoungGenMB;
 
         let worker: Worker;
         try {
             worker = new Worker(workerPath, {
                 resourceLimits: {
-                    maxOldGenerationSizeMb: dynamicOldGenMB,
-                    maxYoungGenerationSizeMb: dynamicYoungGenMB,
+                    maxOldGenerationSizeMb: oldGenLimit,
+                    maxYoungGenerationSizeMb: youngGenLimit,
                 }
             });
         } catch (error: any) {
@@ -462,6 +497,42 @@ export async function startScan(
             }
 
             console.log(`[Walker] 已完成 ${walkerCompletedCount}/${totalWalkerTasks} 个任务`);
+            
+            // 【A1 优化】Walker 完成后，根据实际文件大小重新计算内存限制
+            if (taskQueue.length > 0) {
+                const totalSize = taskQueue.reduce((sum, task) => sum + task.fileSize, 0);
+                const avgFileSizeMB = (totalSize / taskQueue.length) / BYTES_TO_MB;
+                
+                // 计算新的内存限制
+                const newLimits = calculateSmartMemoryLimits(avgFileSizeMB, poolSize);
+                dynamicOldGenMB = newLimits.oldGen;
+                dynamicYoungGenMB = newLimits.youngGen;
+                
+                log(`【智能内存调整】平均文件大小: ${avgFileSizeMB.toFixed(2)}MB, 新内存限制: 老生代=${dynamicOldGenMB}MB, 新生代=${dynamicYoungGenMB}MB`);
+                
+                // 【关键】重启所有空闲的 Consumer Workers 以应用新配置
+                let restartedCount = 0;
+                for (let i = 0; i < consumers.length; i++) {
+                    const consumer = consumers[i];
+                    if (!consumer.busy) {
+                        // 终止旧的 Worker
+                        try {
+                            consumer.worker.terminate();
+                            consumer.worker.removeAllListeners();
+                        } catch (e) {
+                            // 忽略终止错误
+                        }
+                        
+                        // 创建新的 Worker（使用新内存限制）
+                        createConsumer(i, dynamicOldGenMB, dynamicYoungGenMB);
+                        restartedCount++;
+                    }
+                }
+                
+                if (restartedCount > 0) {
+                    log(`【智能内存】已重启 ${restartedCount} 个空闲 Worker 以应用新内存配置`);
+                }
+            }
 
             // 【事件驱动】检查是否应该结束
             checkAndComplete();
