@@ -135,6 +135,7 @@
                 <col class="col-total" />
                 <col class="col-actions" />
               </colgroup>
+              <tbody>
               <tr class="virtual-row">
           <td class="checkbox-col">
             <input 
@@ -176,6 +177,7 @@
             </div>
           </td>
         </tr>
+              </tbody>
             </table>
           </DynamicScrollerItem>
         </DynamicScroller>
