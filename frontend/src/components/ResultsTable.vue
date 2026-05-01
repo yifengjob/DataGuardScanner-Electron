@@ -639,7 +639,8 @@ tr {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow-x: auto;  /* 【简化方案】允许横向滚动 */
+  overflow-x: auto;                      /* 【关键】外层处理横向滚动 */
+  overflow-y: hidden;                    /* 纵向由 inner 处理 */
 }
 
 /* 【修复】使用 colgroup 统一定义列宽，确保同一列宽度一致 */
@@ -700,9 +701,8 @@ tr {
 .virtual-scroller {
   flex: 1;
   overflow-y: auto !important;         /* 【修复】只处理纵向滚动 */
-  overflow-x: visible !important;      /* 【关键】横向不拦截，交给外层 */
-  width: max-content;                  /* 【关键】允许内容撑开 */
-  min-width: 100%;                     /* 至少占满容器 */
+  overflow-x: hidden !important;       /* 【关键】禁止横向滚动，交给外层 */
+  width: 100%;                         /* 【修复】占满外层容器 */
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
