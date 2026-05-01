@@ -11,7 +11,20 @@
     </div>
     
     <div class="tree-content">
+      <!-- 【C1 优化】加载中状态 -->
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载目录...</div>
+      </div>
+      
+      <!-- 空状态 -->
+      <div v-else-if="rootNodes.length === 0" class="empty-state">
+        <p>暂无可扫描的目录</p>
+      </div>
+      
+      <!-- 目录树 -->
       <TreeNode
+        v-else
         v-for="node in rootNodes"
         :key="node.path"
         :node="node"
@@ -33,9 +46,14 @@ import {getDirectoryTree} from '../utils/electron-api'
 const appStore = useAppStore()
 const rootNodes = ref<DirectoryNode[]>([])
 const allNodesMap = ref<Map<string, DirectoryNode>>(new Map())
+// 【C1 优化】加载状态
+const loading = ref(false)
 
 // 加载根目录
 onMounted(async () => {
+  // 【C1 优化】设置加载状态
+  loading.value = true
+  
   try {
     // 检测操作系统
     const isWindows = navigator.userAgent.toLowerCase().includes('win')
@@ -96,6 +114,9 @@ onMounted(async () => {
     appStore.selectAllDirectories(rootNodes.value)
   } catch (error) {
     console.error('加载目录树失败:', error)
+  } finally {
+    // 【C1 优化】清除加载状态
+    loading.value = false
   }
 })
 
@@ -176,5 +197,44 @@ const handleCollapseAll = () => {
   flex: 1;
   overflow: auto;  /* 同时支持水平和垂直滚动 */
   padding: 8px;
+}
+
+/* 【C1 优化】加载状态样式 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  gap: 12px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* 空状态样式 */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 </style>
