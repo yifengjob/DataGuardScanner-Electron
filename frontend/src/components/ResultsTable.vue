@@ -436,17 +436,14 @@ const setupContainerQuery = () => {
 
   observer.observe(tableElement)
 
-  // 【安全】组件卸载时清理 observer
-  const cleanup = () => {
+  // 【安全】组件卸载时清理 observer，挂载到 window 供 onUnmounted 调用
+  ;(window as any).__resultsTableCleanup = () => {
     if (rafId) {
       cancelAnimationFrame(rafId)
       rafId = null
     }
     observer.disconnect()
   }
-
-  // 将 cleanup 函数挂载到组件实例上，在 onUnmounted 中调用
-  ;(window as any).__resultsTableCleanup = cleanup
 }
 
 // 【关键】处理滚动事件，同步表头
