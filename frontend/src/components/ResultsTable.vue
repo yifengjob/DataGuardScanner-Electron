@@ -23,7 +23,7 @@
       <!-- 【虚拟滚动优化】使用 vue-virtual-scroller -->
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
-        <div class="table-header-grid" :style="gridStyle">
+        <div class="table-header-grid" ref="headerRef" :style="gridStyle">
           <div class="cell checkbox-col header-cell">
             <input 
               type="checkbox" 
@@ -194,6 +194,7 @@ const selectedFiles = ref<Set<string>>(new Set())
 const selectAllCheckbox = ref<HTMLInputElement | null>(null)
 const isResizing = ref(false)
 const scrollerRef = ref<any>(null)
+const headerRef = ref<HTMLDivElement | null>(null)
 
 // 监听窗口 resize
 let resizeTimer: number | null = null
@@ -324,8 +325,8 @@ watch(
 const setupScrollSync = () => {
   if (scrollSyncSetup) return
   
-  if (!scrollerRef.value) {
-    console.error('scrollerRef 未绑定')
+  if (!scrollerRef.value || !headerRef.value) {
+    console.error('ref 未绑定', { scrollerRef: scrollerRef.value, headerRef: headerRef.value })
     return
   }
   
@@ -336,12 +337,8 @@ const setupScrollSync = () => {
     return
   }
   
-  // 【调试】输出 DOM 结构信息
   console.log('=== DynamicScroller DOM 结构 ===')
   console.log('scrollerElement:', scrollerElement)
-  console.log('scrollerElement tagName:', scrollerElement.tagName)
-  console.log('scrollerElement class:', scrollerElement.className)
-  console.log('scrollerElement style.overflow:', scrollerElement.style.overflow)
   console.log('computedStyle overflow:', window.getComputedStyle(scrollerElement).overflow)
   console.log('offsetWidth:', scrollerElement.offsetWidth)
   console.log('scrollWidth:', scrollerElement.scrollWidth)
@@ -360,7 +357,16 @@ const setupScrollSync = () => {
     })
   }
   
+  // 【关键】同步表头和内容滚动
+  const syncScroll = () => {
+    if (headerRef.value && scrollerElement) {
+      headerRef.value.scrollLeft = scrollerElement.scrollLeft
+    }
+  }
+  
+  scrollerElement.addEventListener('scroll', syncScroll)
   scrollSyncSetup = true
+  console.log('滚动同步已设置')
 }
 
 const sortBy = (field: string) => {
@@ -751,6 +757,8 @@ tr {
   width: max-content;                   /* 【关键】根据列宽总和自动计算 */
   min-width: 100%;                      /* 至少占满容器 */
   z-index: 10;
+  overflow-x: auto;                     /* 【关键】允许横向滚动 */
+  overflow-y: hidden;
 }
 
 .header-cell {
