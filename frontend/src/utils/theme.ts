@@ -18,6 +18,9 @@ export function getSystemTheme(): 'light' | 'dark' {
 export function applyTheme(mode: ThemeMode) {
   const root = document.documentElement
   
+  // 【C6 优化】添加过渡类，实现平滑切换
+  root.classList.add('theme-transitioning')
+  
   if (mode === 'system') {
     const systemTheme = getSystemTheme()
     root.setAttribute('data-theme', systemTheme)
@@ -27,6 +30,11 @@ export function applyTheme(mode: ThemeMode) {
   
   // 保存到 localStorage
   localStorage.setItem('theme-mode', mode)
+  
+  // 【C6 优化】延迟移除过渡类，确保动画完成
+  setTimeout(() => {
+    root.classList.remove('theme-transitioning')
+  }, 300)
 }
 
 // 从 localStorage 加载主题
