@@ -546,6 +546,10 @@ th.path-col {
   z-index: 9;                        /* 略低于复选框列 */
   background-color: var(--bg-hover); /* 需要背景色 */
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);  /* 右侧阴影 */
+  /* 【修复】文件名列可以截断 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 th.sortable {
@@ -601,9 +605,10 @@ td {
   border-bottom: var(--border-width) solid var(--border-color);
   color: var(--text-color);
   font-size: 0.9em;                  /* 与表头一致 */
-  white-space: nowrap;               /* 所有内容不换行 */
-  overflow: hidden;                  /* 超出隐藏 */
-  text-overflow: ellipsis;           /* 显示省略号 */
+  /* 【修复】默认不换行，但不显示省略号 */
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 td.checkbox-col {
@@ -690,12 +695,17 @@ tr:hover {
   z-index: 9;                        /* 略低于复选框列 */
   background-color: var(--bg-color); /* 需要背景色 */
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);  /* 右侧阴影 */
+  /* 【修复】只有文件名列显示省略号 */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* 【修复】数字列完全显示，不截断 */
 .size-cell, .number-cell, .total-cell {
   text-align: right;
   overflow: visible;                 /* 数字列完整显示 */
   text-overflow: clip;               /* 不显示省略号 */
+  white-space: nowrap;
 }
 
 .number-header {
