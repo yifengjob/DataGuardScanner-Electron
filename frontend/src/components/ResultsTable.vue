@@ -24,6 +24,15 @@
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
         <table class="table-header-fixed">
+          <colgroup>
+            <col class="col-checkbox" />
+            <col class="col-path" />
+            <col class="col-size" />
+            <col class="col-time" />
+            <col v-for="type in sensitiveTypes" :key="type.id" class="col-count" />
+            <col class="col-total" />
+            <col class="col-actions" />
+          </colgroup>
           <thead>
           <tr>
             <th class="checkbox-col">
@@ -117,6 +126,15 @@
             :data-index="index"
           >
             <table class="virtual-row-table">
+              <colgroup>
+                <col class="col-checkbox" />
+                <col class="col-path" />
+                <col class="col-size" />
+                <col class="col-time" />
+                <col v-for="type in sensitiveTypes" :key="type.id" class="col-count" />
+                <col class="col-total" />
+                <col class="col-actions" />
+              </colgroup>
               <tr class="virtual-row">
           <td class="checkbox-col">
             <input 
@@ -628,6 +646,40 @@ tr {
   flex-direction: column;
   height: 100%;
   overflow-x: auto;  /* 【简化方案】允许横向滚动 */
+}
+
+/* 【修复】使用 colgroup 统一定义列宽，确保同一列宽度一致 */
+.col-checkbox {
+  width: 3.5em;
+  min-width: 3.5em;
+  max-width: 3.5em;
+}
+
+.col-path {
+  min-width: 12em;
+  max-width: 30em;
+}
+
+.col-size {
+  min-width: 6em;
+}
+
+.col-time {
+  min-width: 11em;
+}
+
+.col-count {
+  min-width: 5em;
+}
+
+.col-total {
+  min-width: 5em;
+}
+
+.col-actions {
+  width: 10.5em;
+  min-width: 10.5em;
+  max-width: 10.5em;
 }
 
 .table-header-fixed {
