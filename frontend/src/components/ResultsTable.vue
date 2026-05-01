@@ -24,6 +24,15 @@
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
         <table class="table-header-fixed">
+          <colgroup>
+            <col class="col-checkbox" />
+            <col class="col-path" />
+            <col class="col-size" />
+            <col class="col-time" />
+            <col v-for="type in sensitiveTypes" :key="type.id" class="col-count" />
+            <col class="col-total" />
+            <col class="col-actions" />
+          </colgroup>
           <thead>
           <tr>
             <th class="checkbox-col">
@@ -117,6 +126,15 @@
             :data-index="index"
           >
             <table class="virtual-row-table">
+              <colgroup>
+                <col class="col-checkbox" />
+                <col class="col-path" />
+                <col class="col-size" />
+                <col class="col-time" />
+                <col v-for="type in sensitiveTypes" :key="type.id" class="col-count" />
+                <col class="col-total" />
+                <col class="col-actions" />
+              </colgroup>
               <tr class="virtual-row">
           <td class="checkbox-col">
             <input 
@@ -652,6 +670,40 @@ tr {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* 【修复】统一定义列宽，确保所有行列宽一致 */
+.col-checkbox {
+  width: 3.5em;                    /* 56px - 固定宽度 */
+  min-width: 3.5em;
+  max-width: 3.5em;
+}
+
+.col-path {
+  min-width: 12em;                 /* 192px - 最小宽度 */
+  max-width: 30em;                 /* 480px - 最大宽度 */
+}
+
+.col-size {
+  min-width: 6em;                  /* 96px - 文件大小 */
+}
+
+.col-time {
+  min-width: 11em;                 /* 176px - 时间格式 YYYY-MM-DD HH:mm */
+}
+
+.col-count {
+  min-width: 5em;                  /* 80px - 计数列 */
+}
+
+.col-total {
+  min-width: 5em;                  /* 80px - 总计 */
+}
+
+.col-actions {
+  width: 10.5em;                   /* 168px - 固定宽度 */
+  min-width: 10.5em;
+  max-width: 10.5em;
 }
 
 .table-header-fixed {
