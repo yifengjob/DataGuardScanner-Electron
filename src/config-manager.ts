@@ -35,8 +35,11 @@ function getBaseSystemDirs(): string[] {
       // 恢复和性能日志
       'C:\\Recovery', 'C:\\PerfLogs',
       // 系统驱动和引导
-      'C:\\Boot', 'C:\\EFI'
+      'C:\\Boot', 'C:\\EFI',
+      // Windows Installer 缓存
+      'C:\\Config.Msi'
       // 注意：pagefile.sys, hiberfil.sys, swapfile.sys 是文件不是目录，已移除
+      // 注意：$RECYCLE.BIN 回收站在 ignoreDirNames 中处理
     ];
   } else if (process.platform === 'darwin') {
     systemDirs = [
@@ -46,9 +49,16 @@ function getBaseSystemDirs(): string[] {
       '/Applications', '/Applications/Utilities',
       // 用户库（可选，因为可能包含用户数据）
       // '/Users/*/Library', // 不默认添加，避免误伤
-      // 虚拟文件系统
-      '/dev'
+      // Unix 系统资源
+      '/usr', '/bin', '/sbin',
+      // 变量数据和配置
+      '/var', '/etc',
+      // 虚拟文件系统和设备
+      '/dev', '/cores',
+      // 网络挂载点
+      '/Network'
       // 注意：/Volumes 是外部磁盘挂载点，不应该忽略
+      // 注意：.Trashes 回收站在 ignoreDirNames 中处理
     ];
   } else if (process.platform === 'linux') {
     systemDirs = [
@@ -56,20 +66,23 @@ function getBaseSystemDirs(): string[] {
       '/proc', '/sys', '/dev', '/dev/pts',
       // 运行时数据
       '/run', '/var/run', '/var/lock',
-      // 临时文件
+      // 临时文件（可选，因为可能包含用户临时数据）
       // '/tmp', '/var/tmp',
-      // 系统配置和数据
-      // '/etc', '/var', '/var/log', '/var/cache',
+      // 系统配置和数据（重要！）
+      '/etc', '/var', '/var/log', '/var/cache',
       // 系统二进制和库
       '/bin', '/sbin', '/lib', '/lib64', '/usr',
       // 引导和内核
       '/boot', '/initrd', '/vmlinuz',
+      // root 用户主目录
+      '/root',
       // 注意：/mnt, /media, /cdrom 是挂载点，不应该忽略
       // 可选应用和服务
       '/opt', '/srv',
       // Snap 和 Flatpak 容器
       '/snap', '/var/lib/snapd',
       '/var/lib/flatpak'
+      // 注意：.Trash 回收站在 ignoreDirNames 中处理
     ];
   }
   return systemDirs;
