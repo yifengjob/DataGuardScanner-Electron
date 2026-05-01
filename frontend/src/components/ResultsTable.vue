@@ -199,24 +199,21 @@ const isResizing = ref(false)
 const scrollerRef = ref<any>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
 
-// 【优化】容器查询断点配置（按宽度从小到大排序）
-const CONTAINER_BREAKPOINTS = [
-  {minWidth: 800, idealWidth: '20cqi'},   // 中等容器
-  {minWidth: 1000, idealWidth: '25cqi'},
-  {minWidth: 1200, idealWidth: '30cqi'},  // 大容器
-  {minWidth: 1400, idealWidth: '35cqi'},  // 超大容器
-  {minWidth: 1600, idealWidth: '40cqi'},
-  {minWidth: 1800, idealWidth: '45cqi'},
-  {minWidth: 2000, idealWidth: '50cqi'},
-  {minWidth: 2200, idealWidth: '55cqi'},
-  {minWidth: 2400, idealWidth: '60cqi'},
-  {minWidth: 2600, idealWidth: '65cqi'},
-  {minWidth: 2800, idealWidth: '70cqi'},
-  {minWidth: 3000, idealWidth: '75cqi'},
-] as const
+// 【优化】路径列宽度配置
+const MIN_PATH_WIDTH_PX = 192  // 最小路径列宽度（12em × 16px）
+const RESIZE_THRESHOLD = 50    // 宽度变化阈值（像素）
 
-const DEFAULT_IDEAL_WIDTH = '15cqi'  // 默认小容器
-const RESIZE_THRESHOLD = 50           // 宽度变化阈值（像素）
+// 计算固定列总宽度（px）
+const calculateFixedColumnsTotal = (sensitiveTypesCount: number): number => {
+  return (
+    64 +   // checkbox: 4em × 16
+    112 +  // size: 7em × 16
+    192 +  // time: 12em × 16
+    (96 * sensitiveTypesCount) +  // counts: 6em × 16 × 数量
+    112 +  // total: 7em × 16
+    176    // actions: 11em × 16
+  )
+}
 
 // 监听窗口 resize
 let resizeTimer: number | null = null
@@ -273,6 +270,24 @@ const sensitiveTypes = computed(() => {
   )
 })
 
+// 【新增】监听敏感类型变化，重新计算路径列宽度
+watch(sensitiveTypes, () => {
+  // 如果已经设置了路径列宽度，需要重新计算
+  const tableElement = document.querySelector('.results-table') as HTMLElement
+  if (tableElement && containerQuerySetup) {
+    const currentWidth = tableElement.offsetWidth
+    const fixedTotalPx = calculateFixedColumnsTotal(sensitiveTypes.value.length)
+    let pathWidthPx = currentWidth - fixedTotalPx
+    
+    if (pathWidthPx < MIN_PATH_WIDTH_PX) {
+      pathWidthPx = MIN_PATH_WIDTH_PX
+    }
+    
+    const pathWidthEm = pathWidthPx / 16
+    tableElement.style.setProperty('--path-col-width', `${pathWidthEm}em`)
+  }
+})
+
 // 【修复】动态计算 Grid 列模板
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
@@ -282,7 +297,7 @@ const gridStyle = computed(() => {
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
-      minmax(var(--path-col-min-width), var(--path-col-clamp))  /* path - 自适应（由CSS容器查询控制） */
+      var(--path-col-width)           /* path - 自适应（由JS精准计算） */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
@@ -357,7 +372,7 @@ watch(
         await nextTick()
         await nextTick()  // 确保虚拟滚动完全渲染
         setupScrollSync()
-        setupContainerQuery()
+        setupPathColumnWidth()  // 【新增】设置路径列精准宽度
       }
     },
     {immediate: true}
@@ -380,8 +395,8 @@ const setupScrollSync = () => {
   scrollSyncSetup = true
 }
 
-// 【新增】设置容器查询（使用 ResizeObserver + rAF 优化）
-const setupContainerQuery = () => {
+// 【新增】设置路径列精准宽度（使用 ResizeObserver + rAF 优化）
+const setupPathColumnWidth = () => {
   const tableElement = document.querySelector('.results-table') as HTMLElement
   if (!tableElement) {
     return
@@ -391,31 +406,29 @@ const setupContainerQuery = () => {
   let pendingWidth: number | null = null
   let lastWidth = 0
 
-  // 根据宽度计算 ideal-width
-  const calculateIdealWidth = (width: number): string => {
-    // 从大到小遍历断点，找到第一个匹配的
-    for (let i = CONTAINER_BREAKPOINTS.length - 1; i >= 0; i--) {
-      if (width >= CONTAINER_BREAKPOINTS[i].minWidth) {
-        return CONTAINER_BREAKPOINTS[i].idealWidth
-      }
+  // 更新路径列宽度
+  const updatePathWidth = (containerWidth: number) => {
+    // 计算固定列总宽度
+    const fixedTotalPx = calculateFixedColumnsTotal(sensitiveTypes.value.length)
+    
+    // 计算路径列宽度 = 容器宽度 - 固定列总宽度
+    let pathWidthPx = containerWidth - fixedTotalPx
+    
+    // 应用最小值限制
+    if (pathWidthPx < MIN_PATH_WIDTH_PX) {
+      pathWidthPx = MIN_PATH_WIDTH_PX
     }
-    return DEFAULT_IDEAL_WIDTH  // 默认值
-  }
-
-  // 更新 CSS 变量
-  const updateIdealWidth = (width: number) => {
-    const idealWidth = calculateIdealWidth(width)
-    const currentWidth = tableElement.style.getPropertyValue('--path-col-ideal-width').trim()
-
-    // 只有值变化才设置
-    if (currentWidth !== idealWidth) {
-      tableElement.style.setProperty('--path-col-ideal-width', idealWidth)
-    }
+    
+    // 转换为 em 单位（假设 1em = 16px）
+    const pathWidthEm = pathWidthPx / 16
+    
+    // 设置 CSS 变量
+    tableElement.style.setProperty('--path-col-width', `${pathWidthEm}em`)
   }
 
   // 初始设置
   const initialWidth = tableElement.offsetWidth
-  updateIdealWidth(initialWidth)
+  updatePathWidth(initialWidth)
   lastWidth = initialWidth
 
   // 监听容器宽度变化
@@ -434,7 +447,7 @@ const setupContainerQuery = () => {
     if (!rafId) {
       rafId = requestAnimationFrame(() => {
         if (pendingWidth !== null) {
-          updateIdealWidth(pendingWidth)
+          updatePathWidth(pendingWidth)
           lastWidth = pendingWidth
           pendingWidth = null
         }
@@ -636,11 +649,8 @@ const handleBatchDelete = async () => {
   flex-direction: column;
   height: 100%;
 
-  /* 【优化】路径列宽度配置（CSS 自定义属性） */
-  --path-col-min-width: 12em;
-  --path-col-ideal-width: 25cqi; /* 小容器默认值（由 JS 动态更新） */
-  --path-col-max-width: 100em;
-  --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
+  /* 【优化】路径列宽度配置（CSS 自定义属性，由 JS 精准计算） */
+  --path-col-width: 12em; /* 默认值，会被 JS 覆盖 */
 }
 
 .table-header {
@@ -795,12 +805,9 @@ const handleBatchDelete = async () => {
 }
 
 .path-col {
-  min-width: var(--path-col-min-width);
-  max-width: var(--path-col-clamp);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: max-width 0.2s ease-out;  /* 【优化】宽度变化平滑过渡 */
 }
 
 .time-cell {
@@ -808,12 +815,9 @@ const handleBatchDelete = async () => {
 }
 
 .path-cell {
-  min-width: var(--path-col-min-width);
-  max-width: var(--path-col-clamp);
   /* 【简化】只有文件名列显示省略号 */
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: max-width 0.2s ease-out;  /* 【优化】宽度变化平滑过渡 */
 }
 
 /* 【修复】数字列完全显示，不截断 */
