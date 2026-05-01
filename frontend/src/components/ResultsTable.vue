@@ -216,6 +216,7 @@ let resizeTimer: number | null = null
 const headerContainer = ref<HTMLDivElement | null>(null)
 const bodyContainer = ref<HTMLDivElement | null>(null)
 const virtualScroller = ref<any>(null)
+let scrollSyncInitialized = false  // 【修复】标记是否已初始化滚动同步
 
 onMounted(async () => {
   const handleResize = () => {
@@ -227,45 +228,6 @@ onMounted(async () => {
   }
   
   window.addEventListener('resize', handleResize, { passive: true })
-  
-  // 【修复】等待下一个 tick，确保 ref 已绑定
-  await nextTick()
-  
-  // 再等待一小段时间确保 DynamicScroller 完全渲染
-  setTimeout(() => {
-    if (!headerContainer.value || !bodyContainer.value) {
-      console.error('容器未找到', {
-        headerContainer: headerContainer.value,
-        bodyContainer: bodyContainer.value
-      })
-      return
-    }
-    
-    console.log('表头容器:', {
-      scrollWidth: headerContainer.value.scrollWidth,
-      clientWidth: headerContainer.value.clientWidth
-    })
-    
-    console.log('内容容器:', {
-      scrollWidth: bodyContainer.value.scrollWidth,
-      clientWidth: bodyContainer.value.clientWidth,
-      overflowX: getComputedStyle(bodyContainer.value).overflowX
-    })
-    
-    // 同步表头和内容滚动
-    const headerScroll = () => {
-      bodyContainer.value!.scrollLeft = headerContainer.value!.scrollLeft
-    }
-    
-    const contentScroll = () => {
-      headerContainer.value!.scrollLeft = bodyContainer.value!.scrollLeft
-    }
-    
-    headerContainer.value.addEventListener('scroll', headerScroll)
-    bodyContainer.value.addEventListener('scroll', contentScroll)
-    
-    console.log('滚动同步已设置 - 使用 bodyContainer')
-  }, 500)
 })
 
 // 加载敏感类型定义
@@ -358,6 +320,49 @@ const filteredResults = computed(() => {
 
   return results
 })
+
+// 【修复】监听 filteredResults 变化，在数据加载后初始化滚动同步
+watch(filteredResults, async (newVal) => {
+  if (newVal.length > 0 && !scrollSyncInitialized) {
+    await nextTick()
+    
+    setTimeout(() => {
+      if (!headerContainer.value || !bodyContainer.value) {
+        console.error('容器未找到', {
+          headerContainer: headerContainer.value,
+          bodyContainer: bodyContainer.value
+        })
+        return
+      }
+    
+    console.log('表头容器:', {
+      scrollWidth: headerContainer.value.scrollWidth,
+      clientWidth: headerContainer.value.clientWidth
+    })
+    
+    console.log('内容容器:', {
+      scrollWidth: bodyContainer.value.scrollWidth,
+      clientWidth: bodyContainer.value.clientWidth,
+      overflowX: getComputedStyle(bodyContainer.value).overflowX
+    })
+    
+    // 同步表头和内容滚动
+    const headerScroll = () => {
+      bodyContainer.value!.scrollLeft = headerContainer.value!.scrollLeft
+    }
+    
+    const contentScroll = () => {
+      headerContainer.value!.scrollLeft = bodyContainer.value!.scrollLeft
+    }
+    
+    headerContainer.value.addEventListener('scroll', headerScroll)
+    bodyContainer.value.addEventListener('scroll', contentScroll)
+    
+    scrollSyncInitialized = true  // 【修复】标记已初始化
+    console.log('滚动同步已设置 - 使用 bodyContainer')
+  }, 500)
+  }
+}, { immediate: true })  // 【修复】立即执行一次，处理已有数据的情况
 
 const sortBy = (field: string) => {
   if (sortField.value === field) {
