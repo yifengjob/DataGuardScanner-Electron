@@ -21,6 +21,10 @@ export function createLogger(
     const logs = new Array<string>(MAX_LOG_ENTRIES);
     let logIndex = 0;
     let logCount = 0;
+    
+    // 【性能优化】缓存转换后的数组，避免每次日志都重新创建
+    let cachedLogsArray: string[] = [];
+    let needsUpdate = false;
 
     return (msg: string) => {
         const now = new Date();
@@ -39,17 +43,29 @@ export function createLogger(
             logIndex++;
             logCount = Math.min(logCount + 1, MAX_LOG_ENTRIES);
             
-            // 将环形缓冲区转换为普通数组（供前端显示）
-            if (logCount < MAX_LOG_ENTRIES) {
-                // 未满时，直接截取
-                scanState.logs = logs.slice(0, logCount);
-            } else {
-                // 已满时，从当前位置开始循环读取
-                const start = logIndex % MAX_LOG_ENTRIES;
-                scanState.logs = [
-                    ...logs.slice(start),
-                    ...logs.slice(0, start)
-                ];
+            // 【性能优化】标记需要更新，但不立即转换
+            needsUpdate = true;
+        });
+        
+        // 【性能优化】延迟批量转换，减少数组创建次数
+        setImmediate(() => {
+            if (needsUpdate) {
+                // 将环形缓冲区转换为普通数组（供前端显示）
+                if (logCount < MAX_LOG_ENTRIES) {
+                    // 未满时，直接截取
+                    cachedLogsArray = logs.slice(0, logCount);
+                } else {
+                    // 已满时，从当前位置开始循环读取
+                    const start = logIndex % MAX_LOG_ENTRIES;
+                    cachedLogsArray = [
+                        ...logs.slice(start),
+                        ...logs.slice(0, start)
+                    ];
+                }
+                
+                // 更新到 scanState
+                scanState.logs = cachedLogsArray;
+                needsUpdate = false;
             }
         });
 

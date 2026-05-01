@@ -112,7 +112,7 @@
               :class="{ 'highlight-count': (item.counts[type.id] || 0) > 0 }">
             {{ (item.counts[type.id] || 0) > 0 ? Number(item.counts[type.id]).toLocaleString() : '-' }}
           </td>
-          <td class="total-cell">{{ item.total.toLocaleString() }}</td>
+          <td class="total-cell mono-font">{{ item.total.toLocaleString() }}</td>
           <td class="actions-col">
             <div class="actions-cell">
             <button class="btn-action" @click="handlePreview(item)" title="预览">
