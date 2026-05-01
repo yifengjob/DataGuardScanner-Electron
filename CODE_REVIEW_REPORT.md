@@ -648,7 +648,10 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
    - Walker 完成后重启空闲 Worker 应用新配置
 2. **B1** - ✅ **已完成** - 日志数组性能优化（commit 70442bc）
    - 清理调试日志，保留必要错误日志
-3. **B3** - ⏸️ 待处理 - 进度更新自适应节流（用户体验）
+3. **B3** - ✅ **已完成** - 进度更新自适应节流（scanner-helpers.ts）
+   - 根据扫描速度动态调整节流间隔 (200ms-1000ms)
+   - 快速扫描时降低更新频率，减少 UI 压力
+   - 慢速扫描时提高更新频率，提升用户体验
 4. **C2** - ⏸️ 待处理 - 错误提示优化（用户体验）
 5. **D3** - ⏸️ 待处理 - 错误处理统一化（代码质量）
 
@@ -712,7 +715,9 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
 **第一阶段完成度**: 3/3 任务全部完成 (100%) 🎉
 
 ### 第二阶段（2-4周）
-- [ ] 修复 B3 - 自适应节流
+- [x] ✅ 修复 B3 - 自适应节流 **（已完成 - scanner-helpers.ts）**
+  - 根据扫描速度动态调整 (200ms-1000ms)
+  - 快速时降低频率，慢速时提高频率
 - [ ] 修复 C2 - 错误提示优化
 - [ ] 修复 D3 - 统一错误处理
 
