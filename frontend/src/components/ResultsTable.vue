@@ -585,13 +585,10 @@ const handleBatchDelete = async () => {
 }
 
 /* resize 时禁用 sticky 提升性能 */
-.table-content.resizing thead,
-.table-content.resizing th.checkbox-col,
-.table-content.resizing th.path-col,
-.table-content.resizing th.actions-col,
-.table-content.resizing td.checkbox-col,
-.table-content.resizing td.path-cell,
-.table-content.resizing td.actions-col {
+.table-content.resizing .table-header-grid,
+.table-content.resizing .checkbox-col,
+.table-content.resizing .path-cell,
+.table-content.resizing .actions-col {
   position: static !important;
   box-shadow: none !important;
   z-index: auto !important;
@@ -684,6 +681,14 @@ const handleBatchDelete = async () => {
   text-align: center;
 }
 
+.path-col {
+  min-width: var(--path-col-min-width);
+  max-width: var(--path-col-clamp);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .time-cell {
   text-align: center;
 }
@@ -769,10 +774,6 @@ const handleBatchDelete = async () => {
 
 .delete-icon {
   color: var(--error-color);
-}
-
-.btn-delete {
-  /* 不再需要边框颜色，由 .delete-icon 控制 */
 }
 
 .btn-delete:hover {
