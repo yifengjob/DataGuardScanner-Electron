@@ -236,8 +236,8 @@ const sensitiveTypes = computed(() => {
 
 // 【优化】路径列宽度配置常量
 const PATH_COL_MIN_WIDTH = '12em'
-const PATH_COL_IDEAL_WIDTH = '30vw'
-const PATH_COL_MAX_WIDTH = '70em'
+const PATH_COL_IDEAL_WIDTH = '25vw'
+const PATH_COL_MAX_WIDTH = '80em'
 const PATH_COL_CLAMP = `clamp(${PATH_COL_MIN_WIDTH}, ${PATH_COL_IDEAL_WIDTH}, ${PATH_COL_MAX_WIDTH})`
 
 // 【修复】动态计算 Grid 列模板
@@ -522,12 +522,34 @@ const handleBatchDelete = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  container-type: inline-size;  /* 【关键】启用容器查询 */
   
   /* 【优化】路径列宽度配置（CSS 自定义属性） */
   --path-col-min-width: 12em;
-  --path-col-ideal-width: 30vw;
-  --path-col-max-width: 70em;
+  --path-col-ideal-width: 25vw;  /* 小容器默认值 */
+  --path-col-max-width: 80em;
   --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
+}
+
+/* 容器宽度 ≥ 1000px - 中等容器 */
+@container (min-width: 1000px) {
+  .results-table {
+    --path-col-ideal-width: 35vw;
+  }
+}
+
+/* 容器宽度 ≥ 1400px - 大容器 */
+@container (min-width: 1400px) {
+  .results-table {
+    --path-col-ideal-width: 45vw;
+  }
+}
+
+/* 容器宽度 ≥ 1800px - 超大容器 */
+@container (min-width: 1800px) {
+  .results-table {
+    --path-col-ideal-width: 55vw;
+  }
 }
 
 .table-header {
