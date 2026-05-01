@@ -23,7 +23,7 @@
       <!-- 【虚拟滚动优化】使用 vue-virtual-scroller -->
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
-        <div class="table-header-grid" :style="gridStyle">
+        <div class="table-header-grid" ref="headerRef" :style="gridStyle">
           <div class="cell checkbox-col header-cell">
             <input 
               type="checkbox" 
@@ -95,6 +95,7 @@
         
         <!-- 虚拟滚动内容 - 支持动态行高 -->
         <DynamicScroller
+          ref="scrollerRef"
           class="virtual-scroller"
           :items="filteredResults"
           :min-item-size="40"
@@ -190,6 +191,8 @@ const allSensitiveTypes = ref<Array<{ id: string; name: string }>>([])
 const selectedFiles = ref<Set<string>>(new Set())
 const selectAllCheckbox = ref<HTMLInputElement | null>(null)
 const isResizing = ref(false)  // ← 新增：标记是否正在 resize
+const headerRef = ref<HTMLDivElement | null>(null)
+const scrollerRef = ref<any>(null)
 
 // 监听窗口 resize
 let resizeTimer: number | null = null
@@ -204,6 +207,28 @@ onMounted(() => {
   
   // 使用 passive listener 提升性能
   window.addEventListener('resize', handleResize, { passive: true })
+  
+  // 【修复】等待 DOM 渲染后设置滚动同步
+  setTimeout(() => {
+    if (!headerRef.value || !scrollerRef.value) return
+    
+    // 获取 DynamicScroller 内部的滚动容器
+    const scrollerElement = scrollerRef.value.$el
+    if (!scrollerElement) return
+    
+    console.log('表头元素:', headerRef.value)
+    console.log('滚动容器:', scrollerElement)
+    
+    // 同步表头和内容滚动
+    const syncScroll = () => {
+      if (headerRef.value && scrollerElement) {
+        headerRef.value.scrollLeft = scrollerElement.scrollLeft
+      }
+    }
+    
+    scrollerElement.addEventListener('scroll', syncScroll)
+    console.log('滚动同步已设置')
+  }, 1000)
 })
 
 // 加载敏感类型定义
@@ -639,8 +664,7 @@ tr {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow-x: auto;                      /* 【关键】外层处理横向滚动 */
-  overflow-y: hidden;                    /* 纵向由 inner 处理 */
+  overflow: hidden;                      /* 【修复】不处理滚动，交给子元素 */
 }
 
 /* 【修复】使用 colgroup 统一定义列宽，确保同一列宽度一致 */
@@ -686,6 +710,8 @@ tr {
   width: max-content;                  /* 【关键】根据列宽总和自动计算 */
   min-width: 100%;                     /* 至少占满容器 */
   z-index: 10;
+  overflow-x: auto;                    /* 【修复】允许横向滚动 */
+  overflow-y: hidden;
 }
 
 .header-cell {
@@ -700,9 +726,7 @@ tr {
 
 .virtual-scroller {
   flex: 1;
-  overflow-y: auto !important;         /* 【修复】只处理纵向滚动 */
-  overflow-x: hidden !important;       /* 【关键】禁止横向滚动，交给外层 */
-  width: 100%;                         /* 【修复】占满外层容器 */
+  overflow: auto !important;             /* 【修复】允许横向和纵向滚动 */
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
