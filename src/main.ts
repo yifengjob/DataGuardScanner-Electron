@@ -5,6 +5,10 @@ import * as fs from 'fs';
 // 【关键】首先导入日志抑制工具（必须在任何其他导入之前）
 import './log-utils';
 
+// 【新增】设置环境变量抑制 pdfjs-dist 警告
+process.env.PDFJS_DISABLE_WARNINGS = '1';
+process.env.NODE_NO_WARNINGS = '1';
+
 // 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
 // pdfjs-dist v5.x+ 使用了 ES2024 的 Promise.withResolvers，需要 polyfill
 if (typeof (Promise as any).withResolvers === 'undefined') {
