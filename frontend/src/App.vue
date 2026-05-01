@@ -207,7 +207,7 @@ import {
 import {applyTheme, loadTheme, watchSystemTheme} from './utils/theme'
 import type {ThemeMode} from './utils/theme'
 import {formatNumber} from './utils/format'
-import {classifyError} from "@/utils/error-handler.ts";
+import {classifyError} from './utils/error-handler'  // 【C2优化】错误分类工具
 
 // 不再需要导入 SVG 文件
 // 插件会自动将 src/assets 下的 SVG 转换为 sprite
