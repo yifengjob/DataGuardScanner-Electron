@@ -243,7 +243,7 @@ const gridStyle = computed(() => {
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
-      minmax(12em, 30em)              /* path - 唯一自适应列（限制最大30em） */
+      minmax(12em, clamp(12em, 40vw, 50em))  /* path - 自适应（最小12em，理想40%视口，最大50em） */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
@@ -619,7 +619,7 @@ th {
 
 th.path-col {
   min-width: 12em;                   /* 192px - 最小宽度 */
-  max-width: 30em;                   /* 480px - 最大宽度 */
+  max-width: clamp(12em, 40vw, 50em); /* 动态最大宽度（最小12em，理想40%视口，最大50em） */
   /* 【简化】文件名列可以截断 */
   overflow: hidden;
   text-overflow: ellipsis;
@@ -716,7 +716,7 @@ tr {
 
 .col-path {
   min-width: 12em;
-  max-width: 30em;
+  max-width: clamp(12em, 40vw, 50em); /* 动态最大宽度 */
 }
 
 .col-size {
