@@ -22,179 +22,178 @@ const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
  * 获取基础系统目录（不包含其他磁盘）
  */
 function getBaseSystemDirs(): string[] {
-  let systemDirs: string[] = [];
-  if (process.platform === 'win32') {
-    systemDirs = [
-      // Windows 系统目录
-      'C:\\Windows', 'C:\\WinNT',
-      // 程序安装目录
-      'C:\\Program Files', 'C:\\Program Files (x86)',
-      // 系统数据和配置
-      'C:\\ProgramData',
-      // 'C:\\Users\\All Users',
-      // 恢复和性能日志
-      'C:\\Recovery', 'C:\\PerfLogs',
-      // 系统驱动和引导
-      'C:\\Boot', 'C:\\EFI',
-      // Windows Installer 缓存
-      'C:\\Config.Msi'
-      // 注意：pagefile.sys, hiberfil.sys, swapfile.sys 是文件不是目录，已移除
-      // 注意：$RECYCLE.BIN 回收站在 ignoreDirNames 中处理
-    ];
-  } else if (process.platform === 'darwin') {
-    systemDirs = [
-      // macOS 系统目录
-      '/System', '/Library', '/private',
-      // 应用程序
-      '/Applications', '/Applications/Utilities',
-      // 用户库（可选，因为可能包含用户数据）
-      // '/Users/*/Library', // 不默认添加，避免误伤
-      // Unix 系统资源
-      '/usr', '/bin', '/sbin',
-      // 变量数据和配置
-      '/var', '/etc',
-      // 虚拟文件系统和设备
-      '/dev', '/cores',
-      // 网络挂载点
-      '/Network'
-      // 注意：/Volumes 是外部磁盘挂载点，不应该忽略
-      // 注意：.Trashes 回收站在 ignoreDirNames 中处理
-    ];
-  } else if (process.platform === 'linux') {
-    systemDirs = [
-      // 虚拟文件系统
-      '/proc', '/sys', '/dev', '/dev/pts',
-      // 运行时数据
-      '/run', '/var/run', '/var/lock',
-      // 临时文件（可选，因为可能包含用户临时数据）
-      // '/tmp', '/var/tmp',
-      // 系统配置和数据（重要！）
-      '/etc', '/var', '/var/log', '/var/cache',
-      // 系统二进制和库
-      '/bin', '/sbin', '/lib', '/lib64', '/usr',
-      // 引导和内核
-      '/boot', '/initrd', '/vmlinuz',
-      // root 用户主目录
-      '/root',
-      // 注意：/mnt, /media, /cdrom 是挂载点，不应该忽略
-      // 可选应用和服务
-      '/opt', '/srv',
-      // Snap 和 Flatpak 容器
-      '/snap', '/var/lib/snapd',
-      '/var/lib/flatpak'
-      // 注意：.Trash 回收站在 ignoreDirNames 中处理
-    ];
-  }
-  return systemDirs;
+    let systemDirs: string[] = [];
+    if (process.platform === 'win32') {
+        // 【动态获取】使用环境变量获取真正的系统安装目录
+        const windir = process.env.WINDIR || 'C:\\Windows';
+        const programFiles = process.env.PROGRAMFILES || 'C:\\Program Files';
+        const programFilesX86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+        const systemDrive = path.parse(windir).root; // 获取系统盘符，如 C:\
+        
+        systemDirs = [
+            // Windows 核心系统目录
+            windir, // 例如 D:\Windows
+            path.join(systemDrive, 'WinNT'), // 兼容旧版本
+            // 程序安装目录
+            programFiles,
+            programFilesX86,
+            // 恢复和性能日志
+            path.join(systemDrive, 'Recovery'),
+            path.join(systemDrive, 'PerfLogs'),
+            // 系统引导和驱动
+            path.join(systemDrive, 'Boot'),
+            path.join(systemDrive, 'EFI'),
+            // Windows Installer 缓存
+            path.join(systemDrive, 'Config.Msi'),
+            // 系统文件（pagefile.sys 等）
+            path.join(systemDrive, 'pagefile.sys'),
+            path.join(systemDrive, 'hiberfil.sys'),
+            path.join(systemDrive, 'swapfile.sys'),
+        ];
+    } else if (process.platform === 'darwin') {
+        systemDirs = [
+            '/System', '/usr',
+            '/bin', '/sbin',
+            '/etc', '/dev',
+            '/cores', '/Network'
+        ];
+    } else if (process.platform === 'linux') {
+        systemDirs = [
+            '/proc', '/sys', '/dev', '/dev/pts',
+            '/run', '/var/run', '/var/lock',
+            '/etc',
+            '/bin', '/sbin', '/lib', '/lib64', '/usr',
+            '/boot', '/initrd', '/vmlinuz',
+        ];
+    }
+    return systemDirs;
 }
 
 /**
  * 根据配置生成完整的系统目录列表
  */
 export function generateSystemDirs(ignoreOtherDrives: boolean = false): string[] {
-  const baseDirs = getBaseSystemDirs();
-  
-  // 仅在 Windows 且启用选项时添加其他磁盘
-  if (process.platform === 'win32' && ignoreOtherDrives) {
-    const allDirs = [...baseDirs];
-    for (let i = 68; i <= 90; i++) { // D-Z
-      const drive = String.fromCharCode(i);
-      allDirs.push(
-        `${drive}:\\Windows`,
-        `${drive}:\\Program Files`,
-        `${drive}:\\Program Files (x86)`,
-        `${drive}:\\ProgramData`
-      );
+    const baseDirs = getBaseSystemDirs();
+
+    // 仅在 Windows 且启用选项时添加其他磁盘
+    if (process.platform === 'win32' && ignoreOtherDrives) {
+        const allDirs = [...baseDirs];
+        
+        // 【动态获取】使用环境变量获取 ProgramData 目录
+        const programData = process.env.PROGRAMDATA || 'C:\\ProgramData';
+        const systemDrive = path.parse(programData).root;
+        
+        // 添加系统盘的 ProgramData
+        if (!allDirs.includes(programData)) {
+            allDirs.push(programData);
+        }
+        
+        // 添加其他磁盘的系统目录（D-Z）
+        for (let i = 68; i <= 90; i++) {
+            const drive = String.fromCharCode(i);
+            const driveRoot = `${drive}:\\`;
+            
+            // 跳过系统盘（已经在 baseDirs 中）
+            if (driveRoot === systemDrive) {
+                continue;
+            }
+            
+            allDirs.push(
+                `${driveRoot}Windows`,
+                `${driveRoot}Program Files`,
+                `${driveRoot}Program Files (x86)`,
+                `${driveRoot}ProgramData`
+            );
+        }
+        return allDirs;
     }
-    return allDirs;
-  }
-  
-  return baseDirs;
+
+    return baseDirs;
 }
 
 export function getDefaultConfig(): AppConfig {
-  const ignoreDirNames = [
-    // 版本控制和开发工具
-    'node_modules', '.git', '.svn', '.hg', '.bzr', '_darcs',
-    // IDE 和编辑器
-    '.vscode', '.idea', '.eclipse', '.settings', '.project',
-    // 构建和缓存
-    // 'dist', 'build', '.next', 'out', '.cache', '__pycache__',
-    // 包管理器
-    '.npm', '.yarn', '.pnpm-store', 'bower_components',
-    // 操作系统隐藏文件和目录
-    'System Volume Information',
-    // '$RECYCLE.BIN', 'Recycle.Bin',
-    '.Spotlight-V100', '.fseventsd', '.DS_Store',
-    // '.Trashes',
-    // 'lost+found',
-    // '.Trash',
-    // 临时文件
-    // 'tmp', 'temp', '.temp'
-  ];
-  
-  // scanConcurrency: 0 表示使用动态计算（根据 CPU 和内存自动调整）
-  // 默认设置为 4，这是一个平衡性能和资源消耗的保守值
-  return {
-    selectedPaths: [],
-    selectedExtensions: ['*'],
-    enabledSensitiveTypes: [
-      'person_id', 'phone', 'email', 'bank_card',
-      'address', 'ip_address', 'password'
-    ],
-    ignoreDirNames,
-    systemDirs: generateSystemDirs(false), // 默认只忽略C盘系统目录
-    maxFileSizeMb: DEFAULT_MAX_FILE_SIZE_MB,
-    maxPdfSizeMb: DEFAULT_MAX_PDF_SIZE_MB,
-    scanConcurrency: 4, // 默认并发数，scanner.ts 会根据硬件智能调整
-    theme: 'system',
-    language: 'zh-CN',
-    enableExperimentalParsers: false,
-    enableOfficeParsers: true,
-    deleteToTrash: false,
-    ignoreOtherDrivesSystemDirs: false // 默认不忽略其他磁盘的系统目录（即会扫描）
-  };
+    const ignoreDirNames = [
+        // 版本控制和开发工具
+        'node_modules', '.git', '.svn', '.hg', '.bzr', '_darcs',
+        // IDE 和编辑器
+        '.vscode', '.idea', '.eclipse', '.settings', '.project',
+        // 构建和缓存
+        // 'dist', 'build', '.next', 'out', '.cache', '__pycache__',
+        // 包管理器
+        '.npm', '.yarn', '.pnpm-store', 'bower_components',
+        // 操作系统隐藏文件和目录
+        'System Volume Information',
+        // '$RECYCLE.BIN', 'Recycle.Bin',
+        '.Spotlight-V100', '.fseventsd', '.DS_Store',
+        // '.Trashes',
+        // 'lost+found',
+        // '.Trash',
+        // 临时文件
+        // 'tmp', 'temp', '.temp'
+    ];
+
+    // scanConcurrency: 0 表示使用动态计算（根据 CPU 和内存自动调整）
+    // 默认设置为 4，这是一个平衡性能和资源消耗的保守值
+    return {
+        selectedPaths: [],
+        selectedExtensions: ['*'],
+        enabledSensitiveTypes: [
+            'person_id', 'phone', 'email', 'bank_card',
+            'address', 'ip_address', 'password'
+        ],
+        ignoreDirNames,
+        systemDirs: generateSystemDirs(false), // 默认只忽略C盘系统目录
+        maxFileSizeMb: DEFAULT_MAX_FILE_SIZE_MB,
+        maxPdfSizeMb: DEFAULT_MAX_PDF_SIZE_MB,
+        scanConcurrency: 4, // 默认并发数，scanner.ts 会根据硬件智能调整
+        theme: 'system',
+        language: 'zh-CN',
+        enableExperimentalParsers: false,
+        enableOfficeParsers: true,
+        deleteToTrash: false,
+        ignoreOtherDrivesSystemDirs: false // 默认不忽略其他磁盘的系统目录（即会扫描）
+    };
 }
 
 export async function loadConfig(): Promise<AppConfig> {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const data = await fs.promises.readFile(CONFIG_FILE, 'utf-8');
-      const config = JSON.parse(data);
-      const defaultConfig = getDefaultConfig();
-      const mergedConfig = { ...defaultConfig, ...config };
-      
-      // 根据 ignoreOtherDrivesSystemDirs 选项重新生成系统目录
-      mergedConfig.systemDirs = generateSystemDirs(mergedConfig.ignoreOtherDrivesSystemDirs);
-      
-      return mergedConfig;
+    try {
+        if (fs.existsSync(CONFIG_FILE)) {
+            const data = await fs.promises.readFile(CONFIG_FILE, 'utf-8');
+            const config = JSON.parse(data);
+            const defaultConfig = getDefaultConfig();
+            const mergedConfig = {...defaultConfig, ...config};
+
+            // 根据 ignoreOtherDrivesSystemDirs 选项重新生成系统目录
+            mergedConfig.systemDirs = generateSystemDirs(mergedConfig.ignoreOtherDrivesSystemDirs);
+
+            return mergedConfig;
+        }
+    } catch (error) {
+        console.error('加载配置失败:', error);
     }
-  } catch (error) {
-    console.error('加载配置失败:', error);
-  }
-  
-  return getDefaultConfig();
+
+    return getDefaultConfig();
 }
 
 export async function saveConfig(config: AppConfig): Promise<void> {
-  try {
-    const data = JSON.stringify(config, null, 2);
-    await fs.promises.writeFile(CONFIG_FILE, data, 'utf-8');
-  } catch (error) {
-    console.error('保存配置失败:', error);
-    throw error;
-  }
+    try {
+        const data = JSON.stringify(config, null, 2);
+        await fs.promises.writeFile(CONFIG_FILE, data, 'utf-8');
+    } catch (error) {
+        console.error('保存配置失败:', error);
+        throw error;
+    }
 }
 
 /**
  * 根据系统硬件资源智能计算推荐的并发数
  */
 export function calculateRecommendedConcurrency(): number {
-  const cpuCount = os.cpus().length;
-  const freeMemoryGB = os.freemem() / BYTES_TO_GB;
-  const maxByMemory = Math.floor(freeMemoryGB * CONCURRENCY_MEMORY_RATIO / MEMORY_PER_WORKER_GB);
-  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, CONCURRENCY_ABSOLUTE_MAX);
-  return Math.max(calculatedMaxConcurrency, DEFAULT_CONCURRENCY_MIN);
+    const cpuCount = os.cpus().length;
+    const freeMemoryGB = os.freemem() / BYTES_TO_GB;
+    const maxByMemory = Math.floor(freeMemoryGB * CONCURRENCY_MEMORY_RATIO / MEMORY_PER_WORKER_GB);
+    const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, CONCURRENCY_ABSOLUTE_MAX);
+    return Math.max(calculatedMaxConcurrency, DEFAULT_CONCURRENCY_MIN);
 }
 
 /**
@@ -202,45 +201,45 @@ export function calculateRecommendedConcurrency(): number {
  * @param configuredConcurrency 配置的并发数（0 表示自动）
  * @returns 实际应该使用的并发数
  */
-export function calculateActualConcurrency(configuredConcurrency: number): { 
-  actualConcurrency: number;
-  maxAllowedConcurrency: number;
-  cpuCount: number;
-  freeMemoryGB: number;
+export function calculateActualConcurrency(configuredConcurrency: number): {
+    actualConcurrency: number;
+    maxAllowedConcurrency: number;
+    cpuCount: number;
+    freeMemoryGB: number;
 } {
-  const cpuCount = os.cpus().length;
-  const freeMemoryGB = os.freemem() / BYTES_TO_GB;
-  const maxByMemory = Math.floor(freeMemoryGB * CONCURRENCY_MEMORY_RATIO / MEMORY_PER_WORKER_GB);
-  const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, CONCURRENCY_ABSOLUTE_MAX);
-  const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, DEFAULT_CONCURRENCY_MIN);
-  
-  // 【调试】输出详细的计算过程
-  console.log(`[并发数计算] CPU: ${cpuCount}核, 可用内存: ${freeMemoryGB.toFixed(1)}GB`);
-  console.log(`[并发数计算] 内存限制: ${maxByMemory}, CPU限制: ${cpuCount}, 绝对最大值: ${CONCURRENCY_ABSOLUTE_MAX}`);
-  console.log(`[并发数计算] 计算最大值: ${calculatedMaxConcurrency}, 最大允许值: ${maxAllowedConcurrency}`);
-  console.log(`[并发数计算] 配置值: ${configuredConcurrency}`);
-  
-  let actualConcurrency: number;
-  if (configuredConcurrency && configuredConcurrency > 0) {
-    actualConcurrency = Math.min(configuredConcurrency, maxAllowedConcurrency);
-    console.log(`[并发数计算] 使用配置值: min(${configuredConcurrency}, ${maxAllowedConcurrency}) = ${actualConcurrency}`);
-  } else {
-    // 【优化】更保守的默认并发数，避免 CPU 过载
-    // Mac M2/M3 等高性能 CPU 也需要限制，避免风扇狂转
-    // 使用 CPU 核心数的比例，但不超过最大值，最少最小值
-    actualConcurrency = Math.min(
-      Math.max(Math.floor(cpuCount * DEFAULT_CONCURRENCY_CPU_RATIO), DEFAULT_CONCURRENCY_MIN),
-      DEFAULT_CONCURRENCY_MAX
-    );
-    console.log(`[并发数计算] 使用自动计算: min(max(floor(${cpuCount} * ${DEFAULT_CONCURRENCY_CPU_RATIO}), ${DEFAULT_CONCURRENCY_MIN}), ${DEFAULT_CONCURRENCY_MAX}) = ${actualConcurrency}`);
-  }
-  
-  console.log(`[并发数计算] 最终并发数: ${actualConcurrency}`);
-  
-  return {
-    actualConcurrency,
-    maxAllowedConcurrency,
-    cpuCount,
-    freeMemoryGB
-  };
+    const cpuCount = os.cpus().length;
+    const freeMemoryGB = os.freemem() / BYTES_TO_GB;
+    const maxByMemory = Math.floor(freeMemoryGB * CONCURRENCY_MEMORY_RATIO / MEMORY_PER_WORKER_GB);
+    const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, CONCURRENCY_ABSOLUTE_MAX);
+    const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, DEFAULT_CONCURRENCY_MIN);
+
+    // 【调试】输出详细的计算过程
+    console.log(`[并发数计算] CPU: ${cpuCount}核, 可用内存: ${freeMemoryGB.toFixed(1)}GB`);
+    console.log(`[并发数计算] 内存限制: ${maxByMemory}, CPU限制: ${cpuCount}, 绝对最大值: ${CONCURRENCY_ABSOLUTE_MAX}`);
+    console.log(`[并发数计算] 计算最大值: ${calculatedMaxConcurrency}, 最大允许值: ${maxAllowedConcurrency}`);
+    console.log(`[并发数计算] 配置值: ${configuredConcurrency}`);
+
+    let actualConcurrency: number;
+    if (configuredConcurrency && configuredConcurrency > 0) {
+        actualConcurrency = Math.min(configuredConcurrency, maxAllowedConcurrency);
+        console.log(`[并发数计算] 使用配置值: min(${configuredConcurrency}, ${maxAllowedConcurrency}) = ${actualConcurrency}`);
+    } else {
+        // 【优化】更保守的默认并发数，避免 CPU 过载
+        // Mac M2/M3 等高性能 CPU 也需要限制，避免风扇狂转
+        // 使用 CPU 核心数的比例，但不超过最大值，最少最小值
+        actualConcurrency = Math.min(
+            Math.max(Math.floor(cpuCount * DEFAULT_CONCURRENCY_CPU_RATIO), DEFAULT_CONCURRENCY_MIN),
+            DEFAULT_CONCURRENCY_MAX
+        );
+        console.log(`[并发数计算] 使用自动计算: min(max(floor(${cpuCount} * ${DEFAULT_CONCURRENCY_CPU_RATIO}), ${DEFAULT_CONCURRENCY_MIN}), ${DEFAULT_CONCURRENCY_MAX}) = ${actualConcurrency}`);
+    }
+
+    console.log(`[并发数计算] 最终并发数: ${actualConcurrency}`);
+
+    return {
+        actualConcurrency,
+        maxAllowedConcurrency,
+        cpuCount,
+        freeMemoryGB
+    };
 }
