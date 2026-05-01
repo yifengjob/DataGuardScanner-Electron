@@ -13,6 +13,14 @@ import * as XLSX from 'xlsx';
 import * as iconv from 'iconv-lite';
 // 【新增】ZIP 解压工具（使用 fflate 替代 adm-zip）
 import { unzipFile, findZipEntries, extractEntriesText } from './zip-utils';
+// 【D3 优化】导入错误处理工具
+import {
+  createReadError,
+  createParseError,
+  createUnsupportedFormatError,
+  logError,
+  convertNodeError
+} from './error-utils';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
 type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
@@ -92,8 +100,9 @@ export async function extractTextFromFile(filePath: string): Promise<{ text: str
     // 不支持的文件类型
     return { text: '', unsupportedPreview: true };
   } catch (error: any) {
-    console.error(`解析文件失败 ${filePath}:`, error);
-    throw new Error(`文件解析失败: ${error.message}`);
+    logError('extractTextFromFile', error);
+    // 如果是 AppError，直接抛出；否则转换
+    throw error;
   }
 }
 
@@ -102,9 +111,8 @@ async function extractTextFile(filePath: string): Promise<{ text: string; unsupp
     const content = await fs.promises.readFile(filePath, 'utf-8');
     return { text: content, unsupportedPreview: false };
   } catch (error: any) {
-    // 【修复】Windows 文件锁定或其他读取错误
-    console.error(`读取文本文件失败 ${filePath}:`, error.message);
-    throw new Error(`无法读取文件: ${error.message}`);
+    logError('extractTextFile', error);
+    throw convertNodeError(error, filePath, '读取文本文件失败');
   }
 }
 
@@ -122,7 +130,7 @@ async function extractPdf(filePath: string): Promise<{ text: string; unsupported
     };
   } catch (error: any) {
     // PDF 解析失败是正常现象（文件损坏或格式不支持），静默处理
-    console.error(`PDF解析失败 ${filePath}:`, error.message);
+    logError('extractPdf', error, 'warn');
     return { text: '', unsupportedPreview: true };
   }
 }
@@ -141,7 +149,7 @@ async function extractWithWordExtractor(filePath: string): Promise<{ text: strin
     
     // 【优化】只在解析失败时输出日志
     if (!hasContent) {
-      console.warn(`[word-extractor] 未提取到内容: ${path.basename(filePath)}`);
+      logError('extractWithWordExtractor', `[word-extractor] 未提取到内容: ${path.basename(filePath)}`, 'warn');
     }
     
     return {
@@ -150,7 +158,7 @@ async function extractWithWordExtractor(filePath: string): Promise<{ text: strin
     };
     
   } catch (error: any) {
-    console.error(`[word-extractor] 解析失败 ${path.basename(filePath)}:`, error.message);
+    logError('extractWithWordExtractor', error);
     
     // 降级到二进制提取
     try {
@@ -160,7 +168,7 @@ async function extractWithWordExtractor(filePath: string): Promise<{ text: strin
         return { text, unsupportedPreview: false };
       }
     } catch (e: any) {
-      console.error(`[word-extractor] 二进制提取也失败 ${path.basename(filePath)}:`, e.message);
+      logError('extractWithWordExtractor-fallback', e);
     }
     
     return { text: '', unsupportedPreview: true };
@@ -208,7 +216,7 @@ async function extractPptx(filePath: string): Promise<{ text: string; unsupporte
     };
     
   } catch (error: any) {
-    console.error(`PPTX解析失败 ${filePath}:`, error.message);
+    logError('extractPptx', error);
     
     // 降级到二进制提取
     try {
@@ -218,7 +226,7 @@ async function extractPptx(filePath: string): Promise<{ text: string; unsupporte
         return { text, unsupportedPreview: false };
       }
     } catch (e: any) {
-      console.error(`二进制提取也失败 ${filePath}:`, e.message);
+      logError('extractPptx-fallback', e);
     }
     
     return { text: '', unsupportedPreview: true };
@@ -264,7 +272,7 @@ async function extractWithSheetJS(filePath: string): Promise<{ text: string; uns
     };
     
   } catch (error: any) {
-    console.error(`SheetJS解析失败 ${filePath}:`, error.message);
+    logError('extractWithSheetJS', error);
     return { text: '', unsupportedPreview: true };
   }
 }
@@ -282,7 +290,7 @@ async function extractWithBinary(filePath: string): Promise<{ text: string; unsu
       unsupportedPreview: !hasContent
     };
   } catch (error: any) {
-    console.error(`二进制提取失败 ${filePath}:`, error.message);
+    logError('extractWithBinary', error);
     return { text: '', unsupportedPreview: true };
   }
 }
@@ -363,7 +371,7 @@ async function extractOdt(filePath: string): Promise<{ text: string; unsupported
     };
     
   } catch (error: any) {
-    console.error(`ODT解析失败 ${filePath}:`, error.message);
+    logError('extractOdt', error);
     return { text: '', unsupportedPreview: true };
   }
 }
@@ -419,7 +427,7 @@ async function extractOds(filePath: string): Promise<{ text: string; unsupported
     };
     
   } catch (error: any) {
-    console.error(`ODS解析失败 ${filePath}:`, error.message);
+    logError('extractOds', error);
     return { text: '', unsupportedPreview: true };
   }
 }
@@ -466,7 +474,7 @@ async function extractOdp(filePath: string): Promise<{ text: string; unsupported
     };
     
   } catch (error: any) {
-    console.error(`ODP解析失败 ${filePath}:`, error.message);
+    logError('extractOdp', error);
     return { text: '', unsupportedPreview: true };
   }
 }
@@ -511,7 +519,7 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
           break;
         default:
           // 其他代码页尝试使用 GBK（最常见）
-          console.warn(`未知的 RTF 代码页: ${codePage}，尝试使用 GBK 解码`);
+          logError('extractRtf', `未知的 RTF 代码页: ${codePage}，尝试使用 GBK 解码`, 'warn');
           encoding = 'gbk';
       }
     }
@@ -533,7 +541,7 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
         const buffer = Buffer.from(bytes);
         return iconv.decode(buffer, encoding as any);
       } catch (e) {
-        console.warn(`${encoding} 解码失败，尝试 GBK:`, e);
+        logError('extractRtf-decode', `${encoding} 解码失败，尝试 GBK`, 'warn');
         // 降级到 GBK
         try {
           const gbkBuffer = Buffer.from(bytes);
@@ -564,7 +572,7 @@ async function extractRtf(filePath: string): Promise<{ text: string; unsupported
     };
     
   } catch (error: any) {
-    console.error(`RTF解析失败 ${filePath}:`, error.message);
+    logError('extractRtf', error);
     return { text: '', unsupportedPreview: true };
   }
 }

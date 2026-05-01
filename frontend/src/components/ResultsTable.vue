@@ -245,7 +245,7 @@ const gridStyle = computed(() => {
       4em                             /* checkbox - 固定 */
       minmax(12em, 30em)              /* path - 唯一自适应列（限制最大30em） */
       7em                             /* size - 固定 */
-      14em                            /* time - 固定 */
+      12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
       7em                             /* total - 固定（可显示11-12位，比counts多1-2位） */
       11em                            /* actions - 固定 */
