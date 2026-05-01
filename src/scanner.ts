@@ -113,9 +113,9 @@ export async function startScan(
     
     // 【新增】等待 taskQueue 填充后计算平均文件大小
     // 这里先使用默认值，在 Walker 完成后会重新调整
-    // 【修复】降低初始值为 70%，预留 30% 给 V8 内部开销和内存碎片
-    let dynamicOldGenMB = Math.floor(WORKER_MAX_OLD_GENERATION_MB * 0.7);  // 768 * 0.7 = 537MB
-    let dynamicYoungGenMB = Math.floor(WORKER_MAX_YOUNG_GENERATION_MB * 0.7); // 96 * 0.7 = 67MB
+    // 【修复】降低初始值为 60%，预留 40% 给 V8 内部开销和内存碎片
+    let dynamicOldGenMB = Math.floor(WORKER_MAX_OLD_GENERATION_MB * 0.6);  // 768 * 0.6 = 460MB
+    let dynamicYoungGenMB = Math.floor(WORKER_MAX_YOUNG_GENERATION_MB * 0.6); // 96 * 0.6 = 57MB
     
     // 【新增】计算智能内存配置的函数
     function calculateSmartMemoryLimits(avgFileSizeMB: number, workerCount: number): { oldGen: number; youngGen: number } {
@@ -136,15 +136,29 @@ export async function startScan(
             log(`【智能内存】检测到小文件（平均 ${avgFileSizeMB.toFixed(2)}MB），降低 Worker 内存以节省资源`);
         }
         
-        // 基础内存计算
-        const baseMemoryPerWorker = Math.min(
-            (WORKER_MAX_OLD_GENERATION_MB + WORKER_MAX_YOUNG_GENERATION_MB) * memoryMultiplier,
-            Math.floor(freeMemoryMB * 0.6 / workerCount)
+        // 基础内存计算：取系统可用内存的 60% / Worker 数量
+        const systemBasedLimit = Math.floor(freeMemoryMB * 0.6 / workerCount);
+        
+        // 配置限制的内存
+        const configBasedLimit = Math.floor(
+            (WORKER_MAX_OLD_GENERATION_MB + WORKER_MAX_YOUNG_GENERATION_MB) * memoryMultiplier
+        );
+        
+        // 取两者中的较小值，确保不超过系统承受能力
+        const baseMemoryPerWorker = Math.min(systemBasedLimit, configBasedLimit);
+        
+        // 设置最低和最高限制
+        const minMemoryPerWorker = 200; // 最少 200MB
+        const maxMemoryPerWorker = Math.floor(freeMemoryMB * 0.8 / workerCount); // 最多使用 80% 可用内存
+        
+        const finalMemoryPerWorker = Math.max(
+            minMemoryPerWorker,
+            Math.min(baseMemoryPerWorker, maxMemoryPerWorker)
         );
         
         return {
-            oldGen: Math.floor(baseMemoryPerWorker * 0.8),
-            youngGen: Math.floor(baseMemoryPerWorker * 0.2)
+            oldGen: Math.floor(finalMemoryPerWorker * 0.8),
+            youngGen: Math.floor(finalMemoryPerWorker * 0.2)
         };
     }
     
