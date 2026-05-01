@@ -372,11 +372,18 @@ watch(
         await nextTick()
         await nextTick()  // 确保虚拟滚动完全渲染
         setupScrollSync()
-        setupPathColumnWidth()  // 【新增】设置路径列精准宽度
       }
     },
     {immediate: true}
 )
+
+// 【新增】组件挂载时立即设置路径列宽度监听
+onMounted(() => {
+  // 延迟一点确保 DOM 完全渲染
+  setTimeout(() => {
+    setupPathColumnWidth()
+  }, 100)
+})
 
 // 设置滚动同步
 const setupScrollSync = () => {
