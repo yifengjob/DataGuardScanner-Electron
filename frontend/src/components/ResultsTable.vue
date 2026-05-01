@@ -521,7 +521,7 @@ const handleBatchDelete = async () => {
   
   /* 【优化】路径列宽度配置（CSS 自定义属性） */
   --path-col-min-width: 12em;
-  --path-col-ideal-width: 25vw;  /* 小容器默认值 */
+  --path-col-ideal-width: 25cqi;  /* 小容器默认值（使用容器单位） */
   --path-col-max-width: 80em;
   --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
 }
@@ -529,21 +529,21 @@ const handleBatchDelete = async () => {
 /* 容器宽度 ≥ 1000px - 中等容器 */
 @container results-table (min-width: 1000px) {
   .results-table {
-    --path-col-ideal-width: 35vw;
+    --path-col-ideal-width: 35cqi;  /* 使用容器单位 */
   }
 }
 
 /* 容器宽度 ≥ 1400px - 大容器 */
 @container results-table (min-width: 1400px) {
   .results-table {
-    --path-col-ideal-width: 45vw;
+    --path-col-ideal-width: 45cqi;  /* 使用容器单位 */
   }
 }
 
 /* 容器宽度 ≥ 1800px - 超大容器 */
 @container results-table (min-width: 1800px) {
   .results-table {
-    --path-col-ideal-width: 55vw;
+    --path-col-ideal-width: 55cqi;  /* 使用容器单位 */
   }
 }
 
