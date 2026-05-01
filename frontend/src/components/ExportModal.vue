@@ -164,8 +164,8 @@ const handleExport = async () => {
     await exportReport(plainResults, format, savePath.value)
 
     // 导出成功，显示成功信息后关闭
-    await showMessage(`导出成功！\n\n文件已保存到：\n${savePath.value}`, {
-      title: '成功',
+    await showMessage(`文件已保存到：\n${savePath.value}`, {
+      title: '导出成功！',
       type: 'info'
     })
     emit('close')

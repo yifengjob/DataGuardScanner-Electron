@@ -28,6 +28,19 @@ export const TIMEOUT_HUGE_FILE = 180000; // 3 分钟
 /** Worker 线程默认超时（file-worker.ts） */
 export const WORKER_DEFAULT_TIMEOUT = 60000; // 60 秒
 
+// 【D2 优化】Worker 动态超时配置
+/** Worker 小文件超时 (<1MB) */
+export const WORKER_TIMEOUT_SMALL = 30000; // 30 秒
+
+/** Worker 中等文件超时 (1-10MB) */
+export const WORKER_TIMEOUT_MEDIUM = 60000; // 60 秒
+
+/** Worker 大文件超时 (10-50MB) */
+export const WORKER_TIMEOUT_LARGE = 120000; // 120 秒
+
+/** Worker 超大文件超时 (>50MB) */
+export const WORKER_TIMEOUT_HUGE = 180000; // 180 秒
+
 // ==================== 停滞检测配置 ====================
 
 /** 停滞检测检查间隔（毫秒） */

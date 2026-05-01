@@ -109,7 +109,7 @@ export async function startScan(
     );
 
     // 【A1 优化】根据系统可用内存和文件大小动态计算每个 Worker 的内存限制
-    const freeMemoryMB = os.freemem() / (1024 * 1024);
+    const freeMemoryMB = os.freemem() / BYTES_TO_MB;
     
     // 【新增】等待 taskQueue 填充后计算平均文件大小
     // 这里先使用默认值，在 Walker 完成后会重新调整

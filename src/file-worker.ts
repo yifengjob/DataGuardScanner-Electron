@@ -34,7 +34,14 @@ try {
 import { extractTextFromFile } from './file-parser';
 import { detectSensitiveData } from './sensitive-detector';
 // 【优化】导入配置常量
-import { WORKER_DEFAULT_TIMEOUT } from './scan-config';
+import { 
+  WORKER_DEFAULT_TIMEOUT,
+  WORKER_TIMEOUT_SMALL,
+  WORKER_TIMEOUT_MEDIUM,
+  WORKER_TIMEOUT_LARGE,
+  WORKER_TIMEOUT_HUGE,
+  BYTES_TO_MB
+} from './scan-config';
 
 interface WorkerTask {
   taskId: number;
@@ -93,17 +100,17 @@ parentPort?.on('message', async (task: WorkerTask) => {
       return;
     }
     
-    // 【新增】根据文件大小动态设置超时时间
-    const sizeMB = stat.size / (1024 * 1024);
+    // 【D2 优化】根据文件大小动态设置超时时间（使用配置常量）
+    const sizeMB = stat.size / BYTES_TO_MB;
     let timeoutMs = WORKER_DEFAULT_TIMEOUT;
     if (sizeMB < 1) {
-      timeoutMs = 30000;  // 小文件 30秒
+      timeoutMs = WORKER_TIMEOUT_SMALL;   // 小文件 30秒
     } else if (sizeMB < 10) {
-      timeoutMs = 60000;  // 中等文件 60秒
+      timeoutMs = WORKER_TIMEOUT_MEDIUM;  // 中等文件 60秒
     } else if (sizeMB < 50) {
-      timeoutMs = 120000; // 大文件 120秒
+      timeoutMs = WORKER_TIMEOUT_LARGE;   // 大文件 120秒
     } else {
-      timeoutMs = 180000; // 超大文件 180秒
+      timeoutMs = WORKER_TIMEOUT_HUGE;    // 超大文件 180秒
     }
     
     const timeoutPromise = new Promise((_, reject) => {
