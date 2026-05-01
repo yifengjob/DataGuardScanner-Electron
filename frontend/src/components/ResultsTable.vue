@@ -100,6 +100,7 @@
           :items="filteredResults"
           :min-item-size="40"
           key-field="filePath"
+          @scroll="handleScroll"
           v-slot="{ item, index, active }"
         >
           <DynamicScrollerItem
@@ -338,35 +339,21 @@ const setupScrollSync = () => {
   }
   
   console.log('=== DynamicScroller DOM 结构 ===')
-  console.log('scrollerElement:', scrollerElement)
   console.log('computedStyle overflow:', window.getComputedStyle(scrollerElement).overflow)
   console.log('offsetWidth:', scrollerElement.offsetWidth)
   console.log('scrollWidth:', scrollerElement.scrollWidth)
   console.log('clientWidth:', scrollerElement.clientWidth)
   
-  // 查找所有子元素
-  const children = scrollerElement.children
-  console.log('子元素数量:', children.length)
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i]
-    console.log(`子元素[${i}]:`, {
-      tagName: child.tagName,
-      className: child.className,
-      offsetWidth: child.offsetWidth,
-      scrollWidth: child.scrollWidth
-    })
-  }
-  
-  // 【关键】同步表头和内容滚动
-  const syncScroll = () => {
-    if (headerRef.value && scrollerElement) {
-      headerRef.value.scrollLeft = scrollerElement.scrollLeft
-    }
-  }
-  
-  scrollerElement.addEventListener('scroll', syncScroll)
   scrollSyncSetup = true
   console.log('滚动同步已设置')
+}
+
+// 【关键】处理滚动事件，同步表头
+const handleScroll = (event: Event) => {
+  if (headerRef.value && event.target) {
+    const target = event.target as HTMLElement
+    headerRef.value.scrollLeft = target.scrollLeft
+  }
 }
 
 const sortBy = (field: string) => {
