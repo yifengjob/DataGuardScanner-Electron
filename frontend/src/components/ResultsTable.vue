@@ -700,7 +700,8 @@ tr {
 .virtual-scroller {
   flex: 1;
   overflow: auto !important;           /* 【修复】允许横向和纵向滚动 */
-  width: 100%;
+  width: max-content;                  /* 【关键】允许内容撑开 */
+  min-width: 100%;                     /* 至少占满容器 */
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
