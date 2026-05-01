@@ -235,17 +235,17 @@ const sensitiveTypes = computed(() => {
 // 【修复】动态计算 Grid 列模板
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
-  // 【关键】所有计数列使用固定宽度，确保完全一致
-  const countColDefs = '5em '.repeat(countCols)
+  // 【关键】敏感信息列使用固定宽度，确保完全一致
+  const countColDefs = '6em '.repeat(countCols)
   
   return {
     gridTemplateColumns: `
       3.5em                           /* checkbox - 固定 */
       minmax(12em, 30em)              /* path - 自适应 */
-      6em                             /* size - 固定 */
-      11em                            /* time - 固定 */
-      ${countColDefs}                 /* counts - 固定 */
-      5em                             /* total - 固定 */
+      7em                             /* size - 固定 */
+      13em                            /* time - 固定（增加宽度） */
+      ${countColDefs}                 /* counts - 固定（增加宽度） */
+      minmax(4em, max-content)        /* total - 动态调整 */
       10.5em                          /* actions - 固定 */
     `.trim()
   }
