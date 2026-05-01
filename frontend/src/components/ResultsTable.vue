@@ -226,14 +226,24 @@ onMounted(() => {
   window.addEventListener('resize', handleResize, { passive: true })
   
   // 【修复】同步表头和内容的横向滚动
-  const syncScroll = () => {
+  const headerScroll = () => {
+    if (headerContainer.value && bodyContainer.value) {
+      bodyContainer.value.scrollLeft = headerContainer.value.scrollLeft
+    }
+  }
+  
+  const bodyScroll = () => {
     if (headerContainer.value && bodyContainer.value) {
       headerContainer.value.scrollLeft = bodyContainer.value.scrollLeft
     }
   }
   
+  if (headerContainer.value) {
+    headerContainer.value.addEventListener('scroll', headerScroll)
+  }
+  
   if (bodyContainer.value) {
-    bodyContainer.value.addEventListener('scroll', syncScroll)
+    bodyContainer.value.addEventListener('scroll', bodyScroll)
   }
 })
 
@@ -704,10 +714,14 @@ tr {
   overflow-y: hidden;
 }
 
+/* 【修复】隐藏表头的滚动条，但保持滚动功能 */
+.table-header-container::-webkit-scrollbar {
+  display: none;
+}
+
 .table-body-container {
   flex: 1;
-  overflow-x: auto;  /* 【修复】允许横向滚动 */
-  overflow-y: hidden;
+  overflow: hidden;  /* 【修复】由 DynamicScroller 控制所有滚动 */
 }
 
 /* 【修复】统一定义列宽，确保所有行列宽一致 */
@@ -756,6 +770,7 @@ tr {
 .virtual-scroller {
   height: 100%;
   width: 100%;
+  overflow-x: auto !important;  /* 【修复】允许横向滚动 */
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
@@ -787,6 +802,35 @@ tr {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 【修复】冻结列 - 复选框 */
+.cell.checkbox-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background-color: var(--bg-color);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 【修复】冻结列 - 文件名 */
+.cell.path-cell {
+  position: sticky;
+  left: 3.5em;  /* 在复选框右侧 */
+  z-index: 9;
+  background-color: var(--bg-color);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 【修复】冻结列 - 操作列 */
+.cell.actions-col {
+  position: sticky;
+  right: 0;
+  z-index: 10;
+  background-color: var(--bg-color);
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.05);
+  overflow: visible;  /* 按钮完整显示 */
+  text-overflow: clip;
 }
 
 tr:hover {
