@@ -88,13 +88,14 @@ export function generateSystemDirs(ignoreOtherDrives: boolean = false): string[]
             allDirs.push(programData);
         }
         
-        // 添加其他磁盘的系统目录（D-Z）
-        for (let i = 68; i <= 90; i++) {
+        // 添加其他磁盘的系统目录（C-Z）
+        for (let i = 67; i <= 90; i++) {
             const drive = String.fromCharCode(i);
             const driveRoot = `${drive}:\\`;
             
             // 跳过系统盘（已经在 baseDirs 中）
-            if (driveRoot === systemDrive) {
+            // 【兼容性】不区分大小写比较，防止 C: 和 c: 的情况
+            if (driveRoot.toLowerCase() === systemDrive.toLowerCase()) {
                 continue;
             }
             
