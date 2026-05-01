@@ -659,7 +659,10 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
 5. **D3** - ⏸️ 待处理 - 错误处理统一化（代码质量）
 
 ### 🟢 低优先级（可选改进）
-1. **A2** - ⏸️ 待处理 - 文件路径验证增强（安全性，低风险）
+1. **A2** - ✅ **已完成** - 文件路径验证增强（commit f6c0620）
+   - 拒绝空路径
+   - 拒绝相对路径
+   - 解析真实路径防止符号链接攻击
 2. **B2** - ⏸️ 待处理 - ZIP 解压缓存（内存优化）
 3. **C1** - ✅ **已完成** - 加载状态反馈（commit c50b869）
    - DirectoryTree 添加加载指示器
@@ -698,7 +701,7 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
 5. **代码一致性**: ⏸️ 待处理 - 错误处理策略
 
 ### 风险评估 ⚠️
-- **安全风险**: 低（Electron 安全配置正确）
+- **安全风险**: ✅ 低 - Electron 安全配置正确，路径验证增强
 - **性能风险**: ✅ 低 - 表格虚拟滚动已完美实现
 - **稳定性风险**: 低（有完善的超时和重启机制）
 - **维护性风险**: 低（代码结构清晰）
