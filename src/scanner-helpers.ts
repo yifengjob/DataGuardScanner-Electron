@@ -28,11 +28,13 @@ export function createLogger(
 
     return (msg: string) => {
         const now = new Date();
+        // 【修复】显式指定 Asia/Shanghai 时区，确保显示北京时间
         const timeStr = now.toLocaleTimeString('zh-CN', {
             hour12: false,
             hour: '2-digit',
             minute: '2-digit',
-            second: '2-digit'
+            second: '2-digit',
+            timeZone: 'Asia/Shanghai'  // 强制使用北京时间
         });
         const logWithTime = `[${timeStr}] ${msg}`;
 
