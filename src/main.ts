@@ -69,7 +69,11 @@ function setupLogFile() {
     fs.mkdirSync(logDir, { recursive: true });
   }
   
-  const logFile = path.join(logDir, `app-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+  // 【修复】使用北京时间生成日志文件名
+  const now = new Date();
+  const beijingTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+  const timeStr = beijingTime.toISOString().replace(/[:.]/g, '-').slice(0, -5); // 去掉毫秒和Z
+  const logFile = path.join(logDir, `app-${timeStr}.log`);
   const logStream = fs.createWriteStream(logFile, { flags: 'a' });
   
   // 重定向 console 输出到文件
