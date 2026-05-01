@@ -744,8 +744,8 @@ tr {
   width: max-content;                   /* 【关键】根据列宽总和自动计算 */
   min-width: 100%;                      /* 至少占满容器 */
   z-index: 10;
-  overflow-x: auto;                     /* 【关键】允许横向滚动 */
-  overflow-y: hidden;
+  overflow-x: auto !important;          /* 【关键】允许横向滚动，覆盖继承 */
+  overflow-y: hidden !important;
 }
 
 .header-cell {
