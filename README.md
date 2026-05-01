@@ -127,7 +127,7 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 - **pnpm**: 8.x 或更高版本（可选，推荐使用）
 
 #### Windows
-- Windows 7 SP1+ (需要 .NET Framework 4.5+)
+- Windows 7 SP1+ （无需额外依赖）
 - Windows 10 (版本 1809+) 
 - Windows 11
 
@@ -137,7 +137,7 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 
 #### Linux
 - Ubuntu 20.04+、Debian 11+、Fedora 35+
-- 需要安装必要的依赖库
+- **无需安装额外依赖**，Electron 应用自带所有运行时
 
 ### 从源码构建
 
