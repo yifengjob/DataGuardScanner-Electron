@@ -23,7 +23,7 @@
       <!-- 【虚拟滚动优化】使用 vue-virtual-scroller -->
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
-        <div class="table-header-grid" ref="headerRef" :style="gridStyle">
+        <div class="table-header-grid" :style="gridStyle">
           <div class="cell checkbox-col header-cell">
             <input 
               type="checkbox" 
@@ -696,8 +696,8 @@ tr {
 .virtual-table-wrapper {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  overflow: hidden;                      /* 【修复】不处理滚动，交给子元素 */
+  height: 100%;                     /* 【关键】父容器必须有固定高度 */
+  overflow: hidden;                 /* 不处理滚动，交给子元素 */
 }
 
 /* 【修复】使用 colgroup 统一定义列宽，确保同一列宽度一致 */
@@ -739,12 +739,10 @@ tr {
   align-items: center;
   background-color: var(--bg-hover);
   border-bottom: var(--border-width-thick) solid var(--border-color);
-  flex-shrink: 0;
-  width: max-content;                  /* 【关键】根据列宽总和自动计算 */
-  min-width: 100%;                     /* 至少占满容器 */
+  flex-shrink: 0;                       /* 【关键】表头不收缩 */
+  width: max-content;                   /* 【关键】根据列宽总和自动计算 */
+  min-width: 100%;                      /* 至少占满容器 */
   z-index: 10;
-  overflow-x: auto;                    /* 【修复】允许横向滚动 */
-  overflow-y: hidden;
 }
 
 .header-cell {
@@ -758,8 +756,8 @@ tr {
 }
 
 .virtual-scroller {
-  flex: 1;
-  overflow: auto !important;             /* 【修复】允许横向和纵向滚动 */
+  flex: 1;                            /* 【关键】占据剩余空间 */
+  overflow: auto !important;          /* 【关键】DynamicScroller自己处理所有滚动 */
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
