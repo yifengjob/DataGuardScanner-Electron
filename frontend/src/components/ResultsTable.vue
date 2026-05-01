@@ -170,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import {ref, computed, onMounted, onUnmounted, watch} from 'vue'
+import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue'
 import {useAppStore} from '../stores/app'
 import {storeToRefs} from 'pinia'
 import {formatFileSize, formatTime} from '../utils/format'
@@ -221,10 +221,18 @@ const RESIZE_THRESHOLD = 50           // 宽度变化阈值（像素）
 // 监听窗口 resize
 let resizeTimer: number | null = null
 let scrollSyncSetup = false  // 【修复】标记是否已设置滚动同步
+let containerQuerySetup = false  // 【修复】防止重复设置容器查询
+let resizeHandler: (() => void) | null = null  // 【修复】保存 resize 处理器引用
 
 // 【安全】组件卸载时清理
 onUnmounted(() => {
   if (resizeTimer) clearTimeout(resizeTimer)
+  
+  // 清理 resize 监听器
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler)
+    resizeHandler = null
+  }
   
   // 清理 ResizeObserver
   const cleanup = (window as any).__resultsTableCleanup
@@ -235,16 +243,16 @@ onUnmounted(() => {
 })
 
 onMounted(() => {
-  const handleResize = () => {
+  resizeHandler = () => {
     isResizing.value = true
     if (resizeTimer) clearTimeout(resizeTimer)
     resizeTimer = window.setTimeout(() => {
       isResizing.value = false
-    }, 300)  // ← 增加到 300ms，给用户更多时间完成 resize
+    }, 300)
   }
 
   // 使用 passive listener 提升性能
-  window.addEventListener('resize', handleResize, {passive: true})
+  window.addEventListener('resize', resizeHandler, {passive: true})
 })
 
 // 加载敏感类型定义
@@ -342,13 +350,14 @@ const filteredResults = computed(() => {
 // 【修复】监听 filteredResults 变化，在数据加载后设置滚动同步
 watch(
     () => filteredResults.value.length,
-    (newLength) => {
-      if (newLength > 0 && !scrollSyncSetup) {
+    async (newLength) => {
+      if (newLength > 0 && !containerQuerySetup) {
+        containerQuerySetup = true
         // 等待 DOM 更新
-        setTimeout(() => {
-          setupScrollSync()
-          setupContainerQuery()  // 【新增】设置容器查询
-        }, 1000)
+        await nextTick()
+        await nextTick()  // 确保虚拟滚动完全渲染
+        setupScrollSync()
+        setupContainerQuery()
       }
     },
     {immediate: true}
@@ -455,7 +464,10 @@ const handleScroll = (event: Event) => {
     // 【关键】使用 transform 代替 scrollLeft
     headerRef.value.style.transform = `translateX(${-scrollLeft}px)`
   } else {
-    console.error('handleScroll: ref 未绑定', {headerRef: headerRef.value, target: event.target})
+    // 只在开发环境输出调试信息
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
+      console.error('handleScroll: ref 未绑定', {headerRef: headerRef.value, target: event.target})
+    }
   }
 }
 
