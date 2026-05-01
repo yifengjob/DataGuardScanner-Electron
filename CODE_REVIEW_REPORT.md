@@ -652,7 +652,10 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
    - 根据扫描速度动态调整节流间隔 (200ms-1000ms)
    - 快速扫描时降低更新频率，减少 UI 压力
    - 慢速扫描时提高更新频率，提升用户体验
-4. **C2** - ⏸️ 待处理 - 错误提示优化（用户体验）
+4. **C2** - ✅ **已完成** - 错误提示优化（commit baf1d5e）
+   - 完整的错误分类系统（8种类型）
+   - 友好的错误提示和建议
+   - 应用于 ResultsTable、SettingsModal、PreviewModal
 5. **D3** - ⏸️ 待处理 - 错误处理统一化（代码质量）
 
 ### 🟢 低优先级（可选改进）
@@ -684,7 +687,7 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
 ### 待改进领域 🎯
 1. **大数据量性能**: ✅ 已解决 - 表格虚拟滚动完美实现
 2. **内存管理**: ✅ 已解决 - Worker 内存动态限制完成
-3. **用户体验**: ⏸️ 部分完成 - 错误提示、加载状态待优化
+3. **用户体验**: ✅ 已完成 - 错误提示优化、自适应节流完成
 4. **无障碍**: ⏸️ 待处理 - WCAG 合规性
 5. **代码一致性**: ⏸️ 待处理 - 错误处理策略
 
@@ -718,7 +721,9 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
 - [x] ✅ 修复 B3 - 自适应节流 **（已完成 - scanner-helpers.ts）**
   - 根据扫描速度动态调整 (200ms-1000ms)
   - 快速时降低频率，慢速时提高频率
-- [ ] 修复 C2 - 错误提示优化
+- [x] ✅ 修复 C2 - 错误提示优化 **（已完成 - commit baf1d5e）**
+  - 8种错误分类 + 友好提示
+  - 应用于多个组件
 - [ ] 修复 D3 - 统一错误处理
 
 ### 第三阶段（按需）
