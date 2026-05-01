@@ -119,8 +119,6 @@ const handleBrowse = async () => {
     const extensions = selectedFormat.value === 'xlsx' ? ['xlsx'] :
         selectedFormat.value === 'csv' ? ['csv'] : ['json']
 
-    console.log('打开保存对话框，格式:', selectedFormat.value, '扩展名:', extensions)
-
     const path = await showSaveDialog({
       filters: [{
         name: selectedFormat.value.toUpperCase(),
@@ -128,12 +126,8 @@ const handleBrowse = async () => {
       }]
     })
 
-    console.log('用户选择的路径:', path)
-
     if (path) {
       savePath.value = path
-    } else {
-      console.log('用户取消了选择')
     }
   } catch (error) {
     console.error('打开保存对话框失败:', error)

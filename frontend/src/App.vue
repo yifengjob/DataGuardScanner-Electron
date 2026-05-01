@@ -180,10 +180,21 @@
 </template>
 
 <script setup lang="ts">
-import {ref, onMounted} from 'vue'
+import {onMounted, ref} from 'vue'
 import {useAppStore} from './stores/app'
 import {storeToRefs} from 'pinia'
-import {showMessage} from './utils/electron-api'
+import {
+  cancelScan,
+  getRecommendedConcurrency,
+  loadConfig,
+  onScanError,
+  onScanFinished,
+  onScanLog,
+  onScanProgress,
+  onScanResult,
+  showMessage,
+  startScan
+} from './utils/electron-api'
 import DirectoryTree from './components/DirectoryTree.vue'
 import FileTypeFilter from './components/FileTypeFilter.vue'
 import ResultsTable from './components/ResultsTable.vue'
@@ -193,21 +204,10 @@ import LogsModal from './components/LogsModal.vue'
 import AboutModal from './components/AboutModal.vue'
 import ExportModal from './components/ExportModal.vue'
 import EnvironmentCheck from './components/EnvironmentCheck.vue'
-import {
-  startScan,
-  cancelScan,
-  loadConfig,
-  getRecommendedConcurrency,
-  onScanProgress,
-  onScanResult,
-  onScanFinished,
-  onScanError,
-  onScanLog
-} from './utils/electron-api'
-import {applyTheme, loadTheme, watchSystemTheme} from './utils/theme'
 import type {ThemeMode} from './utils/theme'
+import {applyTheme, loadTheme, watchSystemTheme} from './utils/theme'
 import {formatNumber} from './utils/format'
-import {classifyError} from './utils/error-handler'  // 【C2优化】错误分类工具
+import {classifyError} from './utils/error-handler' // 【C2优化】错误分类工具
 
 // 不再需要导入 SVG 文件
 // 插件会自动将 src/assets 下的 SVG 转换为 sprite
@@ -247,9 +247,7 @@ onMounted(async () => {
 
     // 如果配置中的并发数为 0，则使用系统推荐的值
     if (config.value.scanConcurrency === 0) {
-      const recommended = await getRecommendedConcurrency()
-      config.value.scanConcurrency = recommended
-      console.log(`[配置] 使用系统推荐的并发数: ${recommended}`)
+      config.value.scanConcurrency = await getRecommendedConcurrency()
     }
   } catch (error) {
     console.error('加载配置失败:', error)
@@ -284,7 +282,6 @@ onMounted(async () => {
   })
 
   await onScanFinished(() => {
-    console.log('扫描完成')
     isScanning.value = false
     isCancelling.value = false // 【新增】重置取消状态
     stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
@@ -393,11 +390,9 @@ const handleOpenDevTools = () => {
 
 // 预览文件
 const handlePreview = (filePath: string) => {
-  console.log('handlePreview called:', filePath, 'timestamp:', Date.now())
   // 同时设置，让 watch 立即触发
   previewFilePath.value = filePath
   showPreview.value = true
-  console.log('showPreview set to true')
 }
 
 // 主题切换

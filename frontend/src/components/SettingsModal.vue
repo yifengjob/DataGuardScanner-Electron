@@ -181,7 +181,6 @@ onMounted(async () => {
     if (config.value.scanConcurrency === 0) {
       const recommended = await getRecommendedConcurrency()
       config.value.scanConcurrency = recommended
-      console.log(`[设置] 使用系统推荐的并发数: ${recommended}`)
     }
   } catch (error) {
     console.error('获取敏感规则失败:', error)

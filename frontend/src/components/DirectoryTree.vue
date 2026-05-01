@@ -86,7 +86,6 @@ onMounted(async () => {
           }
         } catch (error) {
           // 驱动器不存在或无权限，跳过
-          console.debug(`驱动器 ${drive} 不可访问`)
         }
         return null
       })
