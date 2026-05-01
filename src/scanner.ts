@@ -113,8 +113,9 @@ export async function startScan(
     
     // 【新增】等待 taskQueue 填充后计算平均文件大小
     // 这里先使用默认值，在 Walker 完成后会重新调整
-    let dynamicOldGenMB = Math.floor(WORKER_MAX_OLD_GENERATION_MB * 0.8);  // 默认 80%
-    let dynamicYoungGenMB = Math.floor(WORKER_MAX_YOUNG_GENERATION_MB * 0.8);
+    // 【修复】降低初始值为 70%，预留 30% 给 V8 内部开销和内存碎片
+    let dynamicOldGenMB = Math.floor(WORKER_MAX_OLD_GENERATION_MB * 0.7);  // 768 * 0.7 = 537MB
+    let dynamicYoungGenMB = Math.floor(WORKER_MAX_YOUNG_GENERATION_MB * 0.7); // 96 * 0.7 = 67MB
     
     // 【新增】计算智能内存配置的函数
     function calculateSmartMemoryLimits(avgFileSizeMB: number, workerCount: number): { oldGen: number; youngGen: number } {
