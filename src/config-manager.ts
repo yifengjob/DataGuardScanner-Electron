@@ -35,9 +35,8 @@ function getBaseSystemDirs(): string[] {
       // 恢复和性能日志
       'C:\\Recovery', 'C:\\PerfLogs',
       // 系统驱动和引导
-      'C:\\Boot', 'C:\\EFI',
-      // 页面文件和休眠文件（通常在这些位置）
-      'C:\\pagefile.sys', 'C:\\hiberfil.sys', 'C:\\swapfile.sys'
+      'C:\\Boot', 'C:\\EFI'
+      // 注意：pagefile.sys, hiberfil.sys, swapfile.sys 是文件不是目录，已移除
     ];
   } else if (process.platform === 'darwin') {
     systemDirs = [
@@ -48,7 +47,8 @@ function getBaseSystemDirs(): string[] {
       // 用户库（可选，因为可能包含用户数据）
       // '/Users/*/Library', // 不默认添加，避免误伤
       // 虚拟文件系统
-      '/dev', '/Volumes'
+      '/dev'
+      // 注意：/Volumes 是外部磁盘挂载点，不应该忽略
     ];
   } else if (process.platform === 'linux') {
     systemDirs = [
@@ -64,8 +64,7 @@ function getBaseSystemDirs(): string[] {
       '/bin', '/sbin', '/lib', '/lib64', '/usr',
       // 引导和内核
       '/boot', '/initrd', '/vmlinuz',
-      // 挂载点
-      '/mnt', '/media', '/cdrom',
+      // 注意：/mnt, /media, /cdrom 是挂载点，不应该忽略
       // 可选应用和服务
       '/opt', '/srv',
       // Snap 和 Flatpak 容器

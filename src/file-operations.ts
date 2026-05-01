@@ -32,7 +32,7 @@ export function isPathAllowed(filePath: string): boolean {
   }
   
   // 【A2 优化】安全检查：拒绝相对路径
-  if (path.isAbsolute(filePath) === false) {
+  if (!path.isAbsolute(filePath)) {
     console.warn(`拒绝访问：相对路径不被允许: ${filePath}`);
     return false;
   }
