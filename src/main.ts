@@ -78,16 +78,22 @@ function setupLogFile() {
   const originalWarn = console.warn;
   
   console.log = function(...args) {
-    // 【修复】使用本地时间（北京时间）而不是 UTC
-    const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    // 【修复】使用本地时间（北京时间），24小时制
+    const timestamp = new Date().toLocaleString('zh-CN', { 
+      timeZone: 'Asia/Shanghai',
+      hour12: false  // 24小时制
+    });
     const message = `[${timestamp}] [INFO] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
     logStream.write(message);
     originalLog.apply(console, args);
   };
   
   console.error = function(...args) {
-    // 【修复】使用本地时间（北京时间）而不是 UTC
-    const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    // 【修复】使用本地时间（北京时间），24小时制
+    const timestamp = new Date().toLocaleString('zh-CN', { 
+      timeZone: 'Asia/Shanghai',
+      hour12: false  // 24小时制
+    });
     const message = `[${timestamp}] [ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
     logStream.write(message);
     originalError.apply(console, args);
@@ -95,8 +101,11 @@ function setupLogFile() {
   
   console.warn = function(...args) {
     // 注意：具体的警告过滤已由 log-utils 统一处理
-    // 【修复】使用本地时间（北京时间）而不是 UTC
-    const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    // 【修复】使用本地时间（北京时间），24小时制
+    const timestamp = new Date().toLocaleString('zh-CN', { 
+      timeZone: 'Asia/Shanghai',
+      hour12: false  // 24小时制
+    });
     const message = `[${timestamp}] [WARN] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
     logStream.write(message);
     originalWarn.apply(console, args);
@@ -120,8 +129,11 @@ process.on('uncaughtException', (error) => {
 // 【新增】监听进程退出，帮助诊断闪退原因
 // 如果闪退时看不到这条日志，说明进程被外部强制终止（如杀毒软件、段错误）
 process.on('exit', (code) => {
-  // 【修复】使用本地时间（北京时间）
-  const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  // 【修复】使用本地时间（北京时间），24小时制
+  const timestamp = new Date().toLocaleString('zh-CN', { 
+    timeZone: 'Asia/Shanghai',
+    hour12: false  // 24小时制
+  });
   console.log(`[进程退出] 代码: ${code}, 时间: ${timestamp}`);
 });
 
