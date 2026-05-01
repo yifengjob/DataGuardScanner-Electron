@@ -543,6 +543,8 @@ th {
 th.path-col {
   position: sticky;                  /* 固定列 */
   left: 3.5em;                       /* 在复选框列右侧 (56px) */
+  min-width: 12em;                   /* 192px - 最小宽度 */
+  max-width: 30em;                   /* 480px - 最大宽度 */
   z-index: 9;                        /* 略低于复选框列 */
   background-color: var(--bg-hover); /* 需要背景色 */
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);  /* 右侧阴影 */
@@ -571,10 +573,6 @@ th.checkbox-col {
   z-index: 10;                       /* 高于普通列 */
   background-color: var(--bg-hover); /* 需要背景色，否则透明 */
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);  /* 右侧阴影 */
-}
-
-th.checkbox-col:hover {
-  background-color: var(--bg-selected);
 }
 
 /* 操作列固定宽度 */
@@ -657,8 +655,9 @@ tr {
 }
 
 .table-header-fixed {
-  width: 100%;
-  table-layout: fixed;
+  width: auto;                         /* 【修复】允许超出容器 */
+  min-width: 100%;                     /* 至少占满容器 */
+  table-layout: auto;                  /* 【关键】与内容区保持一致 */
   flex-shrink: 0;
   background-color: var(--bg-color);
   z-index: 10;
@@ -666,16 +665,17 @@ tr {
 
 .virtual-scroller {
   flex: 1;
-  overflow-y: auto !important;
+  overflow: auto !important;           /* 【修复】允许横向和纵向滚动 */
   width: 100%;
 }
 
 /* 【修复】虚拟滚动中的每行都是独立的table，需要固定布局 */
 .virtual-row-table {
   display: table;
-  table-layout: fixed;               /* 关键：固定表格布局 */
-  width: 100%;                       /* 占满容器宽度 */
-  border-collapse: collapse;         /* 合并边框 */
+  table-layout: auto;                  /* 【关键】自动布局，根据内容调整列宽 */
+  width: auto;                         /* 【关键】不强制100%，允许超出 */
+  min-width: 100%;                     /* 至少占满容器 */
+  border-collapse: collapse;           /* 合并边框 */
 }
 
 .virtual-row {
@@ -690,8 +690,8 @@ tr:hover {
 .path-cell {
   position: sticky;                  /* 固定列 */
   left: 3.5em;                       /* 在复选框列右侧 (56px) */
-  max-width: 25em;                   /* 400px - 限制最大宽度 */
-  min-width: 10em;                   /* 160px - 最小宽度 */
+  min-width: 12em;                   /* 192px - 最小宽度 */
+  max-width: 30em;                   /* 480px - 最大宽度 */
   z-index: 9;                        /* 略低于复选框列 */
   background-color: var(--bg-color); /* 需要背景色 */
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);  /* 右侧阴影 */
@@ -706,6 +706,7 @@ tr:hover {
   overflow: visible;                 /* 数字列完整显示 */
   text-overflow: clip;               /* 不显示省略号 */
   white-space: nowrap;
+  min-width: 5em;                    /* 80px - 确保数字有足够空间 */
 }
 
 .number-header {
