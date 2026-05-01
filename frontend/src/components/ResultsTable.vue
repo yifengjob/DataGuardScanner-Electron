@@ -186,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import {ref, computed, onMounted, watch} from 'vue'
+import {ref, computed, onMounted, watch, nextTick} from 'vue'
 import {useAppStore} from '../stores/app'
 import {storeToRefs} from 'pinia'
 import {formatFileSize, formatTime} from '../utils/format'
@@ -215,9 +215,9 @@ const isResizing = ref(false)  // ← 新增：标记是否正在 resize
 let resizeTimer: number | null = null
 const headerContainer = ref<HTMLDivElement | null>(null)
 const bodyContainer = ref<HTMLDivElement | null>(null)
-const virtualScroller = ref<any>(null)  // 【修复】DynamicScroller 引用
+const virtualScroller = ref<any>(null)
 
-onMounted(() => {
+onMounted(async () => {
   const handleResize = () => {
     isResizing.value = true
     if (resizeTimer) clearTimeout(resizeTimer)
@@ -228,10 +228,16 @@ onMounted(() => {
   
   window.addEventListener('resize', handleResize, { passive: true })
   
-  // 【修复】等待 DOM 渲染后设置滚动同步
+  // 【修复】等待下一个 tick，确保 ref 已绑定
+  await nextTick()
+  
+  // 再等待一小段时间确保 DynamicScroller 完全渲染
   setTimeout(() => {
     if (!headerContainer.value || !bodyContainer.value) {
-      console.error('容器未找到')
+      console.error('容器未找到', {
+        headerContainer: headerContainer.value,
+        bodyContainer: bodyContainer.value
+      })
       return
     }
     
