@@ -234,6 +234,12 @@ const sensitiveTypes = computed(() => {
   )
 })
 
+// 【优化】路径列宽度配置常量
+const PATH_COL_MIN_WIDTH = '12em'
+const PATH_COL_IDEAL_WIDTH = '30vw'
+const PATH_COL_MAX_WIDTH = '70em'
+const PATH_COL_CLAMP = `clamp(${PATH_COL_MIN_WIDTH}, ${PATH_COL_IDEAL_WIDTH}, ${PATH_COL_MAX_WIDTH})`
+
 // 【修复】动态计算 Grid 列模板
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
@@ -243,7 +249,7 @@ const gridStyle = computed(() => {
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
-      minmax(12em, 50em)              /* path - 自适应（最小12em，最大50em） */
+      minmax(${PATH_COL_MIN_WIDTH}, ${PATH_COL_CLAMP})  /* path - 自适应（使用clamp） */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
@@ -516,6 +522,12 @@ const handleBatchDelete = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  
+  /* 【优化】路径列宽度配置（CSS 自定义属性） */
+  --path-col-min-width: 12em;
+  --path-col-ideal-width: 30vw;
+  --path-col-max-width: 70em;
+  --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
 }
 
 .table-header {
@@ -670,8 +682,8 @@ const handleBatchDelete = async () => {
 }
 
 .path-col {
-  min-width: 12em;
-  max-width: 50em;
+  min-width: var(--path-col-min-width);
+  max-width: var(--path-col-clamp);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -682,8 +694,8 @@ const handleBatchDelete = async () => {
 }
 
 .path-cell {
-  min-width: 12em;
-  max-width: 50em;
+  min-width: var(--path-col-min-width);
+  max-width: var(--path-col-clamp);
   /* 【简化】只有文件名列显示省略号 */
   overflow: hidden;
   text-overflow: ellipsis;
