@@ -116,7 +116,8 @@
             ]"
             :data-index="index"
           >
-            <tr class="virtual-row">
+            <table class="virtual-row-table">
+              <tr class="virtual-row">
           <td class="checkbox-col">
             <input 
               type="checkbox" 
@@ -157,6 +158,7 @@
             </div>
           </td>
         </tr>
+            </table>
           </DynamicScrollerItem>
         </DynamicScroller>
       </div>
@@ -661,6 +663,14 @@ tr {
   flex: 1;
   overflow-y: auto !important;
   width: 100%;
+}
+
+/* 【修复】虚拟滚动中的每行都是独立的table，需要固定布局 */
+.virtual-row-table {
+  display: table;
+  table-layout: fixed;               /* 关键：固定表格布局 */
+  width: 100%;                       /* 占满容器宽度 */
+  border-collapse: collapse;         /* 合并边框 */
 }
 
 .virtual-row {
