@@ -111,6 +111,7 @@
         <!-- 虚拟滚动内容 - 支持动态行高 -->
         <div class="table-body-container" ref="bodyContainer">
           <DynamicScroller
+            ref="virtualScroller"
             class="virtual-scroller"
             :items="filteredResults"
             :min-item-size="40"
@@ -128,7 +129,8 @@
               ]"
               :data-index="index"
             >
-              <div class="virtual-row" :style="gridStyle">
+              <div class="virtual-row-wrapper">
+                <div class="virtual-row" :style="gridStyle">
                 <div class="cell checkbox-col">
                   <input 
                     type="checkbox" 
@@ -168,6 +170,7 @@
                   </button>
                   </div>
                 </div>
+              </div>
               </div>
             </DynamicScrollerItem>
           </DynamicScroller>
@@ -212,6 +215,7 @@ const isResizing = ref(false)  // ← 新增：标记是否正在 resize
 let resizeTimer: number | null = null
 const headerContainer = ref<HTMLDivElement | null>(null)
 const bodyContainer = ref<HTMLDivElement | null>(null)
+const virtualScroller = ref<any>(null)  // 【修复】DynamicScroller 引用
 
 onMounted(() => {
   const handleResize = () => {
@@ -219,32 +223,38 @@ onMounted(() => {
     if (resizeTimer) clearTimeout(resizeTimer)
     resizeTimer = window.setTimeout(() => {
       isResizing.value = false
-    }, 300)  // ← 增加到 300ms，给用户更多时间完成 resize
+    }, 300)
   }
   
-  // 使用 passive listener 提升性能
   window.addEventListener('resize', handleResize, { passive: true })
   
-  // 【修复】同步表头和内容的横向滚动
-  const headerScroll = () => {
-    if (headerContainer.value && bodyContainer.value) {
-      bodyContainer.value.scrollLeft = headerContainer.value.scrollLeft
+  // 【修复】等待 DOM 渲染后获取实际的滚动容器
+  setTimeout(() => {
+    if (!headerContainer.value || !bodyContainer.value) return
+    
+    // 找到 DynamicScroller 内部的滚动容器
+    const scrollerElement = bodyContainer.value.querySelector('.vue-recycle-scroller')
+    if (!scrollerElement) {
+      console.warn('未找到 DynamicScroller 滚动容器')
+      return
     }
-  }
-  
-  const bodyScroll = () => {
-    if (headerContainer.value && bodyContainer.value) {
-      headerContainer.value.scrollLeft = bodyContainer.value.scrollLeft
+    
+    console.log('找到滚动容器:', scrollerElement)
+    
+    // 同步表头和内容滚动
+    const headerScroll = () => {
+      scrollerElement.scrollLeft = headerContainer.value!.scrollLeft
     }
-  }
-  
-  if (headerContainer.value) {
+    
+    const contentScroll = () => {
+      headerContainer.value!.scrollLeft = scrollerElement.scrollLeft
+    }
+    
     headerContainer.value.addEventListener('scroll', headerScroll)
-  }
-  
-  if (bodyContainer.value) {
-    bodyContainer.value.addEventListener('scroll', bodyScroll)
-  }
+    scrollerElement.addEventListener('scroll', contentScroll)
+    
+    console.log('滚动同步已设置')
+  }, 100)
 })
 
 // 加载敏感类型定义
@@ -774,6 +784,11 @@ tr {
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
+.virtual-row-wrapper {
+  width: max-content;  /* 【关键】让容器根据内容自动扩展 */
+  min-width: 100%;     /* 至少占满视口 */
+}
+
 .virtual-row {
   display: grid;
   /* 【关键】根据实际敏感类型数量调整，这里假设最多5个 */
