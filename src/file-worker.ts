@@ -76,11 +76,6 @@ parentPort?.on('message', async (task: WorkerTask) => {
   
   // 【优化】设置超时保护（使用配置常量）
   let timeoutId: NodeJS.Timeout | null = null;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error('处理超时'));
-    }, WORKER_DEFAULT_TIMEOUT);
-  });
   
   try {
     // 【优化】获取文件统计信息（添加错误处理）
@@ -97,6 +92,25 @@ parentPort?.on('message', async (task: WorkerTask) => {
       } as WorkerResult);
       return;
     }
+    
+    // 【新增】根据文件大小动态设置超时时间
+    const sizeMB = stat.size / (1024 * 1024);
+    let timeoutMs = WORKER_DEFAULT_TIMEOUT;
+    if (sizeMB < 1) {
+      timeoutMs = 30000;  // 小文件 30秒
+    } else if (sizeMB < 10) {
+      timeoutMs = 60000;  // 中等文件 60秒
+    } else if (sizeMB < 50) {
+      timeoutMs = 120000; // 大文件 120秒
+    } else {
+      timeoutMs = 180000; // 超大文件 180秒
+    }
+    
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`处理超时 (${Math.floor(timeoutMs / 1000)}秒)`));
+      }, timeoutMs);
+    });
     
     // 提取文本（CPU 密集型操作）
     const extractPromise = extractTextFromFile(filePath);
@@ -152,11 +166,20 @@ parentPort?.on('message', async (task: WorkerTask) => {
     // 【优化】详细记录错误信息，但不让 Worker 崩溃
     console.error(`[Worker ${process.pid}] 任务 ${taskId} 失败:`, error.message);
     
+    // 【新增】检测是否是 OOM 错误
+    const isOOM = error.message.includes('heap out of memory') || 
+                  error.message.includes('Allocation failed');
+    
+    if (isOOM) {
+      console.error(`[Worker ${process.pid}] ⚠️ 检测到内存溢出！文件可能过大或格式异常: ${filePath}`);
+      console.error(`[Worker ${process.pid}] 建议: 跳过此文件或增加 Worker 内存限制`);
+    }
+    
     // 返回错误结果给主进程，而不是抛出异常
     parentPort?.postMessage({
       taskId,
       filePath,
-      error: error.message || '未知错误'
+      error: isOOM ? `内存不足，文件可能过大或格式异常` : (error.message || '未知错误')
     } as WorkerResult);
   }
 });
