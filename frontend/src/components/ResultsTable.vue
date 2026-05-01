@@ -764,7 +764,9 @@ tr {
 }
 
 .virtual-scroller {
-  flex: 1;                            /* 【关键】占据剩余空间 */
+  width: max-content;                 /* 【关键】根据内容自动扩展 */
+  min-width: 100%;                    /* 至少占满容器 */
+  height: 100%;                       /* 占满高度 */
   overflow: auto !important;          /* 【关键】DynamicScroller自己处理所有滚动 */
 }
 
