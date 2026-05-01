@@ -20,84 +20,92 @@
     </div>
 
     <div class="table-content" :class="{ resizing: isResizing }">
-      <table v-if="filteredResults.length > 0">
-        <thead>
-        <tr>
-          <th class="checkbox-col">
-            <input 
-              type="checkbox" 
-              ref="selectAllCheckbox"
-              :checked="isAllSelected"
-              @change="toggleSelectAll"
-              title="全选/取消全选"
-            />
-          </th>
-          <th 
-            class="sortable path-col"
-            :class="{ 'sorted-asc': sortField === 'file_path' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_path' && sortOrder === 'desc' }"
-            @click="sortBy('file_path')"
-            title="点击排序"
-          >
-            文件名
-            <span v-if="sortField === 'file_path'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </th>
-          <th 
-            class="sortable number-header" 
-            :class="{ 'sorted-asc': sortField === 'file_size' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_size' && sortOrder === 'desc' }"
-            @click="sortBy('file_size')"
-            title="点击排序"
-          >
-            文件大小
-            <span v-if="sortField === 'file_size'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </th>
-          <th 
-            class="sortable" 
-            :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
-            @click="sortBy('modified_time')"
-            title="点击排序"
-          >
-            修改时间
-            <span v-if="sortField === 'modified_time'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </th>
-          <th 
-            v-for="type in sensitiveTypes" 
-            :key="type.id"
-            class="sortable number-header"
-            :class="{ 'sorted-asc': sortField === `counts.${type.id}` && sortOrder === 'asc', 'sorted-desc': sortField === `counts.${type.id}` && sortOrder === 'desc' }"
-            @click="sortBy(`counts.${type.id}`)"
-            title="点击排序"
-          >
-            {{ type.name }}
-            <span v-if="sortField === `counts.${type.id}`" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </th>
-          <th 
-            class="sortable number-header"
-            :class="{ 'sorted-asc': sortField === 'total' && sortOrder === 'asc', 'sorted-desc': sortField === 'total' && sortOrder === 'desc' }"
-            @click="sortBy('total')"
-            title="点击排序"
-          >
-            总计
-            <span v-if="sortField === 'total'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </th>
-          <th class="actions-col">操作</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr 
-          v-for="item in filteredResults" 
-          :key="item.filePath"
-          class="virtual-row"
+      <!-- 【虚拟滚动优化】使用 vue-virtual-scroller -->
+      <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
+        <!-- 固定表头 -->
+        <table class="table-header-fixed">
+          <thead>
+          <tr>
+            <th class="checkbox-col">
+              <input 
+                type="checkbox" 
+                ref="selectAllCheckbox"
+                :checked="isAllSelected"
+                @change="toggleSelectAll"
+                title="全选/取消全选"
+              />
+            </th>
+            <th 
+              class="sortable path-col"
+              :class="{ 'sorted-asc': sortField === 'file_path' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_path' && sortOrder === 'desc' }"
+              @click="sortBy('file_path')"
+              title="点击排序"
+            >
+              文件名
+              <span v-if="sortField === 'file_path'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
+            <th 
+              class="sortable number-header" 
+              :class="{ 'sorted-asc': sortField === 'file_size' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_size' && sortOrder === 'desc' }"
+              @click="sortBy('file_size')"
+              title="点击排序"
+            >
+              文件大小
+              <span v-if="sortField === 'file_size'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
+            <th 
+              class="sortable" 
+              :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
+              @click="sortBy('modified_time')"
+              title="点击排序"
+            >
+              修改时间
+              <span v-if="sortField === 'modified_time'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
+            <th 
+              v-for="type in sensitiveTypes" 
+              :key="type.id"
+              class="sortable number-header"
+              :class="{ 'sorted-asc': sortField === `counts.${type.id}` && sortOrder === 'asc', 'sorted-desc': sortField === `counts.${type.id}` && sortOrder === 'desc' }"
+              @click="sortBy(`counts.${type.id}`)"
+              title="点击排序"
+            >
+              {{ type.name }}
+              <span v-if="sortField === `counts.${type.id}`" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
+            <th 
+              class="sortable number-header"
+              :class="{ 'sorted-asc': sortField === 'total' && sortOrder === 'asc', 'sorted-desc': sortField === 'total' && sortOrder === 'desc' }"
+              @click="sortBy('total')"
+              title="点击排序"
+            >
+              总计
+              <span v-if="sortField === 'total'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
+            <th class="actions-col">操作</th>
+          </tr>
+          </thead>
+        </table>
+        
+        <!-- 虚拟滚动内容 -->
+        <RecycleScroller
+          class="virtual-scroller"
+          :items="filteredResults"
+          :item-size="40"
+          key-field="filePath"
+          v-slot="{ item }"
         >
+          <tr class="virtual-row">
           <td class="checkbox-col">
             <input 
               type="checkbox" 
@@ -138,8 +146,8 @@
             </div>
           </td>
         </tr>
-        </tbody>
-      </table>
+        </RecycleScroller>
+      </div>
 
       <div v-else class="empty-state">
         <p>{{ appStore.isScanning ? '扫描中...' : '暂无扫描结果' }}</p>
@@ -155,7 +163,10 @@ import {useAppStore} from '../stores/app'
 import {storeToRefs} from 'pinia'
 import {formatFileSize, formatTime} from '../utils/format'
 import {openFile, openFileLocation, deleteFile, getSensitiveRules} from '../utils/electron-api'
-import {ask} from "@tauri-apps/plugin-dialog";
+import {ask} from "@tauri-apps/plugin-dialog"
+// 【虚拟滚动优化】导入 vue-virtual-scroller
+import { RecycleScroller } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
 const appStore = useAppStore()
 const {scanResults, config} = storeToRefs(appStore)
@@ -619,10 +630,30 @@ tr {
   /* transition: background-color 0.15s ease; */  /* ← 移除 transition 提升性能 */
 }
 
-/* 【C4 优化】虚拟滚动优化 - content-visibility */
+/* 【C4 优化】虚拟滚动优化 - vue-virtual-scroller */
+.virtual-table-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.table-header-fixed {
+  width: 100%;
+  table-layout: fixed;
+  flex-shrink: 0;
+  background-color: var(--bg-color);
+  z-index: 10;
+}
+
+.virtual-scroller {
+  flex: 1;
+  overflow-y: auto !important;
+  width: 100%;
+}
+
 .virtual-row {
-  content-visibility: auto;           /* 启用内容可见性优化 */
-  contain-intrinsic-size: 0 2.5em;    /* 预估行高 40px，浏览器据此计算滚动条 */
+  display: table-row;
+  height: 40px;  /* 与 item-size 一致 */
 }
 
 tr:hover {
