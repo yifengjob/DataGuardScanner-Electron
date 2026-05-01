@@ -27,6 +27,18 @@ console.warn = function(...args: any[]) {
   originalWarn.apply(console, args);
 };
 
+// 【新增】拦截 process.stderr.write，彻底抑制 PDF 字体警告
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+(process.stderr as any).write = function(chunk: any, ...args: any[]) {
+  if (typeof chunk === 'string') {
+    const shouldSuppress = SUPPRESS_PATTERNS.some(pattern => chunk.includes(pattern));
+    if (shouldSuppress) {
+      return true; // 抑制输出
+    }
+  }
+  return originalStderrWrite(chunk, ...args);
+};
+
 /**
  * 添加额外的抑制模式
  * @param patterns 要抑制的警告模式数组
