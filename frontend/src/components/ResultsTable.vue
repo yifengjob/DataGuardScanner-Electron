@@ -252,7 +252,6 @@ const gridStyle = computed(() => {
 })
 
 const filteredResults = computed(() => {
-  console.log('scanResults.value.length:', scanResults.value.length)
   let results = scanResults.value
 
   // 搜索过滤
@@ -311,9 +310,7 @@ const filteredResults = computed(() => {
 watch(
   () => filteredResults.value.length,
   (newLength) => {
-    console.log('filteredResults.length 变化:', newLength)
     if (newLength > 0 && !scrollSyncSetup) {
-      console.log('准备设置滚动同步...')
       // 等待 DOM 更新
       setTimeout(() => {
         setupScrollSync()
@@ -328,25 +325,16 @@ const setupScrollSync = () => {
   if (scrollSyncSetup) return
   
   if (!scrollerRef.value || !headerRef.value) {
-    console.error('ref 未绑定', { scrollerRef: scrollerRef.value, headerRef: headerRef.value })
     return
   }
   
   // 获取 DynamicScroller 内部的滚动容器
   const scrollerElement = scrollerRef.value.$el
   if (!scrollerElement) {
-    console.error('scrollerElement 未找到')
     return
   }
   
-  console.log('=== DynamicScroller DOM 结构 ===')
-  console.log('computedStyle overflow:', window.getComputedStyle(scrollerElement).overflow)
-  console.log('offsetWidth:', scrollerElement.offsetWidth)
-  console.log('scrollWidth:', scrollerElement.scrollWidth)
-  console.log('clientWidth:', scrollerElement.clientWidth)
-  
   scrollSyncSetup = true
-  console.log('滚动同步已设置')
 }
 
 // 【关键】处理滚动事件，同步表头
