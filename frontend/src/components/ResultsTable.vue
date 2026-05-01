@@ -56,7 +56,7 @@
             </span>
           </div>
           <div 
-            class="cell header-cell sortable"
+            class="cell header-cell sortable number-header"
             :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
             @click="sortBy('modified_time')"
             title="点击排序"
@@ -90,7 +90,7 @@
               {{ sortOrder === 'asc' ? '↑' : '↓' }}
             </span>
           </div>
-          <div class="cell actions-col header-cell">操作</div>
+          <div class="cell actions-col header-cell actions-header">操作</div>
         </div>
         
         <!-- 虚拟滚动内容 - 支持动态行高 -->
@@ -828,6 +828,10 @@ tr {
 
 .number-header {
   text-align: right;
+}
+
+.actions-header {
+  text-align: center;
 }
 
 .total-cell {
