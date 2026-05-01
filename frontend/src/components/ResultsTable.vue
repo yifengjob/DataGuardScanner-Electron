@@ -106,9 +106,9 @@
             />
           </td>
           <td class="path-cell" :title="item.filePath">{{ getFileName(item.filePath) }}</td>
-          <td class="size-cell">{{ formatFileSize(item.fileSize) }}</td>
-          <td>{{ formatTime(item.modifiedTime) }}</td>
-          <td v-for="type in sensitiveTypes" :key="type.id" class="number-cell"
+          <td class="size-cell mono-font">{{ formatFileSize(item.fileSize) }}</td>
+          <td class="mono-font">{{ formatTime(item.modifiedTime) }}</td>
+          <td v-for="type in sensitiveTypes" :key="type.id" class="number-cell mono-font"
               :class="{ 'highlight-count': (item.counts[type.id] || 0) > 0 }">
             {{ (item.counts[type.id] || 0) > 0 ? Number(item.counts[type.id]).toLocaleString() : '-' }}
           </td>
@@ -643,8 +643,6 @@ tr:hover {
   text-align: right;
   overflow: visible;                 /* 数字列完整显示 */
   text-overflow: clip;               /* 不显示省略号 */
-  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;  /* 【UI优化】等宽字体 */
-  font-variant-numeric: tabular-nums; /* 【UI优化】表格数字对齐 */
 }
 
 .number-header {

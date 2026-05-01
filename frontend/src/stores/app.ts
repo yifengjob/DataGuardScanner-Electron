@@ -51,16 +51,35 @@ export const useAppStore = defineStore('app', () => {
   )
   
   // 【UI优化】计算扫描耗时
-  const scanElapsedTime = computed(() => {
-    if (!scanStartTime.value) return '00:00:00'
+  const scanElapsedTime = ref('00:00:00')
+  let elapsedTimeTimer: number | null = null
+  
+  // 启动耗时更新定时器
+  function startElapsedTimeTimer() {
+    if (elapsedTimeTimer) return // 避免重复启动
     
-    const elapsed = Date.now() - scanStartTime.value
-    const hours = Math.floor(elapsed / 3600000)
-    const minutes = Math.floor((elapsed % 3600000) / 60000)
-    const seconds = Math.floor((elapsed % 60000) / 1000)
-    
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-  })
+    elapsedTimeTimer = window.setInterval(() => {
+      if (!scanStartTime.value) {
+        scanElapsedTime.value = '00:00:00'
+        return
+      }
+      
+      const elapsed = Date.now() - scanStartTime.value
+      const hours = Math.floor(elapsed / 3600000)
+      const minutes = Math.floor((elapsed % 3600000) / 60000)
+      const seconds = Math.floor((elapsed % 60000) / 1000)
+      
+      scanElapsedTime.value = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    }, 1000) // 每秒更新一次
+  }
+  
+  // 停止耗时更新定时器
+  function stopElapsedTimeTimer() {
+    if (elapsedTimeTimer) {
+      clearInterval(elapsedTimeTimer)
+      elapsedTimeTimer = null
+    }
+  }
   
   // 获取节点的选择状态：'checked' | 'unchecked' | 'indeterminate'
   function getNodeCheckState(nodePath: string, allNodes: Map<string, DirectoryNode>): 'checked' | 'unchecked' | 'indeterminate' {
@@ -154,6 +173,8 @@ export const useAppStore = defineStore('app', () => {
     errorCount.value = 0  // ← 重置跳过文件数
     logs.value = []
     scanStartTime.value = null  // 【UI优化】重置扫描开始时间
+    stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
+    scanElapsedTime.value = '00:00:00'  // 【UI优化】重置耗时显示
   }
   
   function removeResult(filePath: string) {
@@ -262,6 +283,8 @@ export const useAppStore = defineStore('app', () => {
     totalSensitiveItems,
     scanStartTime,   // 【UI优化】导出扫描开始时间
     scanElapsedTime, // 【UI优化】导出扫描耗时
+    startElapsedTimeTimer,  // 【UI优化】导出启动定时器函数
+    stopElapsedTimeTimer,   // 【UI优化】导出停止定时器函数
     addScanResult,
     addLog,  // 【新增】批量添加日志
     clearScanResults,

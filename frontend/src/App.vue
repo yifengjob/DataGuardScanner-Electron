@@ -225,6 +225,9 @@ const {
   scanResults
 } = storeToRefs(appStore)
 
+// 【UI优化】直接从 store 获取函数（不使用 storeToRefs）
+const { startElapsedTimeTimer, stopElapsedTimeTimer } = appStore
+
 const showPreview = ref(false)
 const previewFilePath = ref('')
 const showSettings = ref(false)
@@ -283,12 +286,14 @@ onMounted(async () => {
     console.log('扫描完成')
     isScanning.value = false
     isCancelling.value = false // 【新增】重置取消状态
+    stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
   })
 
   await onScanError(async (error) => {
     console.error('扫描错误:', error)
     isScanning.value = false
     isCancelling.value = false // 【新增】重置取消状态
+    stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
     await showMessage(`扫描出错: ${error}`, {
       title: '错误',
       type: 'error'
@@ -318,6 +323,7 @@ const handleStartScan = async () => {
   appStore.logs = [] // 清空旧日志
   isScanning.value = true
   scanStartTime.value = Date.now()  // 【UI优化】记录扫描开始时间
+  startElapsedTimeTimer()  // 【UI优化】启动耗时更新定时器
 
   // 将Proxy对象转换为普通对象，以便通过IPC传递
   const scanConfig = {
@@ -346,9 +352,11 @@ const handleCancelScan = async () => {
     await cancelScan()
     isScanning.value = false
     isCancelling.value = false // 【新增】重置取消状态
+    stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
   } catch (error) {
     console.error('取消扫描失败:', error)
     isCancelling.value = false // 【新增】重置取消状态
+    stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
   }
 }
 
@@ -659,12 +667,6 @@ const getThemeTooltip = () => {
 
 .status-label {
   color: var(--text-secondary);
-}
-
-/* 【UI优化】等宽字体类 */
-.mono-font {
-  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
-  font-variant-numeric: tabular-nums; /* 表格数字，确保对齐 */
 }
 
 .status-value {
