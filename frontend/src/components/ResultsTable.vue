@@ -234,12 +234,6 @@ const sensitiveTypes = computed(() => {
   )
 })
 
-// 【优化】路径列宽度配置常量
-const PATH_COL_MIN_WIDTH = '12em'
-const PATH_COL_IDEAL_WIDTH = '25vw'
-const PATH_COL_MAX_WIDTH = '80em'
-const PATH_COL_CLAMP = `clamp(${PATH_COL_MIN_WIDTH}, ${PATH_COL_IDEAL_WIDTH}, ${PATH_COL_MAX_WIDTH})`
-
 // 【修复】动态计算 Grid 列模板
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
@@ -249,7 +243,7 @@ const gridStyle = computed(() => {
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
-      minmax(${PATH_COL_MIN_WIDTH}, ${PATH_COL_CLAMP})  /* path - 自适应（使用clamp） */
+      minmax(var(--path-col-min-width), var(--path-col-clamp))  /* path - 自适应（由CSS容器查询控制） */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
