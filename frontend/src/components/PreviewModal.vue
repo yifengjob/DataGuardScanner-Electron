@@ -163,9 +163,11 @@ const handleOpenFile = async () => {
 const handleCopyContent = async () => {
   try {
     await navigator.clipboard.writeText(content.value)
-    alert('已复制到剪贴板')
+    // 【C2 优化】友好的成功提示
+    alert('✅ 已复制到剪贴板')
   } catch (err) {
-    alert('复制失败')
+    // 【C2 优化】使用友好错误提示
+    alert(getFriendlyErrorMessage(err))
   }
 }
 </script>

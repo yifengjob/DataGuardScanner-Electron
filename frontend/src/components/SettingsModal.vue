@@ -152,6 +152,8 @@ import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
 import { saveConfig, getSensitiveRules, clearCache, getRecommendedConcurrency } from '../utils/electron-api'
 import { applyTheme } from '../utils/theme'
+// 【C2 优化】导入错误处理工具
+import { getFriendlyErrorMessage } from '../utils/error-handler'
 
 const emit = defineEmits<{
   close: []
@@ -229,11 +231,11 @@ const handleSave = async () => {
     await saveConfig(plainConfig)
     // 应用主题设置
     applyTheme(config.value.theme as any)
-    alert('配置已保存')
+    // 【C2 优化】静默成功，不显示提示
     emit('close')
   } catch (error) {
     console.error('保存配置失败:', error)
-    alert('保存配置失败')
+    alert(getFriendlyErrorMessage(error))
   }
 }
 
@@ -245,10 +247,11 @@ const handleClearCache = async () => {
   try {
     const result = await clearCache()
     const sizeMB = Math.round((result.cleanedSize || 0) / 1024 / 1024)
-    alert(`缓存清理完成！\n释放空间: ${sizeMB} MB`)
+    // 【C2 优化】友好的成功提示
+    alert(`✅ 缓存清理完成！\n\n释放空间: ${sizeMB} MB`)
   } catch (error) {
     console.error('清理缓存失败:', error)
-    alert('清理缓存失败')
+    alert(getFriendlyErrorMessage(error))
   }
 }
 </script>

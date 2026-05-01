@@ -179,6 +179,8 @@ import {ask} from "@tauri-apps/plugin-dialog"
 // 【虚拟滚动优化】导入 vue-virtual-scroller（支持动态行高）
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
+// 【C2 优化】导入错误处理工具
+import { getFriendlyErrorMessage } from '../utils/error-handler'
 
 const appStore = useAppStore()
 const {scanResults, config} = storeToRefs(appStore)
@@ -383,7 +385,7 @@ const handleOpen = async (item: any) => {
     await openFile(item.filePath)
   } catch (error) {
     console.error('打开文件失败:', error)
-    alert('打开文件失败')
+    alert(getFriendlyErrorMessage(error))
   }
 }
 
@@ -392,7 +394,7 @@ const handleOpenLocation = async (item: any) => {
     await openFileLocation(item.filePath)
   } catch (error) {
     console.error('打开目录失败:', error)
-    alert('打开目录失败')
+    alert(getFriendlyErrorMessage(error))
   }
 }
 
@@ -409,7 +411,7 @@ const handleDelete = async (item: any) => {
     appStore.removeResult(item.filePath)
   } catch (error) {
     console.error('删除文件失败:', error)
-    alert('删除文件失败')
+    alert(getFriendlyErrorMessage(error))
   }
 }
 
@@ -499,9 +501,12 @@ const handleBatchDelete = async () => {
   // 清空选中状态
   selectedFiles.value.clear()
   
-  // 显示结果
+  // 【C2 优化】显示友好的结果提示
   if (failCount > 0) {
-    alert(`删除完成\n成功: ${successCount} 个\n失败: ${failCount} 个`)
+    const message = `删除完成\n成功: ${successCount} 个\n失败: ${failCount} 个`
+    alert(message)
+  } else {
+    // 全部成功，不显示提示（静默成功）
   }
 }
 </script>
