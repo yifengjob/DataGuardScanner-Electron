@@ -687,7 +687,7 @@ tr {
 .table-header-fixed {
   width: auto;                         /* 【修复】允许超出容器 */
   min-width: 100%;                     /* 至少占满容器 */
-  table-layout: auto;                  /* 【关键】与内容区保持一致 */
+  table-layout: fixed;                 /* 【关键】使用固定布局，严格遵守 colgroup 列宽 */
   flex-shrink: 0;
   background-color: var(--bg-color);
   z-index: 10;
@@ -702,7 +702,7 @@ tr {
 /* 【修复】虚拟滚动中的每行都是独立的table，需要固定布局 */
 .virtual-row-table {
   display: table;
-  table-layout: auto;                  /* 【关键】自动布局，根据内容调整列宽 */
+  table-layout: fixed;                 /* 【关键】使用固定布局，严格遵守 colgroup 列宽 */
   width: auto;                         /* 【关键】不强制100%，允许超出 */
   min-width: 100%;                     /* 至少占满容器 */
   border-collapse: collapse;           /* 合并边框 */
