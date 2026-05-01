@@ -228,33 +228,38 @@ onMounted(() => {
   
   window.addEventListener('resize', handleResize, { passive: true })
   
-  // 【修复】等待 DOM 渲染后获取实际的滚动容器
+  // 【修复】等待 DOM 渲染后设置滚动同步
   setTimeout(() => {
-    if (!headerContainer.value || !bodyContainer.value) return
-    
-    // 找到 DynamicScroller 内部的滚动容器
-    const scrollerElement = bodyContainer.value.querySelector('.vue-recycle-scroller')
-    if (!scrollerElement) {
-      console.warn('未找到 DynamicScroller 滚动容器')
+    if (!headerContainer.value || !bodyContainer.value) {
+      console.error('容器未找到')
       return
     }
     
-    console.log('找到滚动容器:', scrollerElement)
+    console.log('表头容器:', {
+      scrollWidth: headerContainer.value.scrollWidth,
+      clientWidth: headerContainer.value.clientWidth
+    })
+    
+    console.log('内容容器:', {
+      scrollWidth: bodyContainer.value.scrollWidth,
+      clientWidth: bodyContainer.value.clientWidth,
+      overflowX: getComputedStyle(bodyContainer.value).overflowX
+    })
     
     // 同步表头和内容滚动
     const headerScroll = () => {
-      scrollerElement.scrollLeft = headerContainer.value!.scrollLeft
+      bodyContainer.value!.scrollLeft = headerContainer.value!.scrollLeft
     }
     
     const contentScroll = () => {
-      headerContainer.value!.scrollLeft = scrollerElement.scrollLeft
+      headerContainer.value!.scrollLeft = bodyContainer.value!.scrollLeft
     }
     
     headerContainer.value.addEventListener('scroll', headerScroll)
-    scrollerElement.addEventListener('scroll', contentScroll)
+    bodyContainer.value.addEventListener('scroll', contentScroll)
     
-    console.log('滚动同步已设置')
-  }, 100)
+    console.log('滚动同步已设置 - 使用 bodyContainer')
+  }, 500)
 })
 
 // 加载敏感类型定义
@@ -731,7 +736,8 @@ tr {
 
 .table-body-container {
   flex: 1;
-  overflow: hidden;  /* 【修复】由 DynamicScroller 控制所有滚动 */
+  overflow-x: auto;  /* 【修复】由容器处理横向滚动 */
+  overflow-y: hidden;
 }
 
 /* 【修复】统一定义列宽，确保所有行列宽一致 */
@@ -780,13 +786,13 @@ tr {
 .virtual-scroller {
   height: 100%;
   width: 100%;
-  overflow-x: auto !important;  /* 【修复】允许横向滚动 */
+  overflow: visible !important;  /* 【修复】不处理滚动，由父容器处理 */
 }
 
 /* 【修复】虚拟滚动中的每行使用 Grid 布局 */
 .virtual-row-wrapper {
-  width: max-content;  /* 【关键】让容器根据内容自动扩展 */
-  min-width: 100%;     /* 至少占满视口 */
+  width: 100%;
+  min-width: fit-content;  /* 【关键】根据内容自动扩展 */
 }
 
 .virtual-row {
@@ -808,6 +814,7 @@ tr {
   border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--bg-color);
   min-height: 40px;  /* 最小行高 */
+  min-width: fit-content;  /* 【关键】确保Grid能撑开 */
 }
 
 .cell {
