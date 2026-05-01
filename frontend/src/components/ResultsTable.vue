@@ -234,10 +234,10 @@ const sensitiveTypes = computed(() => {
   )
 })
 
-// 【优化】路径列宽度配置常量（避免魔法数字）
-const PATH_COL_MIN_WIDTH = '12em'        // 最小宽度
-const PATH_COL_IDEAL_WIDTH = '30vw'      // 理想宽度（视口百分比）
-const PATH_COL_MAX_WIDTH = '50em'        // 最大宽度
+// 【优化】路径列宽度配置常量（与 CSS 变量保持一致）
+const PATH_COL_MIN_WIDTH = '12em'        // 最小宽度（对应 --path-col-min-width）
+const PATH_COL_IDEAL_WIDTH = '30vw'      // 理想宽度（对应 --path-col-ideal-width）
+const PATH_COL_MAX_WIDTH = '50em'        // 最大宽度（对应 --path-col-max-width）
 const PATH_COL_CLAMP = `clamp(${PATH_COL_MIN_WIDTH}, ${PATH_COL_IDEAL_WIDTH}, ${PATH_COL_MAX_WIDTH})`
 
 // 【修复】动态计算 Grid 列模板
@@ -522,6 +522,12 @@ const handleBatchDelete = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  
+  /* 【优化】路径列宽度配置（CSS 自定义属性） */
+  --path-col-min-width: 12em;
+  --path-col-ideal-width: 30vw;
+  --path-col-max-width: 50em;
+  --path-col-clamp: clamp(var(--path-col-min-width), var(--path-col-ideal-width), var(--path-col-max-width));
 }
 
 .table-header {
@@ -624,8 +630,8 @@ th {
 }
 
 th.path-col {
-  min-width: 12em;                   /* 192px - 最小宽度（PATH_COL_MIN_WIDTH） */
-  max-width: clamp(12em, 30vw, 50em); /* 动态最大宽度（PATH_COL_CLAMP） */
+  min-width: var(--path-col-min-width);
+  max-width: var(--path-col-clamp);
   /* 【简化】文件名列可以截断 */
   overflow: hidden;
   text-overflow: ellipsis;
@@ -721,8 +727,8 @@ tr {
 }
 
 .col-path {
-  min-width: 12em;                   /* PATH_COL_MIN_WIDTH */
-  max-width: clamp(12em, 30vw, 50em); /* PATH_COL_CLAMP */
+  min-width: var(--path-col-min-width);
+  max-width: var(--path-col-clamp);
 }
 
 .col-size {
