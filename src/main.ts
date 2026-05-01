@@ -85,9 +85,13 @@ function setupLogFile() {
   };
   
   console.warn = function(...args) {
-    // 抑制pdf-parse的字体警告
-    if (args[0] && typeof args[0] === 'string' && args[0].includes('Warning: TT: undefined function')) {
-      return;
+    // 抑制 pdf-parse 的字体警告
+    if (args[0] && typeof args[0] === 'string') {
+      const msg = args[0];
+      if (msg.includes('Warning: TT: undefined function') ||
+          msg.includes('Ran out of space in font private use area')) {
+        return; // 完全抑制这些警告
+      }
     }
     const timestamp = new Date().toISOString();
     const message = `[${timestamp}] [WARN] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
