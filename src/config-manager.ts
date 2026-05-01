@@ -79,16 +79,11 @@ export function generateSystemDirs(ignoreOtherDrives: boolean = false): string[]
     if (process.platform === 'win32' && ignoreOtherDrives) {
         const allDirs = [...baseDirs];
         
-        // 【动态获取】使用环境变量获取 ProgramData 目录
-        const programData = process.env.PROGRAMDATA || 'C:\\ProgramData';
-        const systemDrive = path.parse(programData).root;
+        // 【动态获取】使用环境变量获取系统盘符
+        const windir = process.env.WINDIR || 'C:\\Windows';
+        const systemDrive = path.parse(windir).root;
         
-        // 添加系统盘的 ProgramData
-        if (!allDirs.includes(programData)) {
-            allDirs.push(programData);
-        }
-        
-        // 添加其他磁盘的系统目录（C-Z）
+        // 添加其他磁盘的系统目录（C-Z），与 getBaseSystemDirs 保持一致
         for (let i = 67; i <= 90; i++) {
             const drive = String.fromCharCode(i);
             const driveRoot = `${drive}:\\`;
@@ -101,9 +96,14 @@ export function generateSystemDirs(ignoreOtherDrives: boolean = false): string[]
             
             allDirs.push(
                 `${driveRoot}Windows`,
+                `${driveRoot}WinNT`,
                 `${driveRoot}Program Files`,
                 `${driveRoot}Program Files (x86)`,
-                `${driveRoot}ProgramData`
+                `${driveRoot}Recovery`,
+                `${driveRoot}PerfLogs`,
+                `${driveRoot}Boot`,
+                `${driveRoot}EFI`,
+                `${driveRoot}Config.Msi`
             );
         }
         return allDirs;
