@@ -511,27 +511,30 @@ export async function startScan(
                 log(`【智能内存调整】平均文件大小: ${avgFileSizeMB.toFixed(2)}MB, 新内存限制: 老生代=${dynamicOldGenMB}MB, 新生代=${dynamicYoungGenMB}MB`);
                 
                 // 【关键】重启所有空闲的 Consumer Workers 以应用新配置
-                let restartedCount = 0;
-                for (let i = 0; i < consumers.length; i++) {
-                    const consumer = consumers[i];
-                    if (!consumer.busy) {
-                        // 终止旧的 Worker
-                        try {
-                            consumer.worker.terminate();
-                            consumer.worker.removeAllListeners();
-                        } catch (e) {
-                            // 忽略终止错误
+                // 【修复】延迟 100ms 确保所有 Worker 的状态已同步
+                setTimeout(() => {
+                    let restartedCount = 0;
+                    for (let i = 0; i < consumers.length; i++) {
+                        const consumer = consumers[i];
+                        if (!consumer.busy) {
+                            // 终止旧的 Worker
+                            try {
+                                consumer.worker.terminate();
+                                consumer.worker.removeAllListeners();
+                            } catch (e) {
+                                // 忽略终止错误
+                            }
+                            
+                            // 创建新的 Worker（使用新内存限制）
+                            createConsumer(i, dynamicOldGenMB, dynamicYoungGenMB);
+                            restartedCount++;
                         }
-                        
-                        // 创建新的 Worker（使用新内存限制）
-                        createConsumer(i, dynamicOldGenMB, dynamicYoungGenMB);
-                        restartedCount++;
                     }
-                }
-                
-                if (restartedCount > 0) {
-                    log(`【智能内存】已重启 ${restartedCount} 个空闲 Worker 以应用新内存配置`);
-                }
+                    
+                    if (restartedCount > 0) {
+                        log(`【智能内存】已重启 ${restartedCount} 个空闲 Worker 以应用新内存配置`);
+                    }
+                }, 100);
             }
 
             // 【事件驱动】检查是否应该结束
