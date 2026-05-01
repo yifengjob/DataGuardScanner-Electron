@@ -207,7 +207,6 @@ const CONTAINER_BREAKPOINTS = [
 ] as const
 
 const DEFAULT_IDEAL_WIDTH = '25cqi'  // 默认小容器
-const RESIZE_DEBOUNCE_DELAY = 100     // 防抖延迟（毫秒）
 const RESIZE_THRESHOLD = 50           // 宽度变化阈值（像素）
 
 // 监听窗口 resize
@@ -351,7 +350,7 @@ const setupScrollSync = () => {
   scrollSyncSetup = true
 }
 
-// 【新增】设置容器查询（使用 ResizeObserver + 防抖优化）
+// 【新增】设置容器查询（使用 ResizeObserver + rAF 优化）
 const setupContainerQuery = () => {
   const tableElement = document.querySelector('.results-table') as HTMLElement
   if (!tableElement) {
@@ -359,7 +358,8 @@ const setupContainerQuery = () => {
     return
   }
 
-  let resizeTimer: number | null = null
+  let rafId: number | null = null
+  let pendingWidth: number | null = null
   let lastWidth = 0
 
   // 根据宽度计算 ideal-width
@@ -399,17 +399,24 @@ const setupContainerQuery = () => {
       return
     }
 
-    // 优化 2：防抖
-    if (resizeTimer) clearTimeout(resizeTimer)
-    
-    resizeTimer = window.setTimeout(() => {
-      updateIdealWidth(width)
-      lastWidth = width
-    }, RESIZE_DEBOUNCE_DELAY)
+    // 保存最新宽度
+    pendingWidth = width
+
+    // 优化 2：使用 rAF 批量处理
+    if (!rafId) {
+      rafId = requestAnimationFrame(() => {
+        if (pendingWidth !== null) {
+          updateIdealWidth(pendingWidth)
+          lastWidth = pendingWidth
+          pendingWidth = null
+        }
+        rafId = null
+      })
+    }
   })
 
   observer.observe(tableElement)
-  console.log('容器查询已启用（ResizeObserver + 防抖优化）')
+  console.log('容器查询已启用（ResizeObserver + rAF 优化）')
 }
 
 // 【关键】处理滚动事件，同步表头
