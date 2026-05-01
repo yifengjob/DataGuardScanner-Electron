@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import {BrowserWindow} from 'electron';
 import {Worker} from 'worker_threads';
 import {ScanConfig, ScanResultItem} from './types';
@@ -106,6 +107,18 @@ export async function startScan(
         PROGRESS_THROTTLE_INTERVAL
     );
 
+    // 【A1 优化】根据系统可用内存动态计算每个 Worker 的内存限制
+    const freeMemoryMB = os.freemem() / (1024 * 1024);
+    const memoryPerWorker = Math.min(
+        WORKER_MAX_OLD_GENERATION_MB + WORKER_MAX_YOUNG_GENERATION_MB,  // 上限 640MB
+        Math.floor(freeMemoryMB * 0.6 / poolSize)  // 使用 60% 可用内存，平均分配
+    );
+    
+    const dynamicOldGenMB = Math.floor(memoryPerWorker * 0.8);  // 80% 给老生代
+    const dynamicYoungGenMB = Math.floor(memoryPerWorker * 0.2); // 20% 给新生代
+    
+    log(`【内存优化】可用内存: ${freeMemoryMB.toFixed(0)}MB, 每 Worker 限制: ${memoryPerWorker}MB (老生代: ${dynamicOldGenMB}MB, 新生代: ${dynamicYoungGenMB}MB)`);
+
     // 创建 Consumer Worker
     function createConsumer(id: number) {
         const workerPath = path.join(__dirname, 'file-worker.js');
@@ -114,8 +127,8 @@ export async function startScan(
         try {
             worker = new Worker(workerPath, {
                 resourceLimits: {
-                    maxOldGenerationSizeMb: WORKER_MAX_OLD_GENERATION_MB,
-                    maxYoungGenerationSizeMb: WORKER_MAX_YOUNG_GENERATION_MB,
+                    maxOldGenerationSizeMb: dynamicOldGenMB,
+                    maxYoungGenerationSizeMb: dynamicYoungGenMB,
                 }
             });
         } catch (error: any) {
