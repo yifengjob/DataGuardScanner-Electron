@@ -1,6 +1,12 @@
 import { shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  createPermissionError,
+  createDeleteError,
+  convertNodeError,
+  logError
+} from './error-utils';
 
 // 允许的文件路径列表（由扫描模块维护）
 const allowedPaths = new Set<string>();
@@ -27,13 +33,13 @@ export function clearAllowedPaths(): void {
 export function isPathAllowed(filePath: string): boolean {
   // 【A2 优化】安全检查：拒绝空路径
   if (!filePath || filePath.trim() === '') {
-    console.warn('拒绝访问：文件路径为空');
+    logError('isPathAllowed', '拒绝访问：文件路径为空', 'warn');
     return false;
   }
   
   // 【A2 优化】安全检查：拒绝相对路径
   if (!path.isAbsolute(filePath)) {
-    console.warn(`拒绝访问：相对路径不被允许: ${filePath}`);
+    logError('isPathAllowed', `拒绝访问：相对路径不被允许: ${filePath}`, 'warn');
     return false;
   }
   
@@ -64,8 +70,7 @@ export function isPathAllowed(filePath: string): boolean {
 export async function openFile(filePath: string): Promise<void> {
   // 安全检查：验证路径是否在允许范围内
   if (!isPathAllowed(filePath)) {
-    console.warn(`拒绝访问不允许的路径: ${filePath}`);
-    throw new Error('不允许访问此文件');
+    throw createPermissionError(filePath);
   }
   await shell.openPath(filePath);
 }
@@ -73,8 +78,7 @@ export async function openFile(filePath: string): Promise<void> {
 export async function openFileLocation(filePath: string): Promise<void> {
   // 安全检查：验证路径是否在允许范围内
   if (!isPathAllowed(filePath)) {
-    console.warn(`拒绝访问不允许的路径: ${filePath}`);
-    throw new Error('不允许访问此文件');
+    throw createPermissionError(filePath);
   }
   shell.showItemInFolder(filePath);
 }
@@ -82,16 +86,20 @@ export async function openFileLocation(filePath: string): Promise<void> {
 export async function deleteFile(filePath: string, toTrash: boolean = false): Promise<void> {
   // 安全检查：验证路径是否在允许范围内
   if (!isPathAllowed(filePath)) {
-    console.warn(`拒绝删除不允许的路径: ${filePath}`);
-    throw new Error('不允许删除此文件');
+    throw createPermissionError(filePath);
   }
   
-  if (toTrash) {
-    // 移入回收站 - 使用动态导入ES Module
-    const trash = await import('trash');
-    await trash.default(filePath);
-  } else {
-    // 永久删除
-    await fs.promises.unlink(filePath);
+  try {
+    if (toTrash) {
+      // 移入回收站 - 使用动态导入ES Module
+      const trash = await import('trash');
+      await trash.default(filePath);
+    } else {
+      // 永久删除
+      await fs.promises.unlink(filePath);
+    }
+  } catch (error: any) {
+    logError('deleteFile', error);
+    throw createDeleteError(filePath, error);
   }
 }

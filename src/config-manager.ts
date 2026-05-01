@@ -15,6 +15,12 @@ import {
     DEFAULT_CONCURRENCY_MIN,
     BYTES_TO_GB
 } from './scan-config';
+// 【D3 优化】导入错误处理工具
+import {
+    createConfigLoadError,
+    createConfigSaveError,
+    logError
+} from './error-utils';
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
 
@@ -172,7 +178,7 @@ export async function loadConfig(): Promise<AppConfig> {
             return mergedConfig;
         }
     } catch (error) {
-        console.error('加载配置失败:', error);
+        logError('loadConfig', createConfigLoadError(error));
     }
 
     return getDefaultConfig();
@@ -183,8 +189,8 @@ export async function saveConfig(config: AppConfig): Promise<void> {
         const data = JSON.stringify(config, null, 2);
         await fs.promises.writeFile(CONFIG_FILE, data, 'utf-8');
     } catch (error) {
-        console.error('保存配置失败:', error);
-        throw error;
+        logError('saveConfig', createConfigSaveError(error));
+        throw createConfigSaveError(error);
     }
 }
 
