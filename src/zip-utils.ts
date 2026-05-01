@@ -10,7 +10,7 @@
  */
 
 import { unzipSync, strFromU8 } from 'fflate';
-import { readFile, stat } from 'fs/promises';
+import { readFile } from 'fs/promises';
 
 /**
  * ZIP 文件条目
@@ -20,75 +20,23 @@ export interface ZipEntry {
   data: Uint8Array;
 }
 
-// 【B2 优化】ZIP 解压缓存，避免重复读取同一文件
-// 注意：仅在预览等场景下有意义，单次扫描中同一文件不会重复读取
-const zipCache = new Map<string, { entries: ZipEntry[]; mtime: number; size: number }>();
-const CACHE_MAX_SIZE = 50; // 最多缓存 50 个文件
-const CACHE_MAX_FILE_SIZE = 10 * 1024 * 1024; // 只缓存小于 10MB 的文件
-
-/**
- * 清理缓存（当缓存过大时）
- */
-function cleanupCache(): void {
-  if (zipCache.size > CACHE_MAX_SIZE) {
-    // 删除最旧的 25 个缓存项
-    const keys = Array.from(zipCache.keys());
-    for (let i = 0; i < Math.floor(CACHE_MAX_SIZE / 2); i++) {
-      zipCache.delete(keys[i]);
-    }
-  }
-}
-
 /**
  * 解压 ZIP 文件并返回所有条目
  * @param filePath ZIP 文件路径
  * @returns ZIP 条目数组
  */
 export async function unzipFile(filePath: string): Promise<ZipEntry[]> {
-  // 【B2 优化】检查缓存
-  try {
-    const fileStat = await stat(filePath);
-    
-    // 【B2 优化】大文件不缓存，避免内存占用过高
-    if (fileStat.size > CACHE_MAX_FILE_SIZE) {
-      // 直接读取并解压，不缓存
-      const buffer = await readFile(filePath);
-      const u8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-      const unzipped = unzipSync(u8);
-      return Object.entries(unzipped).map(([name, data]) => ({
-        name,
-        data
-      }));
-    }
-    
-    const cacheKey = `${filePath}:${fileStat.mtimeMs}`;
-    
-    if (zipCache.has(cacheKey)) {
-      return zipCache.get(cacheKey)!.entries;
-    }
-    
-    // 读取并解压
-    const buffer = await readFile(filePath);
-    const u8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-    
-    // 同步解压 ZIP 文件（fflate 的优势：速度快，零拷贝）
-    const unzipped = unzipSync(u8);
-    
-    // 转换为 ZipEntry 数组
-    const entries = Object.entries(unzipped).map(([name, data]) => ({
-      name,
-      data
-    }));
-    
-    // 存入缓存（仅小文件）
-    zipCache.set(cacheKey, { entries, mtime: fileStat.mtimeMs, size: fileStat.size });
-    cleanupCache();
-    
-    return entries;
-  } catch (error) {
-    console.error(`解压 ZIP 文件失败: ${filePath}`, error);
-    throw error;
-  }
+  const buffer = await readFile(filePath);
+  const u8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  
+  // 同步解压 ZIP 文件（fflate 的优势：速度快，零拷贝）
+  const unzipped = unzipSync(u8);
+  
+  // 转换为 ZipEntry 数组
+  return Object.entries(unzipped).map(([name, data]) => ({
+    name,
+    data
+  }));
 }
 
 /**
