@@ -685,7 +685,7 @@ tr {
 }
 
 .table-header-fixed {
-  width: auto;                         /* 【修复】允许超出容器 */
+  width: max-content;                  /* 【关键】根据列宽总和自动计算 */
   min-width: 100%;                     /* 至少占满容器 */
   table-layout: fixed;                 /* 【关键】使用固定布局，严格遵守 colgroup 列宽 */
   flex-shrink: 0;
@@ -703,7 +703,7 @@ tr {
 .virtual-row-table {
   display: table;
   table-layout: fixed;                 /* 【关键】使用固定布局，严格遵守 colgroup 列宽 */
-  width: auto;                         /* 【关键】不强制100%，允许超出 */
+  width: max-content;                  /* 【关键】根据列宽总和自动计算 */
   min-width: 100%;                     /* 至少占满容器 */
   border-collapse: collapse;           /* 合并边框 */
 }
