@@ -234,10 +234,6 @@ const sensitiveTypes = computed(() => {
   )
 })
 
-// 【优化】路径列宽度配置常量（与 CSS 变量保持一致）
-const PATH_COL_MIN_WIDTH = '12em'        // 最小宽度（对应 --path-col-min-width）
-const PATH_COL_MAX_WIDTH = '70em'        // 最大宽度（对应 --path-col-max-width）
-
 // 【修复】动态计算 Grid 列模板
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
@@ -247,7 +243,7 @@ const gridStyle = computed(() => {
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
-      minmax(${PATH_COL_MIN_WIDTH}, ${PATH_COL_MAX_WIDTH})  /* path - 自适应（占据剩余空间） */
+      minmax(8em, 1fr)                /* path - 自适应（可压缩到8em，最大占据剩余空间） */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
@@ -520,10 +516,6 @@ const handleBatchDelete = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  
-  /* 【优化】路径列宽度配置（CSS 自定义属性） */
-  --path-col-min-width: 12em;
-  --path-col-max-width: 70em;
 }
 
 .table-header {
@@ -678,8 +670,7 @@ const handleBatchDelete = async () => {
 }
 
 .path-col {
-  min-width: var(--path-col-min-width);
-  max-width: var(--path-col-max-width);
+  min-width: 8em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -690,8 +681,7 @@ const handleBatchDelete = async () => {
 }
 
 .path-cell {
-  min-width: var(--path-col-min-width);
-  max-width: var(--path-col-max-width);
+  min-width: 8em;
   /* 【简化】只有文件名列显示省略号 */
   overflow: hidden;
   text-overflow: ellipsis;
