@@ -234,6 +234,12 @@ const sensitiveTypes = computed(() => {
   )
 })
 
+// 【优化】路径列宽度配置常量（避免魔法数字）
+const PATH_COL_MIN_WIDTH = '12em'        // 最小宽度
+const PATH_COL_IDEAL_WIDTH = '30vw'      // 理想宽度（视口百分比）
+const PATH_COL_MAX_WIDTH = '50em'        // 最大宽度
+const PATH_COL_CLAMP = `clamp(${PATH_COL_MIN_WIDTH}, ${PATH_COL_IDEAL_WIDTH}, ${PATH_COL_MAX_WIDTH})`
+
 // 【修复】动态计算 Grid 列模板
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
@@ -243,7 +249,7 @@ const gridStyle = computed(() => {
   return {
     gridTemplateColumns: `
       4em                             /* checkbox - 固定 */
-      minmax(12em, clamp(12em, 40vw, 50em))  /* path - 自适应（最小12em，理想40%视口，最大50em） */
+      minmax(${PATH_COL_MIN_WIDTH}, ${PATH_COL_CLAMP})  /* path - 自适应 */
       7em                             /* size - 固定 */
       12em                            /* time - 固定 */
       ${countColDefs}                 /* counts - 固定（可显示9-10位，含千分位） */
@@ -618,8 +624,8 @@ th {
 }
 
 th.path-col {
-  min-width: 12em;                   /* 192px - 最小宽度 */
-  max-width: clamp(12em, 40vw, 50em); /* 动态最大宽度（最小12em，理想40%视口，最大50em） */
+  min-width: 12em;                   /* 192px - 最小宽度（PATH_COL_MIN_WIDTH） */
+  max-width: clamp(12em, 30vw, 50em); /* 动态最大宽度（PATH_COL_CLAMP） */
   /* 【简化】文件名列可以截断 */
   overflow: hidden;
   text-overflow: ellipsis;
@@ -715,8 +721,8 @@ tr {
 }
 
 .col-path {
-  min-width: 12em;
-  max-width: clamp(12em, 40vw, 50em); /* 动态最大宽度 */
+  min-width: 12em;                   /* PATH_COL_MIN_WIDTH */
+  max-width: clamp(12em, 30vw, 50em); /* PATH_COL_CLAMP */
 }
 
 .col-size {
