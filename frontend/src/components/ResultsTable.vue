@@ -196,6 +196,8 @@ const scrollerRef = ref<any>(null)
 
 // 监听窗口 resize
 let resizeTimer: number | null = null
+let scrollSyncSetup = false  // 【修复】标记是否已设置滚动同步
+
 onMounted(() => {
   const handleResize = () => {
     isResizing.value = true
@@ -207,29 +209,60 @@ onMounted(() => {
   
   // 使用 passive listener 提升性能
   window.addEventListener('resize', handleResize, { passive: true })
-  
-  // 【修复】等待 DOM 渲染后设置滚动同步
-  setTimeout(() => {
-    if (!headerRef.value || !scrollerRef.value) return
-    
-    // 获取 DynamicScroller 内部的滚动容器
-    const scrollerElement = scrollerRef.value.$el
-    if (!scrollerElement) return
-    
-    console.log('表头元素:', headerRef.value)
-    console.log('滚动容器:', scrollerElement)
-    
-    // 同步表头和内容滚动
-    const syncScroll = () => {
-      if (headerRef.value && scrollerElement) {
-        headerRef.value.scrollLeft = scrollerElement.scrollLeft
-      }
-    }
-    
-    scrollerElement.addEventListener('scroll', syncScroll)
-    console.log('滚动同步已设置')
-  }, 1000)
 })
+
+// 【修复】监听 filteredResults 变化，在数据加载后设置滚动同步
+watch(
+  () => filteredResults.value,
+  (newVal) => {
+    if (newVal.length > 0 && !scrollSyncSetup) {
+      // 等待 DOM 更新
+      setTimeout(() => {
+        setupScrollSync()
+      }, 500)
+    }
+  },
+  { immediate: true }
+)
+
+// 设置滚动同步
+const setupScrollSync = () => {
+  if (scrollSyncSetup) return
+  
+  if (!headerRef.value || !scrollerRef.value) {
+    console.error('ref 未绑定', { headerRef: headerRef.value, scrollerRef: scrollerRef.value })
+    return
+  }
+  
+  // 获取 DynamicScroller 内部的滚动容器
+  const scrollerElement = scrollerRef.value.$el
+  if (!scrollerElement) {
+    console.error('scrollerElement 未找到')
+    return
+  }
+  
+  console.log('表头元素:', {
+    width: headerRef.value.offsetWidth,
+    scrollWidth: headerRef.value.scrollWidth,
+    clientWidth: headerRef.value.clientWidth
+  })
+  console.log('滚动容器:', {
+    width: scrollerElement.offsetWidth,
+    scrollWidth: scrollerElement.scrollWidth,
+    clientWidth: scrollerElement.clientWidth
+  })
+  
+  // 同步表头和内容滚动
+  const syncScroll = () => {
+    if (headerRef.value && scrollerElement) {
+      headerRef.value.scrollLeft = scrollerElement.scrollLeft
+    }
+  }
+  
+  scrollerElement.addEventListener('scroll', syncScroll)
+  scrollSyncSetup = true
+  console.log('滚动同步已设置')
+}
 
 // 加载敏感类型定义
 onMounted(async () => {
