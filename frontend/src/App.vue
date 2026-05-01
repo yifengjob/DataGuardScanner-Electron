@@ -127,22 +127,27 @@
       <div class="status-divider"></div>
       <div class="status-item">
         <span class="status-label">已扫描：</span>
-        <span class="status-value">{{ formatNumber(scannedCount) }}{{ totalCount > 0 ? ' / ' + formatNumber(totalCount) : '' }}</span>
+        <span class="status-value mono-font">{{ formatNumber(scannedCount) }}{{ totalCount > 0 ? ' / ' + formatNumber(totalCount) : '' }}</span>
       </div>
       <div class="status-divider"></div>
       <div class="status-item">
         <span class="status-label">非文档：</span>
-        <span class="status-value error">{{ formatNumber(errorCount) }}</span>
+        <span class="status-value error mono-font">{{ formatNumber(errorCount) }}</span>
       </div>
       <div class="status-divider"></div>
       <div class="status-item">
         <span class="status-label">敏感文件：</span>
-        <span class="status-value warning">{{ formatNumber(sensitiveFilesCount) }}</span>
+        <span class="status-value warning mono-font">{{ formatNumber(sensitiveFilesCount) }}</span>
       </div>
       <div class="status-divider"></div>
       <div class="status-item">
         <span class="status-label">敏感信息：</span>
-        <span class="status-value danger">{{ formatNumber(totalSensitiveItems) }} 条</span>
+        <span class="status-value danger mono-font">{{ formatNumber(totalSensitiveItems) }} 条</span>
+      </div>
+      <div class="status-divider"></div>
+      <div class="status-item status-elapsed">
+        <span class="status-label">耗时：</span>
+        <span class="status-value mono-font">{{ scanElapsedTime }}</span>
       </div>
     </div>
 
@@ -214,6 +219,8 @@ const {
   sensitiveFilesCount,
   errorCount,
   totalSensitiveItems,
+  scanStartTime,   // 【UI优化】扫描开始时间
+  scanElapsedTime, // 【UI优化】扫描耗时
   config,
   scanResults
 } = storeToRefs(appStore)
@@ -310,6 +317,7 @@ const handleStartScan = async () => {
   appStore.clearScanResults()
   appStore.logs = [] // 清空旧日志
   isScanning.value = true
+  scanStartTime.value = Date.now()  // 【UI优化】记录扫描开始时间
 
   // 将Proxy对象转换为普通对象，以便通过IPC传递
   const scanConfig = {
@@ -653,27 +661,38 @@ const getThemeTooltip = () => {
   color: var(--text-secondary);
 }
 
+/* 【UI优化】等宽字体类 */
+.mono-font {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
+  font-variant-numeric: tabular-nums; /* 表格数字，确保对齐 */
+}
+
 .status-value {
   color: var(--text-color);
   font-weight: 500;
-  min-width: 60px; /* 容纳 "12,345" */
   text-align: right;
+  /* 【UI优化】移除 min-width，让宽度自适应 */
 }
 
 .status-value.error {
   color: var(--error-color);
-  min-width: 40px; /* 容纳 "999" */
+  /* 【UI优化】移除 min-width */
 }
 
 .status-value.warning {
   color: var(--warning-color);
-  min-width: 40px; /* 容纳 "999" */
+  /* 【UI优化】移除 min-width */
 }
 
 .status-value.danger {
   color: #ff4d4f;
   font-weight: 600;
-  min-width: 90px; /* 容纳 "123,456 条" */
+  /* 【UI优化】移除 min-width */
+}
+
+/* 【UI优化】扫描耗时项靠右显示 */
+.status-elapsed {
+  margin-left: auto; /* 推到最右边 */
 }
 
 /* 模态框过渡动画 */

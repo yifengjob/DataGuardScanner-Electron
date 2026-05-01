@@ -13,6 +13,7 @@ export const useAppStore = defineStore('app', () => {
   const errorCount = ref(0)  // ← 修改为 ref，用于记录跳过文件数
   const currentFile = ref('')
   const logs = ref<string[]>([])
+  const scanStartTime = ref<number | null>(null)  // 【UI优化】扫描开始时间
   
   // 配置
   const config = ref<AppConfig>({
@@ -48,6 +49,18 @@ export const useAppStore = defineStore('app', () => {
   const totalSensitiveItems = computed(() => 
     scanResults.value.reduce((sum, item) => sum + item.total, 0)
   )
+  
+  // 【UI优化】计算扫描耗时
+  const scanElapsedTime = computed(() => {
+    if (!scanStartTime.value) return '00:00:00'
+    
+    const elapsed = Date.now() - scanStartTime.value
+    const hours = Math.floor(elapsed / 3600000)
+    const minutes = Math.floor((elapsed % 3600000) / 60000)
+    const seconds = Math.floor((elapsed % 60000) / 1000)
+    
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  })
   
   // 获取节点的选择状态：'checked' | 'unchecked' | 'indeterminate'
   function getNodeCheckState(nodePath: string, allNodes: Map<string, DirectoryNode>): 'checked' | 'unchecked' | 'indeterminate' {
@@ -140,6 +153,7 @@ export const useAppStore = defineStore('app', () => {
     totalCount.value = 0      // ← 重置总数
     errorCount.value = 0  // ← 重置跳过文件数
     logs.value = []
+    scanStartTime.value = null  // 【UI优化】重置扫描开始时间
   }
   
   function removeResult(filePath: string) {
@@ -246,6 +260,8 @@ export const useAppStore = defineStore('app', () => {
     sensitiveFilesCount,
     errorCount,
     totalSensitiveItems,
+    scanStartTime,   // 【UI优化】导出扫描开始时间
+    scanElapsedTime, // 【UI优化】导出扫描耗时
     addScanResult,
     addLog,  // 【新增】批量添加日志
     clearScanResults,

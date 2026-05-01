@@ -643,6 +643,8 @@ tr:hover {
   text-align: right;
   overflow: visible;                 /* 数字列完整显示 */
   text-overflow: clip;               /* 不显示省略号 */
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;  /* 【UI优化】等宽字体 */
+  font-variant-numeric: tabular-nums; /* 【UI优化】表格数字对齐 */
 }
 
 .number-header {
