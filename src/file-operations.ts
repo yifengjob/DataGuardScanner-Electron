@@ -25,6 +25,27 @@ export function clearAllowedPaths(): void {
  * 检查文件路径是否在允许的范围内
  */
 export function isPathAllowed(filePath: string): boolean {
+  // 【A2 优化】安全检查：拒绝空路径
+  if (!filePath || filePath.trim() === '') {
+    console.warn('拒绝访问：文件路径为空');
+    return false;
+  }
+  
+  // 【A2 优化】安全检查：拒绝相对路径
+  if (path.isAbsolute(filePath) === false) {
+    console.warn(`拒绝访问：相对路径不被允许: ${filePath}`);
+    return false;
+  }
+  
+  // 【A2 优化】安全检查：解析真实路径，防止符号链接攻击
+  let realPath: string;
+  try {
+    realPath = fs.realpathSync(filePath);
+  } catch (error) {
+    // 文件不存在时，使用原始路径进行目录检查
+    realPath = filePath;
+  }
+  
   // 如果没有限制，允许所有路径（向后兼容）
   if (allowedPaths.size === 0) {
     return true;
@@ -32,7 +53,7 @@ export function isPathAllowed(filePath: string): boolean {
   
   // 检查文件路径是否在任何允许的路径下
   for (const allowed of allowedPaths) {
-    if (filePath.startsWith(allowed) || filePath === allowed.slice(0, -1)) {
+    if (realPath.startsWith(allowed) || realPath === allowed.slice(0, -1)) {
       return true;
     }
   }
