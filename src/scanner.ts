@@ -272,9 +272,15 @@ export async function startScan(
             }
         });
 
-        worker.on('exit', (code) => {
+        worker.on('exit', (code, signal) => {
             // 【修复】区分主动终止和异常退出
             const consumerRef = consumer as typeof consumers[0];
+            
+            // 【新增】记录详细的退出信息
+            if (signal) {
+                console.error(`[Consumer ${id}] Worker 被信号终止: ${signal}, 代码: ${code}`);
+            }
+            
             if (consumerRef.isTerminating) {
                 // 主动终止（超时等情况），不视为异常
                 console.log(`[Consumer ${id}] Worker 已终止（代码: ${code}）`);
@@ -285,7 +291,13 @@ export async function startScan(
 
             if (code !== 0 && !scanState.cancelFlag) {
                 // 【优化】只记录到日志文件
-                console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}`);
+                console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}, 信号: ${signal || 'none'}`);
+                
+                // 【新增】检测是否是 OOM 导致的退出
+                const isOOM = signal === 'SIGABRT' || code === 134; // 134 是 abort() 的退出码
+                if (isOOM) {
+                    console.error(`[Consumer ${id}] ⚠️ 检测到 Worker OOM！将重启 Worker 并跳过当前文件`);
+                }
 
                 // 【修复】只有当 consumer 处于 busy 状态时才更新计数
                 if (consumerRef.busy && consumerRef.taskId !== undefined) {
@@ -297,7 +309,12 @@ export async function startScan(
                         clearTimeout(pending.timeoutId);
                         pendingTasks.delete(consumerRef.taskId);
                         consumerProcessedCount++;
-                        pending.reject(new Error(`Worker 异常退出（代码: ${code}）`));
+                        
+                        // 【新增】返回友好的 OOM 错误信息
+                        const errorMsg = isOOM 
+                            ? '内存不足，文件可能过大或格式异常，已跳过'
+                            : `Worker 异常退出（代码: ${code}）`;
+                        pending.reject(new Error(errorMsg));
                     }
                 } else {
                     // Worker 空闲时退出，只需标记

@@ -124,6 +124,8 @@ process.on('unhandledRejection', (reason, _promise) => {
 
 process.on('uncaughtException', (error) => {
   console.error('[全局错误] 未捕获的异常:', error);
+  // 【关键】不退出进程，让应用继续运行
+  // 注意：某些致命错误（如 OOM）可能无法阻止退出
 });
 
 // 【新增】监听进程退出，帮助诊断闪退原因
