@@ -272,7 +272,7 @@ export async function startScan(
             }
         });
 
-        worker.on('exit', (code, signal) => {
+        worker.on('exit', (code: number, signal: string | null) => {
             // 【修复】区分主动终止和异常退出
             const consumerRef = consumer as typeof consumers[0];
             
