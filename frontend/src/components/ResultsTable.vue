@@ -774,6 +774,7 @@ tr {
 .virtual-scroller :deep(.vue-recycle-scroller__item-wrapper) {
   width: max-content !important;
   min-width: 100% !important;
+  overflow: visible !important;       /* 【关键】覆盖overflow:hidden */
 }
 
 /* 【关键】包裹层，强制撑开宽度 */
