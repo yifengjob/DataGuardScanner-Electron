@@ -663,7 +663,10 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
    - 拒绝空路径
    - 拒绝相对路径
    - 解析真实路径防止符号链接攻击
-2. **B2** - ⏸️ 待处理 - ZIP 解压缓存（内存优化）
+2. **B2** - ✅ **已完成** - ZIP 解压缓存（commit 779137d）
+   - 基于文件路径和修改时间的缓存键
+   - 最多缓存 50 个文件，自动清理旧缓存
+   - 避免重复读取同一 ZIP 文件
 3. **C1** - ✅ **已完成** - 加载状态反馈（commit c50b869）
    - DirectoryTree 添加加载指示器
    - 空状态提示
@@ -695,7 +698,7 @@ async function parseFile(filePath: string): Promise<Result<ParsedContent>> {
 
 ### 待改进领域 🎯
 1. **大数据量性能**: ✅ 已解决 - 表格虚拟滚动完美实现
-2. **内存管理**: ✅ 已解决 - Worker 内存动态限制完成
+2. **内存管理**: ✅ 已解决 - Worker 内存动态限制、ZIP 解压缓存完成
 3. **用户体验**: ✅ 已完成 - 错误提示、自适应节流、加载状态、主题动画完成
 4. **无障碍**: ⏸️ 待处理 - WCAG 合规性
 5. **代码一致性**: ⏸️ 待处理 - 错误处理策略
