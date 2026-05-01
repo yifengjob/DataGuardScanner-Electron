@@ -29,11 +29,12 @@ function getBaseSystemDirs(): string[] {
         const programFiles = process.env.PROGRAMFILES || 'C:\\Program Files';
         const programFilesX86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
         const systemDrive = path.parse(windir).root; // 获取系统盘符，如 C:\
-        
+
         systemDirs = [
             // Windows 核心系统目录
             windir, // 例如 D:\Windows
             path.join(systemDrive, 'WinNT'), // 兼容旧版本
+            path.join(systemDrive, 'Windows.old'),
             // 程序安装目录
             programFiles,
             programFilesX86,
@@ -78,24 +79,25 @@ export function generateSystemDirs(ignoreOtherDrives: boolean = false): string[]
     // 仅在 Windows 且启用选项时添加其他磁盘
     if (process.platform === 'win32' && ignoreOtherDrives) {
         const allDirs = [...baseDirs];
-        
+
         // 【动态获取】使用环境变量获取系统盘符
         const windir = process.env.WINDIR || 'C:\\Windows';
         const systemDrive = path.parse(windir).root;
-        
+
         // 添加其他磁盘的系统目录（C-Z），与 getBaseSystemDirs 保持一致
         for (let i = 67; i <= 90; i++) {
             const drive = String.fromCharCode(i);
             const driveRoot = `${drive}:\\`;
-            
+
             // 跳过系统盘（已经在 baseDirs 中）
             // 【兼容性】不区分大小写比较，防止 C: 和 c: 的情况
             if (driveRoot.toLowerCase() === systemDrive.toLowerCase()) {
                 continue;
             }
-            
+
             allDirs.push(
                 `${driveRoot}Windows`,
+                `${driveRoot}Windows.old`,
                 `${driveRoot}WinNT`,
                 `${driveRoot}Program Files`,
                 `${driveRoot}Program Files (x86)`,
