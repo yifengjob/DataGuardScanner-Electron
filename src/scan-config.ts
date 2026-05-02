@@ -85,15 +85,6 @@ export const PREVIEW_TIMEOUT = 30000; // 30 秒
 /** 预览流式传输每块行数 */
 export const PREVIEW_CHUNK_SIZE = 1000;
 
-/** 预览虚拟滚动行高（像素） */
-export const PREVIEW_LINE_HEIGHT = 20;
-
-/** 预览虚拟滚动缓冲行数 */
-export const PREVIEW_BUFFER_LINES = 10;
-
-/** 预览滚动防抖时间（毫秒） */
-export const PREVIEW_SCROLL_DEBOUNCE_MS = 50;
-
 // ==================== 文件大小限制配置 ====================
 
 /** 默认最大文件大小（MB） */
