@@ -175,7 +175,7 @@ const sensitiveRules: SensitiveRule[] = [
   },
   {
     id: 'ip_address',
-    name: 'IPv4地址',
+    name: 'IP地址',
     // IPv4地址：每段0-255，用点分隔
     pattern: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
     enabledByDefault: true,
@@ -183,7 +183,7 @@ const sensitiveRules: SensitiveRule[] = [
   },
   {
     id: 'password',
-    name: '密码关键词',
+    name: '密码密钥',
     // 匹配 password/pwd/passwd/密码 后面跟着 := 和值的模式
     pattern: /(?:password|pwd|passwd|密码)\s*[:=]\s*\S+/gi,
     enabledByDefault: true

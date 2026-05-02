@@ -1,3 +1,4 @@
+直接
 <template>
   <div class="results-table">
     <div class="table-header">
@@ -199,21 +200,42 @@ const isResizing = ref(false)
 const scrollerRef = ref<any>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
 
-// 【优化】路径列宽度配置
-const MIN_PATH_WIDTH_PX = 120  // 最小路径列宽度（7.5em × 16px，基本可读）
-const RESIZE_THRESHOLD = 50    // 宽度变化阈值（像素）
+// 【优化】列宽配置（em 单位）
+const COLUMN_WIDTHS = {
+  checkbox: 4,
+  size: 8,
+  time: 12,
+  count: 6.15,  // 每个敏感类型列
+  total: 7,
+  actions: 9,
+} as const
 
-// 计算固定列总宽度（px）- 基于优化后的列宽
-const calculateFixedColumnsTotal = (sensitiveTypesCount: number): number => {
-  return (
-    64 +   // checkbox: 4em × 16
-    112 +  // size: 7em × 16
-    192 +  // time: 12em × 16
-    (72 * sensitiveTypesCount) +  // counts: 4.5em × 16 × 数量（优化后）
-    112 +  // total: 7em × 16
-    144    // actions: 9em × 16（优化后）
-  )
+// 【辅助方法】获取基础字体大小（带缓存和错误处理）
+const getBaseFontSize = (): number => {
+  if (cachedBaseFontSize !== null) {
+    return cachedBaseFontSize
+  }
+
+  try {
+    const bodyStyle = getComputedStyle(document.body)
+    const fontSize = parseFloat(bodyStyle.fontSize)
+    // 验证字体大小是否有效（10-30px 范围内）
+    if (fontSize >= 10 && fontSize <= 30) {
+      cachedBaseFontSize = fontSize
+    } else {
+      console.warn('[getBaseFontSize] 无效的字体大小:', fontSize, '使用默认值 14px')
+      cachedBaseFontSize = 14
+    }
+  } catch (error) {
+    console.error('[getBaseFontSize] 获取字体大小失败:', error, '使用默认值 14px')
+    cachedBaseFontSize = 14
+  }
+
+  return cachedBaseFontSize
 }
+
+// 【优化】移除不再需要的手动宽度计算
+// Grid 的 minmax(8em, 1fr) 会自动处理路径列宽度
 
 // 监听窗口 resize
 let resizeTimer: number | null = null
@@ -221,30 +243,13 @@ let scrollSyncSetup = false  // 【修复】标记是否已设置滚动同步
 let containerQuerySetup = false  // 【修复】防止重复设置容器查询
 let resizeHandler: (() => void) | null = null  // 【修复】保存 resize 处理器引用
 
-// 【安全】组件卸载时清理
-onUnmounted(() => {
-  if (resizeTimer) clearTimeout(resizeTimer)
-  
-  // 清理 resize 监听器
-  if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
-    resizeHandler = null
-  }
-  
-  // 清理 ResizeObserver
-  const cleanup = (window as any).__resultsTableCleanup
-  if (cleanup) {
-    cleanup()
-    delete (window as any).__resultsTableCleanup
-  }
-})
-
 onMounted(() => {
   resizeHandler = () => {
     isResizing.value = true
     if (resizeTimer) clearTimeout(resizeTimer)
     resizeTimer = window.setTimeout(() => {
       isResizing.value = false
+      updatePathMaxWidth() // 【新增】窗口 resize 完成后更新路径列 max-width
     }, 300)
   }
 
@@ -270,39 +275,21 @@ const sensitiveTypes = computed(() => {
   )
 })
 
-// 【新增】监听敏感类型变化，重新计算路径列宽度
-watch(sensitiveTypes, () => {
-  // 如果已经设置了路径列宽度，需要重新计算
-  const tableElement = document.querySelector('.results-table') as HTMLElement
-  if (tableElement && containerQuerySetup) {
-    const currentWidth = tableElement.offsetWidth
-    const fixedTotalPx = calculateFixedColumnsTotal(sensitiveTypes.value.length)
-    let pathWidthPx = currentWidth - fixedTotalPx
-    
-    if (pathWidthPx < MIN_PATH_WIDTH_PX) {
-      pathWidthPx = MIN_PATH_WIDTH_PX
-    }
-    
-    const pathWidthEm = pathWidthPx / 16
-    tableElement.style.setProperty('--path-col-width', `${pathWidthEm}em`)
-  }
-})
-
-// 【修复】动态计算 Grid 列模板
+// 【修复】动态计算 Grid 列模板 - 使用 1fr 自动填充
 const gridStyle = computed(() => {
   const countCols = sensitiveTypes.value.length
   // 【关键】所有列使用固定宽度，确保完全对齐
-  const countColDefs = '4.5em '.repeat(countCols)  // 优化：6em → 4.5em（72px，足够显示 "99,999"）
+  const countColDefs = `${COLUMN_WIDTHS.count}em `.repeat(countCols)
 
   return {
     gridTemplateColumns: `
-      4em                             /* checkbox - 固定 */
-      var(--path-col-width)           /* path - 自适应（由JS精准计算） */
-      7em                             /* size - 固定 */
-      12em                            /* time - 固定 */
-      ${countColDefs}                 /* counts - 优化后（可显示7位，含千分位） */
-      7em                             /* total - 固定（可显示11-12位，比counts多1-2位） */
-      9em                             /* actions - 优化：11em → 9em（144px，4个按钮足够） */
+      ${COLUMN_WIDTHS.checkbox}em                 /* checkbox - 固定 */
+      minmax(8em, 1fr)                            /* path - 自适应（最少8em，最多占据剩余空间） */
+      ${COLUMN_WIDTHS.size}em                     /* size - 固定 */
+      ${COLUMN_WIDTHS.time}em                     /* time - 固定 */
+      ${countColDefs}                             /* counts - 优化后（可显示敏感类型名称） */
+      ${COLUMN_WIDTHS.total}em                    /* total - 固定（可显示11-12位，比counts多1-2位） */
+      ${COLUMN_WIDTHS.actions}em                  /* actions - 固定（4个按钮足够） */
     `.trim()
   }
 })
@@ -377,12 +364,113 @@ watch(
     {immediate: true}
 )
 
-// 【新增】组件挂载时立即设置路径列宽度监听
+// 【新增】设置路径列 max-width 监听（使用 ResizeObserver）
+let pathMaxWidthObserver: ResizeObserver | null = null
+let rafId: number | null = null // 【优化】使用 rAF 代替 setTimeout
+let cachedBaseFontSize: number | null = null // 【优化】缓存基础字体大小
+
+const setupPathMaxWidthObserver = () => {
+  // 【修复】先清理旧的 Observer，防止重复创建
+  if (pathMaxWidthObserver) {
+    pathMaxWidthObserver.disconnect()
+    pathMaxWidthObserver = null
+  }
+
+  const tableElement = document.querySelector('.results-table') as HTMLElement
+  if (!tableElement) return
+
+  // 创建 ResizeObserver 监听容器宽度变化
+  pathMaxWidthObserver = new ResizeObserver(() => {
+    // 【优化】使用 rAF 批量处理，与浏览器渲染同步
+    if (rafId) cancelAnimationFrame(rafId)
+    rafId = requestAnimationFrame(() => {
+      updatePathMaxWidth(tableElement) // 传入已获取的元素，避免重复查询
+      rafId = null
+    })
+  })
+
+  pathMaxWidthObserver.observe(tableElement)
+}
+
+// 【新增】组件挂载时立即设置路径列 max-width
 onMounted(() => {
-  // 延迟一点确保 DOM 完全渲染
-  setTimeout(() => {
-    setupPathColumnWidth()
-  }, 100)
+  // 【优化】使用 nextTick 确保 DOM 完全渲染
+  nextTick(() => {
+    setupScrollSync()
+    updatePathMaxWidth() // 初始设置路径列 max-width
+    setupPathMaxWidthObserver() // 设置 ResizeObserver 监听
+  })
+})
+
+// 【新增】更新路径列 max-width（根据容器宽度和固定列总宽度动态计算）
+const updatePathMaxWidth = (cachedTableElement?: HTMLElement) => {
+  const tableElement = cachedTableElement || document.querySelector('.results-table') as HTMLElement
+  if (!tableElement) return
+
+  // 【优化】获取基础字体大小（使用辅助方法）
+  const baseFontSize = getBaseFontSize()
+
+  // 【优化】使用响应式计算的固定列总宽度
+  const fixedTotalPx = fixedColumnsTotalPx.value
+
+  // 计算路径列 max-width = 容器宽度 - 固定列总宽度
+  const containerWidth = tableElement.offsetWidth
+  let maxPathWidthPx = containerWidth - fixedTotalPx
+
+  // 【保底】最小宽度 8em，防止宽度过小导致异常
+  const minPathWidthPx = 8 * baseFontSize
+  if (maxPathWidthPx < minPathWidthPx) {
+    maxPathWidthPx = minPathWidthPx
+  }
+
+  const maxPathWidthEm = maxPathWidthPx / baseFontSize
+
+  // 设置 CSS 变量
+  tableElement.style.setProperty('--path-col-max-width', `${maxPathWidthEm}em`)
+}
+
+// 【新增】监听敏感类型变化和窗口 resize，更新 max-width
+watch(sensitiveTypes, () => {
+  // 【优化】使用 nextTick 等待 DOM 更新
+  nextTick(() => updatePathMaxWidth())
+})
+
+// 【优化】响应式计算固定列总宽度（基于 Grid 模板配置）
+const fixedColumnsTotalPx = computed(() => {
+  const countCols = sensitiveTypes.value.length
+  // 【优化】获取基础字体大小（使用辅助方法）
+  const baseFontSize = getBaseFontSize()
+
+  return (
+      COLUMN_WIDTHS.checkbox * baseFontSize +   // checkbox
+      COLUMN_WIDTHS.size * baseFontSize +       // size
+      COLUMN_WIDTHS.time * baseFontSize +       // time
+      (COLUMN_WIDTHS.count * baseFontSize * countCols) +  // counts
+      COLUMN_WIDTHS.total * baseFontSize +      // total
+      COLUMN_WIDTHS.actions * baseFontSize      // actions
+  )
+})
+
+onUnmounted(() => {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  if (rafId) cancelAnimationFrame(rafId) // 【优化】清理 rAF
+
+  // 清理 resize 监听器
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler)
+    resizeHandler = null
+  }
+
+  // 清理 ResizeObserver（路径列 max-width）
+  if (pathMaxWidthObserver) {
+    pathMaxWidthObserver.disconnect()
+    pathMaxWidthObserver = null
+  }
+
+  // 【修复】重置缓存和标记，防止内存泄漏
+  cachedBaseFontSize = null
+  scrollSyncSetup = false
+  containerQuerySetup = false
 })
 
 // 设置滚动同步
@@ -400,105 +488,6 @@ const setupScrollSync = () => {
   }
 
   scrollSyncSetup = true
-}
-
-// 【新增】设置路径列精准宽度（使用 ResizeObserver + rAF 优化）
-const setupPathColumnWidth = () => {
-  const tableElement = document.querySelector('.results-table') as HTMLElement
-  if (!tableElement) {
-    console.warn('未找到 .results-table 元素')
-    return
-  }
-
-  console.log('开始设置路径列宽度监听器')
-
-  let rafId: number | null = null
-  let pendingWidth: number | null = null
-  let lastWidth = 0
-
-  // 更新路径列宽度
-  const updatePathWidth = (containerWidth: number) => {
-    console.log(`\n=== 开始更新路径列宽度 ===`)
-    console.log(`容器宽度: ${containerWidth}px`)
-    
-    // 计算固定列总宽度
-    const sensitiveCount = sensitiveTypes.value.length
-    const fixedTotalPx = calculateFixedColumnsTotal(sensitiveCount)
-    
-    console.log(`\n固定列明细:`)
-    console.log(`  - checkbox: 4em = 64px`)
-    console.log(`  - size: 7em = 112px`)
-    console.log(`  - time: 12em = 192px`)
-    console.log(`  - counts: 6em × ${sensitiveCount} = ${96 * sensitiveCount}px`)
-    console.log(`  - total: 7em = 112px`)
-    console.log(`  - actions: 11em = 176px`)
-    console.log(`  固定列总计: ${fixedTotalPx}px`)
-    
-    // 计算路径列宽度 = 容器宽度 - 固定列总宽度
-    let pathWidthPx = containerWidth - fixedTotalPx
-    console.log(`\n路径列计算: ${containerWidth} - ${fixedTotalPx} = ${pathWidthPx}px`)
-    
-    // 应用最小值限制
-    if (pathWidthPx < MIN_PATH_WIDTH_PX) {
-      console.log(`⚠️  路径列宽度 (${pathWidthPx}px) 小于最小值 (${MIN_PATH_WIDTH_PX}px)，应用最小值`)
-      pathWidthPx = MIN_PATH_WIDTH_PX
-    }
-    
-    // 转换为 em 单位（假设 1em = 16px）
-    const pathWidthEm = pathWidthPx / 16
-    
-    // 设置 CSS 变量
-    tableElement.style.setProperty('--path-col-width', `${pathWidthEm}em`)
-    console.log(`✅ 设置 --path-col-width: ${pathWidthEm}em (${pathWidthPx}px)`)
-    console.log(`=== 更新完成 ===\n`)
-  }
-
-  // 初始设置
-  const initialWidth = tableElement.offsetWidth
-  console.log(`初始容器宽度: ${initialWidth}px`)
-  updatePathWidth(initialWidth)
-  lastWidth = initialWidth
-
-  // 监听容器宽度变化
-  const observer = new ResizeObserver((entries) => {
-    const width = Math.round(entries[0].contentRect.width)
-    console.log(`ResizeObserver 触发: ${width}px (上次: ${lastWidth}px, 差异: ${Math.abs(width - lastWidth)}px)`)
-
-    // 只有宽度变化超过阈值才处理
-    if (Math.abs(width - lastWidth) < RESIZE_THRESHOLD) {
-      console.log('宽度变化小于阈值，忽略')
-      return
-    }
-
-    // 保存最新宽度
-    pendingWidth = width
-
-    // 使用 rAF 批量处理
-    if (!rafId) {
-      rafId = requestAnimationFrame(() => {
-        if (pendingWidth !== null) {
-          console.log('rAF 执行更新')
-          updatePathWidth(pendingWidth)
-          lastWidth = pendingWidth
-          pendingWidth = null
-        }
-        rafId = null
-      })
-    }
-  })
-
-  observer.observe(tableElement)
-  console.log('ResizeObserver 已设置，开始监听 .results-table')
-
-  // 【安全】组件卸载时清理 observer，挂载到 window 供 onUnmounted 调用
-  ;(window as any).__resultsTableCleanup = () => {
-    if (rafId) {
-      cancelAnimationFrame(rafId)
-      rafId = null
-    }
-    observer.disconnect()
-    console.log('ResizeObserver 已清理')
-  }
 }
 
 // 【关键】处理滚动事件，同步表头
@@ -682,8 +671,8 @@ const handleBatchDelete = async () => {
   flex-direction: column;
   height: 100%;
 
-  /* 【优化】路径列宽度配置（CSS 自定义属性，由 JS 精准计算） */
-  --path-col-width: 12em; /* 默认值，会被 JS 覆盖 */
+  /* 【新增】路径列 max-width 配置（由 JS 动态计算） */
+  --path-col-max-width: 10em; /* 默认值 */
 }
 
 .table-header {
@@ -818,6 +807,7 @@ const handleBatchDelete = async () => {
   min-height: 40px;
   width: max-content; /* 【关键】根据列宽总和自动计算 */
   min-width: 100%; /* 至少占满容器 */
+  transition: grid-template-columns 0.2s ease-out; /* 【新增】Grid 列宽变化平滑过渡 */
 }
 
 .virtual-row:hover {
@@ -841,6 +831,7 @@ const handleBatchDelete = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: var(--path-col-max-width); /* 【新增】动态 max-width */
 }
 
 .time-cell {
@@ -851,6 +842,7 @@ const handleBatchDelete = async () => {
   /* 【简化】只有文件名列显示省略号 */
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: var(--path-col-max-width); /* 【新增】动态 max-width */
 }
 
 /* 【修复】数字列完全显示，不截断 */
