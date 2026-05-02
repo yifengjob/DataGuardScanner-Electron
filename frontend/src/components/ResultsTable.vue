@@ -25,7 +25,7 @@
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
         <!-- 固定表头 -->
         <div class="table-header-grid" ref="headerRef" :style="gridStyle">
-          <div class="cell checkbox-col header-cell center-header">
+          <div class="cell checkbox-col header-cell center-header frozen-left">
             <input
                 type="checkbox"
                 ref="selectAllCheckbox"
@@ -35,7 +35,7 @@
             />
           </div>
           <div
-              class="cell path-col header-cell sortable"
+              class="cell path-col header-cell sortable frozen-left"
               :class="{ 'sorted-asc': sortField === 'file_path' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_path' && sortOrder === 'desc' }"
               @click="sortBy('file_path')"
               title="点击排序"
@@ -91,7 +91,7 @@
               {{ sortOrder === 'asc' ? '↑' : '↓' }}
             </span>
           </div>
-          <div class="cell actions-col header-cell actions-header">操作</div>
+          <div class="cell actions-col header-cell actions-header frozen-right">操作</div>
         </div>
 
         <!-- 虚拟滚动内容 - 支持动态行高 -->
@@ -117,14 +117,14 @@
           >
             <div class="row-wrapper">
               <div class="virtual-row" :style="gridStyle">
-                <div class="cell checkbox-col">
+                <div class="cell checkbox-col frozen-left">
                   <input
                       type="checkbox"
                       :checked="selectedFiles.has(item.filePath)"
                       @change="toggleSelectFile(item.filePath)"
                   />
                 </div>
-                <div class="cell path-cell" :title="item.filePath">{{ getFileName(item.filePath) }}</div>
+                <div class="cell path-cell frozen-left" :title="item.filePath">{{ getFileName(item.filePath) }}</div>
                 <div class="cell size-cell mono-font">{{ formatFileSize(item.fileSize) }}</div>
                 <div class="cell mono-font time-cell">{{ formatTime(item.modifiedTime) }}</div>
                 <div v-for="type in sensitiveTypes" :key="type.id" class="cell number-cell mono-font"
@@ -132,7 +132,7 @@
                   {{ (item.counts[type.id] || 0) > 0 ? Number(item.counts[type.id]).toLocaleString() : '-' }}
                 </div>
                 <div class="cell total-cell mono-font">{{ item.total.toLocaleString() }}</div>
-                <div class="cell actions-col">
+                <div class="cell actions-col frozen-right">
                   <div class="actions-cell">
                     <button class="btn-action" @click="handlePreview(item)" title="预览">
                       <svg class="action-icon">
@@ -733,7 +733,9 @@ const handleBatchDelete = async () => {
 .table-content.resizing .table-header-grid,
 .table-content.resizing .checkbox-col,
 .table-content.resizing .path-cell,
-.table-content.resizing .actions-col {
+.table-content.resizing .actions-col,
+.table-content.resizing .frozen-left,
+.table-content.resizing .frozen-right {
   position: static !important;
   box-shadow: none !important;
   z-index: auto !important;
@@ -825,6 +827,56 @@ const handleBatchDelete = async () => {
 
 .checkbox-col {
   text-align: center;
+}
+
+/* 【冻结列】左侧冻结列 */
+.frozen-left {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background-color: inherit; /* 继承父元素背景色 */
+}
+
+/* 复选框列固定在左侧 */
+.checkbox-col.frozen-left {
+  z-index: 6; /* 比路径列更高 */
+}
+
+/* 路径列在复选框列右侧 */
+.path-col.frozen-left,
+.path-cell.frozen-left {
+  left: 4em; /* 复选框列宽度 */
+}
+
+/* 【冻结列】右侧冻结列 */
+.frozen-right {
+  position: sticky;
+  right: 0;
+  z-index: 5;
+  background-color: inherit;
+}
+
+/* 冻结列阴影效果 - 增强视觉分隔 */
+.frozen-left::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.05), transparent);
+  pointer-events: none;
+}
+
+.frozen-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.05), transparent);
+  pointer-events: none;
 }
 
 .path-col {
