@@ -492,18 +492,8 @@ const setupScrollSync = () => {
 
 // 【关键】处理滚动事件，同步表头
 const handleScroll = (event: Event) => {
-  if (headerRef.value && event.target) {
-    const target = event.target as HTMLElement
-    const scrollLeft = target.scrollLeft
-
-    // 【关键】使用 transform 代替 scrollLeft
-    headerRef.value.style.transform = `translateX(${-scrollLeft}px)`
-  } else {
-    // 只在开发环境输出调试信息
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
-      console.error('handleScroll: ref 未绑定', {headerRef: headerRef.value, target: event.target})
-    }
-  }
+  // 【冻结列优化】不再使用 transform 同步，改用 CSS sticky 定位
+  // 表头和冻结列会通过 position: sticky 自动跟随滚动
 }
 
 const sortBy = (field: string) => {
@@ -769,7 +759,6 @@ const handleBatchDelete = async () => {
   z-index: 10;
   overflow-x: auto !important; /* 【关键】允许横向滚动，覆盖继承 */
   overflow-y: hidden !important;
-  will-change: transform; /* 【关键】优化 transform 性能 */
   position: sticky; /* 【冻结列】表头固定在顶部 */
   top: 0;
 }
