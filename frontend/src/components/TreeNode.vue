@@ -48,6 +48,8 @@ const props = defineProps<{
   node: DirectoryNode
   level: number
   allNodesMap: Map<string, DirectoryNode>
+  forceExpand?: boolean  // 【新增】强制展开标志
+  forceCollapse?: boolean  // 【新增】强制折叠标志
 }>()
 
 const emit = defineEmits<{
@@ -58,6 +60,23 @@ const appStore = useAppStore()
 const isExpanded = ref(false)
 const children = ref<DirectoryNode[]>([])
 const checkboxRef = ref<HTMLInputElement | null>(null)
+
+// 【新增】监听强制展开/折叠标志
+watch(
+  () => [props.forceExpand, props.forceCollapse],
+  ([newExpand, newCollapse]) => {
+    if (newExpand && props.node.isDir && props.node.hasChildren) {
+      // 强制展开
+      if (!isExpanded.value) {
+        handleExpand()
+      }
+    } else if (newCollapse && isExpanded.value) {
+      // 强制折叠
+      isExpanded.value = false
+    }
+  },
+  { immediate: false }
+)
 
 // 计算节点的选中状态
 const checkState = computed(() => {

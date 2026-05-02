@@ -59,6 +59,8 @@
         :node="node"
         :level="0"
         :all-nodes-map="allNodesMap"
+        :force-expand="shouldExpandAll"
+        :force-collapse="shouldCollapseAll"
         @toggle="handleToggleNode"
       />
     </div>
@@ -84,6 +86,9 @@ const isAllExpanded = ref(false)
 // 【新增】动画状态
 const isAnimatingSelect = ref(false)
 const isAnimatingExpand = ref(false)
+// 【新增】强制展开/折叠标志（用于通知 TreeNode 组件）
+const shouldExpandAll = ref(false)
+const shouldCollapseAll = ref(false)
 
 // 加载根目录
 onMounted(async () => {
@@ -221,40 +226,23 @@ const handleToggleExpand = () => {
   
   if (isAllExpanded.value) {
     // 当前是展开状态，执行折叠
-    collapseAllNodes()
+    shouldCollapseAll.value = true
+    shouldExpandAll.value = false
     isAllExpanded.value = false
+    // 重置标志（下一个 tick 后）
+    setTimeout(() => {
+      shouldCollapseAll.value = false
+    }, 100)
   } else {
     // 当前是折叠状态，执行展开
-    expandAllNodes()
+    shouldExpandAll.value = true
+    shouldCollapseAll.value = false
     isAllExpanded.value = true
+    // 重置标志（下一个 tick 后）
+    setTimeout(() => {
+      shouldExpandAll.value = false
+    }, 100)
   }
-}
-
-// 【辅助方法】递归展开所有节点（通过触发 TreeNode 的点击事件）
-const expandAllNodes = () => {
-  // 查找所有 TreeNode 组件实例
-  const treeNodes = document.querySelectorAll('.tree-node')
-  treeNodes.forEach((nodeElement) => {
-    const expandIcon = nodeElement.querySelector('.expand-icon') as HTMLElement
-    if (expandIcon) {
-      // 模拟点击展开图标
-      expandIcon.click()
-    }
-  })
-}
-
-// 【辅助方法】递归折叠所有节点
-const collapseAllNodes = () => {
-  // 查找所有 TreeNode 组件实例
-  const treeNodes = document.querySelectorAll('.tree-node')
-  treeNodes.forEach((nodeElement) => {
-    const expandIcon = nodeElement.querySelector('.expand-icon') as HTMLElement
-    // 检查是否已展开（显示 ▼）
-    if (expandIcon && expandIcon.textContent === '▼') {
-      // 模拟点击展开图标来折叠
-      expandIcon.click()
-    }
-  })
 }
 
 // 【新增】刷新目录树
