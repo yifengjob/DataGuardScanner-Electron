@@ -841,6 +841,12 @@ const handleBatchDelete = async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-right: 1px solid rgba(0, 0, 0, 0.06); /* 【新增】淡淡的纵向分隔线 */
+}
+
+/* 最后一列不需要右边框 */
+.cell:last-child {
+  border-right: none;
 }
 
 .checkbox-col {
