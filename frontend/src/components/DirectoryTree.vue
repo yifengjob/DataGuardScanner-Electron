@@ -186,7 +186,7 @@ const handleToggleSelectAll = () => {
 
 // 【修改】监听 store 中的选中状态变化
 watch(
-  () => appStore.selectedDirectories.size,
+  () => appStore.selectedPaths.size,
   (newSize) => {
     // 如果选中的目录数量等于总目录数量，则为全选状态
     const totalPaths = countTotalPaths(rootNodes.value)
