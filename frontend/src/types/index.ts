@@ -5,7 +5,6 @@ export interface DirectoryNode {
   isHidden: boolean
   hasChildren: boolean
   children?: DirectoryNode[]
-  expanded?: boolean  // 【新增】展开状态，用于控制目录树的展开/折叠
 }
 
 export interface ScanConfig {

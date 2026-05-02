@@ -221,31 +221,38 @@ const handleToggleExpand = () => {
   
   if (isAllExpanded.value) {
     // 当前是展开状态，执行折叠
-    collapseAllNodes(rootNodes.value)
+    collapseAllNodes()
     isAllExpanded.value = false
   } else {
     // 当前是折叠状态，执行展开
-    expandAllNodes(rootNodes.value)
+    expandAllNodes()
     isAllExpanded.value = true
   }
 }
 
-// 【辅助方法】递归展开所有节点
-const expandAllNodes = (nodes: DirectoryNode[]) => {
-  nodes.forEach(node => {
-    if (node.children && node.children.length > 0) {
-      node.expanded = true
-      expandAllNodes(node.children)
+// 【辅助方法】递归展开所有节点（通过触发 TreeNode 的点击事件）
+const expandAllNodes = () => {
+  // 查找所有 TreeNode 组件实例
+  const treeNodes = document.querySelectorAll('.tree-node')
+  treeNodes.forEach((nodeElement) => {
+    const expandIcon = nodeElement.querySelector('.expand-icon') as HTMLElement
+    if (expandIcon) {
+      // 模拟点击展开图标
+      expandIcon.click()
     }
   })
 }
 
 // 【辅助方法】递归折叠所有节点
-const collapseAllNodes = (nodes: DirectoryNode[]) => {
-  nodes.forEach(node => {
-    if (node.children && node.children.length > 0) {
-      node.expanded = false
-      collapseAllNodes(node.children)
+const collapseAllNodes = () => {
+  // 查找所有 TreeNode 组件实例
+  const treeNodes = document.querySelectorAll('.tree-node')
+  treeNodes.forEach((nodeElement) => {
+    const expandIcon = nodeElement.querySelector('.expand-icon') as HTMLElement
+    // 检查是否已展开（显示 ▼）
+    if (expandIcon && expandIcon.textContent === '▼') {
+      // 模拟点击展开图标来折叠
+      expandIcon.click()
     }
   })
 }
