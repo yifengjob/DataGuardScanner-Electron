@@ -479,8 +479,8 @@ const getThemeTooltip = () => {
 }
 
 .btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
+  filter: grayscale(50%) brightness(0.9); /* 使用 filter 替代 opacity，避免渲染层问题 */
 }
 
 .btn-primary {
