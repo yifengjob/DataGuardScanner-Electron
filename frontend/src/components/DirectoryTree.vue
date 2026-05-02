@@ -179,7 +179,9 @@ const handleToggleSelectAll = () => {
 watch(
   () => appStore.selectedPaths.size,
   (newSize) => {
-    const totalPaths = countTotalPaths(rootNodes.value)
+    // 【修复】使用 allNodesMap 的大小，而不是 rootNodes 的递归计数
+    // 确保与 handleToggleSelectAll 中的逻辑一致
+    const totalPaths = allNodesMap.value.size
     // 只有当选中数量等于总数时才是全选状态
     isAllSelected.value = newSize === totalPaths && totalPaths > 0
   },
