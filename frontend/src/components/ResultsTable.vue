@@ -735,7 +735,9 @@ const handleBatchDelete = async () => {
 .table-content.resizing .path-cell,
 .table-content.resizing .actions-col,
 .table-content.resizing .frozen-left,
-.table-content.resizing .frozen-right {
+.table-content.resizing .frozen-right,
+.table-content.resizing .header-cell.frozen-left,
+.table-content.resizing .header-cell.frozen-right {
   position: static !important;
   box-shadow: none !important;
   z-index: auto !important;
@@ -768,6 +770,8 @@ const handleBatchDelete = async () => {
   overflow-x: auto !important; /* 【关键】允许横向滚动，覆盖继承 */
   overflow-y: hidden !important;
   will-change: transform; /* 【关键】优化 transform 性能 */
+  position: sticky; /* 【冻结列】表头固定在顶部 */
+  top: 0;
 }
 
 .header-cell {
@@ -778,6 +782,12 @@ const handleBatchDelete = async () => {
   white-space: nowrap; /* 防止表头换行 */
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 【冻结列】表头冻结单元格的 z-index */
+.header-cell.frozen-left,
+.header-cell.frozen-right {
+  z-index: 11; /* 比表头容器更高 */
 }
 
 .virtual-scroller {
