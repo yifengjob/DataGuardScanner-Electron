@@ -33,6 +33,8 @@ export function formatTime(isoString: string): string {
   }
 }
 
+// ==================== 工具函数 ====================
+
 // 【新增】防抖函数
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
@@ -47,6 +49,22 @@ export function debounce<T extends (...args: any[]) => any>(
     timeout = setTimeout(() => {
       func(...args)
     }, wait)
+  }
+}
+
+// 【新增】节流函数
+export function throttle<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let lastTime = 0
+  
+  return function(...args: Parameters<T>) {
+    const now = Date.now()
+    if (now - lastTime >= wait) {
+      lastTime = now
+      func(...args)
+    }
   }
 }
 
