@@ -178,24 +178,28 @@ parentPort?.on('message', async (task: WorkerTask) => {
           lineStartPositions.push(position);
         }
         
-        // 计算全局高亮
-        const allHighlights = getHighlights(text, enabledTypes);
-        
+        // 【优化】按块计算高亮，避免一次性计算所有高亮
         // 【关键】连续发送所有块，不等待前端响应
         for (let i = 0; i < lines.length; i += chunkSize) {
           const chunkLines = lines.slice(i, i + chunkSize);
-          const chunkHighlights = getHighlightsForLines(
-            chunkLines,
-            i,
-            allHighlights,
-            lineStartPositions
-          );
+          const chunkText = chunkLines.join('\n');
+          
+          // 只计算当前块的高亮
+          const chunkHighlights = getHighlights(chunkText, enabledTypes);
+          
+          // 转换为全局偏移
+          const globalHighlights = chunkHighlights.map(h => ({
+            start: h.start + lineStartPositions[i],
+            end: h.end + lineStartPositions[i],
+            typeId: h.typeId,
+            typeName: h.typeName
+          }));
           
           parentPort?.postMessage({
             type: 'chunk',
             chunkIndex: Math.floor(i / chunkSize),
             lines: chunkLines,
-            highlights: chunkHighlights,
+            highlights: globalHighlights,  // 发送全局偏移
             startLine: i,
             totalLines: totalLines
           } as StreamChunk);

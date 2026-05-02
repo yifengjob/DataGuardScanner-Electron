@@ -155,15 +155,8 @@ async function performBatchRender() {
     for (const chunk of chunksToRender) {
       streamState.value.renderedLines.push(...chunk.lines)
       
-      // 转换高亮为全局偏移（需要加上起始行的偏移）
-      for (const h of chunk.highlights) {
-        streamState.value.renderedHighlights.push({
-          start: h.start + getLineOffset(chunk.startLine),
-          end: h.end + getLineOffset(chunk.startLine),
-          typeId: h.typeId,
-          typeName: h.typeName
-        })
-      }
+      // 【优化】后端已经发送全局偏移，直接保存
+      streamState.value.renderedHighlights.push(...chunk.highlights)
     }
     
     // 更新虚拟滚动器
@@ -204,7 +197,7 @@ function renderVisibleContent() {
   const viewportHeight = scrollContainer.value.clientHeight
   const scrollTop = scrollContainer.value.scrollTop
   
-  const { startLine, endLine } = scroller.calculateVisibleRange(scrollTop, viewportHeight)
+  scroller.calculateVisibleRange(scrollTop, viewportHeight)
   const { lines, startIndex } = scroller.getVisibleLines()
   
   if (lines.length === 0) {
@@ -212,15 +205,17 @@ function renderVisibleContent() {
     return
   }
   
+  // 【优化】计算可见区域的字符范围
+  const visibleStartOffset = getLineOffset(startIndex)
+  const visibleEndOffset = getLineOffset(startIndex + lines.length)
+  
   // 获取该行范围的高亮
-  const globalHighlights = streamState.value.renderedHighlights.filter(h => {
-    const lineStart = getLineOffset(startLine)
-    const lineEnd = getLineOffset(endLine + 1)
-    return h.start >= lineStart && h.end <= lineEnd
+  const visibleHighlights = streamState.value.renderedHighlights.filter(h => {
+    return h.start >= visibleStartOffset && h.end <= visibleEndOffset
   })
   
   // 转换为行内高亮
-  const lineHighlightsMap = scroller.convertHighlights(globalHighlights)
+  const lineHighlightsMap = scroller.convertHighlights(visibleHighlights)
   
   // 生成 HTML
   let html = ''
@@ -367,8 +362,7 @@ async function loadFile(filePath: string) {
       return
     }
     
-    // 等待所有数据处理完成
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // 【优化】不需要等待，数据已经通过事件接收
     unsubscribe()
     
   } catch (err) {
