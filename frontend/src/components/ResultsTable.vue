@@ -876,7 +876,7 @@ const handleBatchDelete = async () => {
 /* 【关键】当表头使用 transform 时，冻结列需要反向 transform 来保持固定 */
 .table-header-grid .frozen-left,
 .table-header-grid .frozen-right {
-  position: relative; /* 覆盖 sticky */
+  /* 不使用 position: relative，保持 Grid 布局 */
   transform: translateX(var(--scroll-offset, 0)); /* 动态抵消父元素的 transform */
 }
 
