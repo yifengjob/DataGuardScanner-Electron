@@ -23,75 +23,77 @@
     <div class="table-content" :class="{ resizing: isResizing }">
       <!-- 【虚拟滚动优化】使用 vue-virtual-scroller -->
       <div v-if="filteredResults.length > 0" class="virtual-table-wrapper">
-        <!-- 固定表头 -->
-        <div class="table-header-grid" ref="headerRef" :style="gridStyle">
-          <div class="cell checkbox-col header-cell center-header frozen-left">
-            <input
-                type="checkbox"
-                ref="selectAllCheckbox"
-                :checked="isAllSelected"
-                @change="toggleSelectAll"
-                title="全选/取消全选"
-            />
+        <!-- 固定表头 - 使用独立的可滚动容器 -->
+        <div class="header-scroll-container">
+          <div class="table-header-grid" ref="headerRef" :style="gridStyle">
+            <div class="cell checkbox-col header-cell center-header frozen-left">
+              <input
+                  type="checkbox"
+                  ref="selectAllCheckbox"
+                  :checked="isAllSelected"
+                  @change="toggleSelectAll"
+                  title="全选/取消全选"
+              />
+            </div>
+            <div
+                class="cell path-col header-cell sortable frozen-left"
+                :class="{ 'sorted-asc': sortField === 'file_path' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_path' && sortOrder === 'desc' }"
+                @click="sortBy('file_path')"
+                title="点击排序"
+            >
+              文件名
+              <span v-if="sortField === 'file_path'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </div>
+            <div
+                class="cell size-cell header-cell sortable number-header"
+                :class="{ 'sorted-asc': sortField === 'file_size' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_size' && sortOrder === 'desc' }"
+                @click="sortBy('file_size')"
+                title="点击排序"
+            >
+              文件大小
+              <span v-if="sortField === 'file_size'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </div>
+            <div
+                class="cell header-cell sortable number-header time-header"
+                :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
+                @click="sortBy('modified_time')"
+                title="点击排序"
+            >
+              修改时间
+              <span v-if="sortField === 'modified_time'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </div>
+            <div
+                v-for="type in sensitiveTypes"
+                :key="type.id"
+                class="cell header-cell sortable number-header"
+                :class="{ 'sorted-asc': sortField === `counts.${type.id}` && sortOrder === 'asc', 'sorted-desc': sortField === `counts.${type.id}` && sortOrder === 'desc' }"
+                @click="sortBy(`counts.${type.id}`)"
+                title="点击排序"
+            >
+              {{ type.name }}
+              <span v-if="sortField === `counts.${type.id}`" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </div>
+            <div
+                class="cell header-cell sortable number-header"
+                :class="{ 'sorted-asc': sortField === 'total' && sortOrder === 'asc', 'sorted-desc': sortField === 'total' && sortOrder === 'desc' }"
+                @click="sortBy('total')"
+                title="点击排序"
+            >
+              总计
+              <span v-if="sortField === 'total'" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </div>
+            <div class="cell actions-col header-cell actions-header frozen-right">操作</div>
           </div>
-          <div
-              class="cell path-col header-cell sortable frozen-left"
-              :class="{ 'sorted-asc': sortField === 'file_path' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_path' && sortOrder === 'desc' }"
-              @click="sortBy('file_path')"
-              title="点击排序"
-          >
-            文件名
-            <span v-if="sortField === 'file_path'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </div>
-          <div
-              class="cell size-cell header-cell sortable number-header"
-              :class="{ 'sorted-asc': sortField === 'file_size' && sortOrder === 'asc', 'sorted-desc': sortField === 'file_size' && sortOrder === 'desc' }"
-              @click="sortBy('file_size')"
-              title="点击排序"
-          >
-            文件大小
-            <span v-if="sortField === 'file_size'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </div>
-          <div
-              class="cell header-cell sortable number-header time-header"
-              :class="{ 'sorted-asc': sortField === 'modified_time' && sortOrder === 'asc', 'sorted-desc': sortField === 'modified_time' && sortOrder === 'desc' }"
-              @click="sortBy('modified_time')"
-              title="点击排序"
-          >
-            修改时间
-            <span v-if="sortField === 'modified_time'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </div>
-          <div
-              v-for="type in sensitiveTypes"
-              :key="type.id"
-              class="cell header-cell sortable number-header"
-              :class="{ 'sorted-asc': sortField === `counts.${type.id}` && sortOrder === 'asc', 'sorted-desc': sortField === `counts.${type.id}` && sortOrder === 'desc' }"
-              @click="sortBy(`counts.${type.id}`)"
-              title="点击排序"
-          >
-            {{ type.name }}
-            <span v-if="sortField === `counts.${type.id}`" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </div>
-          <div
-              class="cell header-cell sortable number-header"
-              :class="{ 'sorted-asc': sortField === 'total' && sortOrder === 'asc', 'sorted-desc': sortField === 'total' && sortOrder === 'desc' }"
-              @click="sortBy('total')"
-              title="点击排序"
-          >
-            总计
-            <span v-if="sortField === 'total'" class="sort-indicator">
-              {{ sortOrder === 'asc' ? '↑' : '↓' }}
-            </span>
-          </div>
-          <div class="cell actions-col header-cell actions-header frozen-right">操作</div>
         </div>
 
         <!-- 虚拟滚动内容 - 支持动态行高 -->
@@ -496,9 +498,11 @@ const handleScroll = (event: Event) => {
     const target = event.target as HTMLElement
     const scrollLeft = target.scrollLeft
 
-    // 【冻结列优化】同步表头的 scrollLeft，而不是使用 transform
-    // 这样 sticky 定位可以正常工作
-    headerRef.value.scrollLeft = scrollLeft
+    // 【冻结列优化】同步表头容器的 scrollLeft
+    const headerContainer = headerRef.value.parentElement
+    if (headerContainer) {
+      headerContainer.scrollLeft = scrollLeft
+    }
   }
 }
 
@@ -754,6 +758,19 @@ const handleBatchDelete = async () => {
   overflow: hidden; /* 不处理滚动，交给子元素 */
 }
 
+/* 【冻结列】表头滚动容器 */
+.header-scroll-container {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  flex-shrink: 0;
+  scrollbar-width: none; /* Firefox 隐藏滚动条 */
+  -ms-overflow-style: none; /* IE 隐藏滚动条 */
+}
+
+.header-scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari 隐藏滚动条 */
+}
+
 .table-header-grid {
   display: grid;
   align-items: center;
@@ -763,10 +780,6 @@ const handleBatchDelete = async () => {
   width: max-content; /* 【关键】根据列宽总和自动计算 */
   min-width: 100%; /* 至少占满容器 */
   z-index: 10;
-  overflow-x: auto !important; /* 【关键】允许横向滚动 */
-  overflow-y: hidden !important;
-  position: sticky; /* 【冻结列】表头固定在顶部 */
-  top: 0;
 }
 
 .header-cell {
