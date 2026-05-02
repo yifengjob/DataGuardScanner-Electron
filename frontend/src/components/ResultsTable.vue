@@ -735,7 +735,7 @@ const handleBatchDelete = async () => {
   
   // 创建任务队列（每个任务返回 Promise<void>）
   const tasks = filesToDelete.map(filePath => async () => {
-    await deleteFile(filePath)
+    await deleteFile(filePath, config.value.deleteToTrash)
     appStore.removeResult(filePath)
   })
   
