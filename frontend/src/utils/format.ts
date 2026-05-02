@@ -115,3 +115,33 @@ export function debounce<T extends (...args: any[]) => any>(
     }, wait)
   }
 }
+
+// 【新增】并发限制执行（Promise Pool）
+export async function promisePool<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number = 10
+): Promise<Array<{status: 'fulfilled', value: T} | {status: 'rejected', reason: any}>> {
+  const results: Array<{status: 'fulfilled', value: T} | {status: 'rejected', reason: any}> = []
+  let index = 0
+  
+  async function worker() {
+    while (index < tasks.length) {
+      const currentIndex = index++
+      const task = tasks[currentIndex]
+      try {
+        const result = await task()
+        results[currentIndex] = {status: 'fulfilled', value: result}
+      } catch (error) {
+        results[currentIndex] = {status: 'rejected', reason: error}
+      }
+    }
+  }
+  
+  // 创建并发 workers
+  const workers = Array(Math.min(concurrency, tasks.length))
+    .fill(null)
+    .map(() => worker())
+  
+  await Promise.all(workers)
+  return results
+}

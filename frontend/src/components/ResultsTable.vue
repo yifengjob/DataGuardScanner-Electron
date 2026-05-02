@@ -176,7 +176,7 @@
 import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue'
 import {useAppStore} from '../stores/app'
 import {storeToRefs} from 'pinia'
-import {formatFileSize, formatTime, debounce} from '../utils/format'
+import {formatFileSize, formatTime, debounce, promisePool} from '../utils/format'
 import {openFile, openFileLocation, deleteFile, getSensitiveRules, showMessage} from '../utils/electron-api'
 import {ask} from "@tauri-apps/plugin-dialog"
 // 【虚拟滚动优化】导入 vue-virtual-scroller（支持动态行高）
@@ -730,20 +730,27 @@ const handleBatchDelete = async () => {
     return
   }
 
-  // 【P0】并行删除文件，提升性能
+  // 【P0】并行删除文件，提升性能（带并发控制）
   const filesToDelete = Array.from(selectedFiles.value)
   
-  const results = await Promise.allSettled(
-    filesToDelete.map(filePath => deleteFile(filePath))
+  // 创建任务队列（每个任务返回 Promise<void>）
+  const tasks = filesToDelete.map(filePath => async () => {
+    await deleteFile(filePath)
+    appStore.removeResult(filePath)
+  })
+  
+  // 执行并发删除（限制并发数为 10）
+  const results = await promisePool(
+    tasks,
+    10  // 最大并发数：平衡性能和资源占用
   )
   
-  // 统计成功和失败数量，并移除成功的文件
+  // 统计成功和失败数量
   let successCount = 0
   let failCount = 0
   
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') {
-      appStore.removeResult(filesToDelete[index])
       successCount++
     } else {
       console.error(`删除文件失败: ${filesToDelete[index]}`, result.reason)
