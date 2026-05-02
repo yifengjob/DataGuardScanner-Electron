@@ -763,6 +763,8 @@ const handleBatchDelete = async () => {
   overflow-x: auto !important;
   overflow-y: hidden !important;
   flex-shrink: 0;
+  width: max-content; /* 【关键】与数据行宽度一致 */
+  min-width: 100%; /* 至少占满容器 */
   scrollbar-width: none; /* Firefox 隐藏滚动条 */
   -ms-overflow-style: none; /* IE 隐藏滚动条 */
 }
