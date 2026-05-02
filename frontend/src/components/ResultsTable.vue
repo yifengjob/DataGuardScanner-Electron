@@ -498,11 +498,11 @@ const handleScroll = (event: Event) => {
     const target = event.target as HTMLElement
     const scrollLeft = target.scrollLeft
 
-    // 【冻结列优化】同步表头容器的 scrollLeft
-    const headerContainer = headerRef.value.parentElement
-    if (headerContainer) {
-      headerContainer.scrollLeft = scrollLeft
-    }
+    // 【冻结列优化】使用 transform 移动整个表头 Grid
+    headerRef.value.style.transform = `translateX(${-scrollLeft}px)`
+    
+    // 【关键】设置 CSS 变量，让冻结列反向移动来保持固定
+    headerRef.value.style.setProperty('--scroll-offset', `${scrollLeft}px`)
   }
 }
 
@@ -760,17 +760,8 @@ const handleBatchDelete = async () => {
 
 /* 【冻结列】表头滚动容器 */
 .header-scroll-container {
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
+  overflow: hidden; /* 【关键】不处理滚动，由 JS 控制 */
   flex-shrink: 0;
-  width: max-content; /* 【关键】与数据行宽度一致 */
-  min-width: 100%; /* 至少占满容器 */
-  scrollbar-width: none; /* Firefox 隐藏滚动条 */
-  -ms-overflow-style: none; /* IE 隐藏滚动条 */
-}
-
-.header-scroll-container::-webkit-scrollbar {
-  display: none; /* Chrome/Safari 隐藏滚动条 */
 }
 
 .table-header-grid {
@@ -880,6 +871,13 @@ const handleBatchDelete = async () => {
   right: 0;
   z-index: 5;
   background-color: inherit;
+}
+
+/* 【关键】当表头使用 transform 时，冻结列需要反向 transform 来保持固定 */
+.table-header-grid .frozen-left,
+.table-header-grid .frozen-right {
+  position: relative; /* 覆盖 sticky */
+  transform: translateX(var(--scroll-offset, 0)); /* 动态抵消父元素的 transform */
 }
 
 .path-col {
