@@ -401,6 +401,7 @@ onMounted(() => {
     setupScrollSync()
     updatePathMaxWidth() // 初始设置路径列 max-width
     setupPathMaxWidthObserver() // 设置 ResizeObserver 监听
+    setupScrollbarObserver() // 【新增】设置滚动条监听
   })
 })
 
@@ -453,6 +454,58 @@ const fixedColumnsTotalPx = computed(() => {
   )
 })
 
+// 【新增】获取浏览器滚动条宽度
+const getScrollbarWidth = (): number => {
+  const outer = document.createElement('div')
+  outer.style.visibility = 'hidden'
+  outer.style.overflow = 'scroll'
+  outer.style.width = '100px'
+  outer.style.height = '100px'
+  document.body.appendChild(outer)
+  
+  const inner = document.createElement('div')
+  inner.style.width = '100%'
+  inner.style.height = '100px'
+  outer.appendChild(inner)
+  
+  const scrollbarWidth = outer.offsetWidth - inner.offsetWidth
+  document.body.removeChild(outer)
+  
+  return scrollbarWidth || 8 // 默认 8px
+}
+
+// 【新增】监听数据行滚动条，同步表头容器 padding
+let scrollbarObserver: ResizeObserver | null = null
+
+const setupScrollbarObserver = () => {
+  const scroller = document.querySelector('.virtual-scroller') as HTMLElement
+  if (!scroller) return
+  
+  const headerContainer = document.querySelector('.header-scroll-container') as HTMLElement
+  if (!headerContainer) return
+  
+  // 初始检查
+  const checkScrollbar = () => {
+    const hasScrollbar = scroller.scrollHeight > scroller.clientHeight
+    if (hasScrollbar) {
+      const width = getScrollbarWidth()
+      headerContainer.style.paddingRight = `${width}px`
+    } else {
+      headerContainer.style.paddingRight = '0'
+    }
+  }
+  
+  // 初始执行
+  checkScrollbar()
+  
+  // 监听 scroller 尺寸变化
+  scrollbarObserver = new ResizeObserver(() => {
+    checkScrollbar()
+  })
+  
+  scrollbarObserver.observe(scroller)
+}
+
 onUnmounted(() => {
   if (resizeTimer) clearTimeout(resizeTimer)
   if (rafId) cancelAnimationFrame(rafId) // 【优化】清理 rAF
@@ -467,6 +520,12 @@ onUnmounted(() => {
   if (pathMaxWidthObserver) {
     pathMaxWidthObserver.disconnect()
     pathMaxWidthObserver = null
+  }
+  
+  // 【新增】清理滚动条监听器
+  if (scrollbarObserver) {
+    scrollbarObserver.disconnect()
+    scrollbarObserver = null
   }
 
   // 【修复】重置缓存和标记，防止内存泄漏
