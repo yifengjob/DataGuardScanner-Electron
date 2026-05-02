@@ -170,6 +170,18 @@ function buildNodesMap(nodes: DirectoryNode[]) {
   })
 }
 
+// 【辅助方法】计算总路径数
+const countTotalPaths = (nodes: DirectoryNode[]): number => {
+  let count = 0
+  nodes.forEach(node => {
+    count++
+    if (node.children && node.children.length > 0) {
+      count += countTotalPaths(node.children)
+    }
+  })
+  return count
+}
+
 // 【新增】切换全选/全不选
 const handleToggleSelectAll = () => {
   // 触发动画
@@ -199,18 +211,6 @@ watch(
   },
   { immediate: true }
 )
-
-// 【辅助方法】计算总路径数
-const countTotalPaths = (nodes: DirectoryNode[]): number => {
-  let count = 0
-  nodes.forEach(node => {
-    count++
-    if (node.children && node.children.length > 0) {
-      count += countTotalPaths(node.children)
-    }
-  })
-  return count
-}
 
 const handleToggleNode = (path: string) => {
   appStore.smartToggleNode(path, allNodesMap.value)
