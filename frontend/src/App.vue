@@ -459,6 +459,7 @@ const getThemeTooltip = () => {
   height: 1.5em;
   flex-shrink: 0;
   color: currentColor;
+  transition: color 0.3s ease; /* 主题切换时图标颜色平滑过渡 */
 }
 
 .btn-icon-only {
