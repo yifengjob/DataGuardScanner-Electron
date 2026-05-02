@@ -488,10 +488,6 @@ const getThemeTooltip = () => {
   border-color: var(--primary-color);
 }
 
-.btn-primary .btn-icon {
-  filter: brightness(0) invert(1);
-}
-
 .btn-primary:hover:not(:disabled) {
   background-color: #40a9ff;
   box-shadow: 0 2px 4px rgba(24, 144, 255, 0.2);
@@ -505,10 +501,6 @@ const getThemeTooltip = () => {
   background-color: var(--error-color);
   color: white;
   border-color: var(--error-color);
-}
-
-.btn-danger .btn-icon {
-  filter: brightness(0) invert(1);
 }
 
 .btn-danger:hover:not(:disabled) {
