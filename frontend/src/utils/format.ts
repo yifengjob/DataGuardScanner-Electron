@@ -98,3 +98,20 @@ function getColorClass(typeId: string): string {
   
   return colorMap[typeId] || 'highlight-default'
 }
+
+// 【新增】防抖函数
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  
+  return function(...args: Parameters<T>) {
+    if (timeout !== null) {
+      clearTimeout(timeout)
+    }
+    timeout = setTimeout(() => {
+      func(...args)
+    }, wait)
+  }
+}

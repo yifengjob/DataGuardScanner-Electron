@@ -176,8 +176,8 @@
 import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue'
 import {useAppStore} from '../stores/app'
 import {storeToRefs} from 'pinia'
-import {formatFileSize, formatTime} from '../utils/format'
-import {openFile, openFileLocation, deleteFile, getSensitiveRules} from '../utils/electron-api'
+import {formatFileSize, formatTime, debounce} from '../utils/format'
+import {openFile, openFileLocation, deleteFile, getSensitiveRules, showMessage} from '../utils/electron-api'
 import {ask} from "@tauri-apps/plugin-dialog"
 // 【虚拟滚动优化】导入 vue-virtual-scroller（支持动态行高）
 import {DynamicScroller, DynamicScrollerItem} from 'vue-virtual-scroller'
@@ -193,6 +193,7 @@ const emit = defineEmits<{
 }>()
 
 const searchKeyword = ref('')
+const debouncedSearchKeyword = ref('')  // 【P1】防抖后的搜索关键词
 const sortField = ref<string>('')
 const sortOrder = ref<'asc' | 'desc'>('asc')
 const allSensitiveTypes = ref<Array<{ id: string; name: string }>>([])
@@ -299,9 +300,9 @@ const gridStyle = computed(() => {
 const filteredResults = computed(() => {
   let results = scanResults.value
 
-  // 搜索过滤
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase().trim()
+  // 【P1】搜索过滤（使用防抖后的关键词）
+  if (debouncedSearchKeyword.value) {
+    const keyword = debouncedSearchKeyword.value.toLowerCase().trim()
     if (keyword) {
       results = results.filter(item => {
         const path = item.filePath.toLowerCase()
@@ -350,6 +351,11 @@ const filteredResults = computed(() => {
 
   return results
 })
+
+// 【P1】监听搜索关键词，使用防抖
+watch(searchKeyword, debounce((val) => {
+  debouncedSearchKeyword.value = val
+}, 300))
 
 // 【修复】监听 filteredResults 变化，在数据加载后设置滚动同步
 watch(
@@ -608,7 +614,11 @@ const handleOpen = async (item: any) => {
     await openFile(item.filePath)
   } catch (error) {
     console.error('打开文件失败:', error)
-    alert(getFriendlyErrorMessage(error))
+    // 【P1】使用 Electron 对话框替代 alert
+    await showMessage(getFriendlyErrorMessage(error), {
+      title: '错误',
+      type: 'error'
+    })
   }
 }
 
@@ -617,13 +627,23 @@ const handleOpenLocation = async (item: any) => {
     await openFileLocation(item.filePath)
   } catch (error) {
     console.error('打开目录失败:', error)
-    alert(getFriendlyErrorMessage(error))
+    // 【P1】使用 Electron 对话框替代 alert
+    await showMessage(getFriendlyErrorMessage(error), {
+      title: '错误',
+      type: 'error'
+    })
   }
 }
 
 const handleDelete = async (item: any) => {
   const deleteMode = config.value.deleteToTrash ? '移入回收站' : '永久删除'
-  const confirmed = confirm(`确定要${deleteMode}此文件吗？\n${item.filePath}`)
+  // 【P1】使用 Electron 对话框替代 confirm
+  const confirmed = await ask(`确定要${deleteMode}此文件吗？\n${item.filePath}`, {
+    title: '确认删除',
+    kind: 'warning',
+    okLabel: '删除',
+    cancelLabel: '取消'
+  })
 
   if (!confirmed) {
     return
@@ -634,7 +654,11 @@ const handleDelete = async (item: any) => {
     appStore.removeResult(item.filePath)
   } catch (error) {
     console.error('删除文件失败:', error)
-    alert(getFriendlyErrorMessage(error))
+    // 【P1】使用 Electron 对话框替代 alert
+    await showMessage(getFriendlyErrorMessage(error), {
+      title: '错误',
+      type: 'error'
+    })
   }
 }
 
@@ -706,28 +730,37 @@ const handleBatchDelete = async () => {
     return
   }
 
+  // 【P0】并行删除文件，提升性能
   const filesToDelete = Array.from(selectedFiles.value)
+  
+  const results = await Promise.allSettled(
+    filesToDelete.map(filePath => deleteFile(filePath))
+  )
+  
+  // 统计成功和失败数量，并移除成功的文件
   let successCount = 0
   let failCount = 0
-
-  for (const filePath of filesToDelete) {
-    try {
-      await deleteFile(filePath)
-      appStore.removeResult(filePath)
+  
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      appStore.removeResult(filesToDelete[index])
       successCount++
-    } catch (error) {
-      console.error(`删除文件失败: ${filePath}`, error)
+    } else {
+      console.error(`删除文件失败: ${filesToDelete[index]}`, result.reason)
       failCount++
     }
-  }
+  })
 
   // 清空选中状态
   selectedFiles.value.clear()
 
-  // 【C2 优化】显示友好的结果提示
+  // 【C2 优化 + P1】显示友好的结果提示（使用 Electron 对话框）
   if (failCount > 0) {
     const message = `删除完成\n成功: ${successCount} 个\n失败: ${failCount} 个`
-    alert(message)
+    await showMessage(message, {
+      title: '删除结果',
+      type: 'warning'
+    })
   } else {
     // 全部成功，不显示提示（静默成功）
   }
