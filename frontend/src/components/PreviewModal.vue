@@ -33,7 +33,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { previewFile, openFile, cancelPreview } from '../utils/electron-api'
+import { previewFile, openFile, cancelPreview, showMessage } from '../utils/electron-api'
 import { highlightText } from '../utils/format'
 import { getFriendlyErrorMessage, getErrorSeverity } from '../utils/error-handler'
 
@@ -163,11 +163,11 @@ const handleOpenFile = async () => {
 const handleCopyContent = async () => {
   try {
     await navigator.clipboard.writeText(content.value)
-    // 【C2 优化】友好的成功提示
-    alert('✅ 已复制到剪贴板')
+    // 【P1 修复】使用 Electron 对话框替代 alert
+    await showMessage('✅ 已复制到剪贴板', { type: 'info' })
   } catch (err) {
-    // 【C2 优化】使用友好错误提示
-    alert(getFriendlyErrorMessage(err))
+    // 【P1 修复】使用 Electron 对话框替代 alert
+    await showMessage(getFriendlyErrorMessage(err), { type: 'error' })
   }
 }
 </script>
