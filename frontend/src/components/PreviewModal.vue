@@ -22,7 +22,21 @@
           </button>
         </div>
         <div v-else class="preview-content">
-          <pre v-html="highlightedContent"></pre>
+          <!-- 【方案 D3】虚拟滚动容器 -->
+          <div 
+            class="virtual-scroll-container"
+            ref="scrollContainer"
+            @scroll="handleScroll"
+          >
+            <div class="virtual-spacer" :style="{ height: scroller.getTotalHeight() + 'px' }">
+              <div 
+                class="virtual-content"
+                :style="{ transform: `translateY(${scroller.getOffsetTop()}px)` }"
+                v-html="visibleContent"
+              >
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -36,10 +50,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { previewFile, openFile, cancelPreview, showMessage } from '../utils/electron-api'
-import { highlightText } from '../utils/format'
+import { ref, computed, watch, nextTick } from 'vue'
+import { previewFileStream, openFile, cancelPreview, showMessage, onPreviewChunk } from '../utils/electron-api'
 import { getFriendlyErrorMessage, getErrorSeverity } from '../utils/error-handler'
+import { PreviewVirtualScroller, GlobalHighlight, LineHighlight } from '../utils/preview-virtual-scroller'
 
 const props = defineProps<{
   filePath: string
@@ -56,6 +70,32 @@ const content = ref('')
 const highlights = ref<Array<{start: number, end: number, type_id: string, type_name: string}>>([])
 const currentTaskId = ref<number | null>(null)  // 当前任务 ID
 const errorSeverity = ref<'info' | 'warning' | 'error'>('error')  // 【C2优化】错误严重程度
+
+// 【方案 D3】流式接收状态
+interface PreviewChunk {
+  chunkIndex: number
+  lines: string[]
+  highlights: Array<{start: number, end: number, typeId: string, typeName: string}>
+  startLine: number
+  totalLines: number
+}
+
+const streamState = ref({
+  receivedChunks: [] as PreviewChunk[],
+  renderedLines: [] as string[],
+  renderedHighlights: [] as GlobalHighlight[],
+  isRendering: false,
+  totalChunks: 0,
+  receivedChunksCount: 0
+})
+
+// 【方案 D3】虚拟滚动器
+const scroller = new PreviewVirtualScroller(20, 10)  // 行高 20px，缓冲 10 行
+
+// 【方案 D3】渲染相关
+const scrollContainer = ref<HTMLElement | null>(null)
+const visibleContent = ref('')  // 可见区域的 HTML
+let renderScheduled = false
 
 // 【C2优化】错误图标
 const errorIcon = computed(() => {
@@ -86,10 +126,166 @@ const isFileSizeError = computed(() => {
   return error.value.includes('文件过大') || error.value.includes('无法预览')
 })
 
-const highlightedContent = computed(() => {
-  if (!content.value) return ''
-  return highlightText(content.value, highlights.value)
-})
+// 【方案 D3】渲染调度器
+function scheduleRender() {
+  if (renderScheduled) return
+  
+  renderScheduled = true
+  requestAnimationFrame(() => {
+    renderScheduled = false
+    performBatchRender()
+  })
+}
+
+async function performBatchRender() {
+  if (streamState.value.isRendering) return
+  
+  streamState.value.isRendering = true
+  
+  try {
+    const chunksToRender = [...streamState.value.receivedChunks]
+    streamState.value.receivedChunks = []
+    
+    if (chunksToRender.length === 0) return
+    
+    // 按块索引排序
+    chunksToRender.sort((a, b) => a.chunkIndex - b.chunkIndex)
+    
+    // 合并行和高亮
+    for (const chunk of chunksToRender) {
+      streamState.value.renderedLines.push(...chunk.lines)
+      
+      // 转换高亮为全局偏移（需要加上起始行的偏移）
+      for (const h of chunk.highlights) {
+        streamState.value.renderedHighlights.push({
+          start: h.start + getLineOffset(chunk.startLine),
+          end: h.end + getLineOffset(chunk.startLine),
+          typeId: h.typeId,
+          typeName: h.typeName
+        })
+      }
+    }
+    
+    // 更新虚拟滚动器
+    scroller.updateData(chunksToRender.flatMap(c => c.lines))
+    
+    // 如果是第一块，隐藏 loading
+    if (streamState.value.receivedChunksCount <= chunksToRender.length) {
+      loading.value = false
+    }
+    
+    // 重新渲染可见区域
+    await nextTick()
+    renderVisibleContent()
+    
+  } finally {
+    streamState.value.isRendering = false
+    
+    // 如果还有新数据，继续渲染
+    if (streamState.value.receivedChunks.length > 0) {
+      scheduleRender()
+    }
+  }
+}
+
+// 获取指定行的字符偏移量
+function getLineOffset(lineNumber: number): number {
+  let offset = 0
+  for (let i = 0; i < lineNumber && i < streamState.value.renderedLines.length; i++) {
+    offset += streamState.value.renderedLines[i].length + 1
+  }
+  return offset
+}
+
+// 渲染可见区域
+function renderVisibleContent() {
+  if (!scrollContainer.value) return
+  
+  const viewportHeight = scrollContainer.value.clientHeight
+  const scrollTop = scrollContainer.value.scrollTop
+  
+  const { startLine, endLine } = scroller.calculateVisibleRange(scrollTop, viewportHeight)
+  const { lines, startIndex } = scroller.getVisibleLines()
+  
+  if (lines.length === 0) {
+    visibleContent.value = ''
+    return
+  }
+  
+  // 获取该行范围的高亮
+  const globalHighlights = streamState.value.renderedHighlights.filter(h => {
+    const lineStart = getLineOffset(startLine)
+    const lineEnd = getLineOffset(endLine + 1)
+    return h.start >= lineStart && h.end <= lineEnd
+  })
+  
+  // 转换为行内高亮
+  const lineHighlightsMap = scroller.convertHighlights(globalHighlights)
+  
+  // 生成 HTML
+  let html = ''
+  for (let i = 0; i < lines.length; i++) {
+    const lineIndex = startIndex + i
+    const lineText = lines[i]
+    const lineHighlights = lineHighlightsMap.get(lineIndex) || []
+    
+    const highlightedLine = highlightLine(lineText, lineHighlights)
+    html += `<div class="code-line" data-line="${lineIndex}">${highlightedLine}</div>`
+  }
+  
+  visibleContent.value = html
+}
+
+// 高亮单行
+function highlightLine(text: string, highlights: LineHighlight[]): string {
+  if (highlights.length === 0) {
+    return escapeHtml(text)
+  }
+  
+  const sorted = [...highlights].sort((a, b) => a.localStart - b.localStart)
+  
+  let result = ''
+  let lastIndex = 0
+  
+  for (const highlight of sorted) {
+    result += escapeHtml(text.substring(lastIndex, highlight.localStart))
+    
+    const highlightedText = escapeHtml(text.substring(highlight.localStart, highlight.localEnd))
+    const colorClass = getColorClass(highlight.typeId)
+    result += `<mark class="${colorClass}" title="${highlight.typeName}">${highlightedText}</mark>`
+    
+    lastIndex = highlight.localEnd
+  }
+  
+  if (lastIndex < text.length) {
+    result += escapeHtml(text.substring(lastIndex))
+  }
+  
+  return result
+}
+
+// HTML 转义
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+// 获取颜色类
+function getColorClass(typeId: string): string {
+  const typeMap: Record<string, string> = {
+    'phone': 'highlight-phone',
+    'id_card': 'highlight-id-card',
+    'bank_card': 'highlight-bank-card',
+    'email': 'highlight-email',
+    'ip_address': 'highlight-ip',
+    'url': 'highlight-url'
+  }
+  return typeMap[typeId] || 'highlight-default'
+}
 
 // 监听 visible 和 filePath 的组合变化
 watch([() => props.visible, () => props.filePath], async ([isVisible, newPath]) => {
@@ -124,38 +320,65 @@ watch([() => props.visible, () => props.filePath], async ([isVisible, newPath]) 
 }, { immediate: true })
 
 async function loadFile(filePath: string) {
-  const taskId = Date.now()  // 使用时间戳作为任务标识
+  const taskId = Date.now()
   currentTaskId.value = taskId
   
+  // 【方案 D3】重置状态
+  streamState.value.receivedChunks = []
+  streamState.value.renderedLines = []
+  streamState.value.renderedHighlights = []
+  streamState.value.isRendering = false
+  streamState.value.totalChunks = 0
+  streamState.value.receivedChunksCount = 0
+  scroller.reset()
+  visibleContent.value = ''
+  
   try {
-    const result = await previewFile(filePath)
+    // 【方案 D3】监听数据块
+    const unsubscribe = await onPreviewChunk((chunk: PreviewChunk) => {
+      if (currentTaskId.value !== taskId) return  // 已取消
+      
+      streamState.value.receivedChunks.push(chunk)
+      streamState.value.receivedChunksCount++
+      
+      // 如果是第一块，记录总行数
+      if (chunk.chunkIndex === 0) {
+        streamState.value.totalChunks = Math.ceil(chunk.totalLines / chunk.lines.length)
+      }
+      
+      // 触发渲染
+      scheduleRender()
+    })
     
-    // 检查是否在加载过程中被取消（通过比较 task_id）
+    // 【方案 D3】启动流式预览
+    const result = await previewFileStream(filePath)
+    
+    // 检查是否被取消
     if (currentTaskId.value !== taskId) {
+      unsubscribe()
       return
     }
     
-    // 检查是否有错误
-    if (result.error) {
-      // 【C2优化】使用友好错误提示
-      error.value = getFriendlyErrorMessage(result.error)
-      errorSeverity.value = getErrorSeverity(result.error)
+    // 检查错误
+    if (!result.success) {
+      error.value = getFriendlyErrorMessage('预览失败')
+      errorSeverity.value = 'error'
+      unsubscribe()
       return
     }
     
-    content.value = result.content || ''
-    highlights.value = result.highlights || []
+    // 等待所有数据处理完成
+    await new Promise(resolve => setTimeout(resolve, 500))
+    unsubscribe()
+    
   } catch (err) {
     // 如果是取消错误，不显示错误信息
     if (String(err).includes('已取消')) {
       return
     }
-    // 【C2优化】使用友好错误提示
     error.value = getFriendlyErrorMessage(err)
     errorSeverity.value = getErrorSeverity(err)
   } finally {
-    // 总是清除 loading 状态（无论是否被取消）
-    // 但只在当前任务是最新任务时才清除 currentTaskId
     loading.value = false
     if (currentTaskId.value === taskId) {
       currentTaskId.value = null
@@ -192,6 +415,17 @@ const handleClose = () => {
     // 正常关闭
     emit('close')
   }
+}
+
+// 【方案 D3】滚动处理（防抖）
+let scrollTimeout: number | null = null
+function handleScroll() {
+  if (scrollTimeout) return
+  
+  scrollTimeout = window.setTimeout(() => {
+    scrollTimeout = null
+    renderVisibleContent()
+  }, 50)
 }
 </script>
 
@@ -362,6 +596,10 @@ const handleClose = () => {
   line-height: 1.6;
 }
 
+.preview-content {
+  height: 100%;
+}
+
 .preview-content pre {
   margin: 0;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -370,6 +608,46 @@ const handleClose = () => {
   white-space: pre-wrap;
   word-wrap: break-word;
 }
+
+/* 【方案 D3】虚拟滚动容器 */
+.virtual-scroll-container {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+}
+
+.virtual-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.virtual-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+.code-line {
+  height: 20px;
+  line-height: 20px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  white-space: pre;
+  padding: 0 10px;
+  color: var(--text-color);
+}
+
+/* 高亮样式 */
+.highlight-phone { background-color: #ffe58f; }
+.highlight-id-card { background-color: #ffd6e7; }
+.highlight-bank-card { background-color: #d9f7be; }
+.highlight-email { background-color: #bae0ff; }
+.highlight-ip { background-color: #ffd591; }
+.highlight-url { background-color: #b7eb8f; }
+.highlight-default { background-color: #fff566; }
 
 .modal-footer {
   display: flex;
