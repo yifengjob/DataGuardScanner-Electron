@@ -16,6 +16,10 @@
           <div class="error-icon">{{ errorIcon }}</div>
           <div class="error-title">{{ errorTitle }}</div>
           <div class="error-text">{{ errorSuggestion }}</div>
+          <!-- 【方案 C】文件过大时显示“打开文件”按钮 -->
+          <button v-if="isFileSizeError" class="btn btn-primary" @click="handleOpenFile" style="margin-top: 16px;">
+            用外部应用打开
+          </button>
         </div>
         <div v-else class="preview-content">
           <pre v-html="highlightedContent"></pre>
@@ -75,6 +79,11 @@ const errorSuggestion = computed(() => {
   if (!error.value) return ''
   const lines = error.value.split('\n\n')
   return lines[1] || ''
+})
+
+// 【方案 C】判断是否是文件大小错误
+const isFileSizeError = computed(() => {
+  return error.value.includes('文件过大') || error.value.includes('无法预览')
 })
 
 const highlightedContent = computed(() => {

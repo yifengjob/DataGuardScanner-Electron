@@ -59,7 +59,8 @@ import {
     WINDOW_TARGET_RATIO,
     MS_TO_DAYS,
     BYTES_TO_MB,
-    LOG_RETENTION_DAYS
+    LOG_RETENTION_DAYS,
+    DEFAULT_MAX_FILE_SIZE_MB  // 【方案 C】预览文件大小限制
 } from './scan-config';
 
 // 【新增】设置日志文件
@@ -413,6 +414,24 @@ function setupIpcHandlers() {
     // 预览文件（使用 Worker 线程，避免阻塞主进程）
     ipcMain.handle('preview-file', async (_, filePath: string) => {
         try {
+            const fs = require('fs');
+            
+            // 【方案 C】提前检查文件大小，避免传输过大数据阻塞 IPC
+            let stat;
+            try {
+                stat = await fs.promises.stat(filePath);
+            } catch (err: any) {
+                return { error: `无法访问文件：${err.message}` };
+            }
+            
+            const sizeMB = stat.size / BYTES_TO_MB;
+            if (sizeMB > DEFAULT_MAX_FILE_SIZE_MB) {
+                return { 
+                    error: `文件过大（${sizeMB.toFixed(1)}MB），无法预览。\n\n建议使用“打开文件”功能在外部应用中查看。`,
+                    fileSize: stat.size
+                };
+            }
+            
             const { Worker } = require('worker_threads');
             const pathModule = require('path');
             
