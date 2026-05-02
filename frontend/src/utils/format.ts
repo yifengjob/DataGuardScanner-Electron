@@ -39,66 +39,6 @@ export function getFileExtension(filePath: string): string {
   return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : ''
 }
 
-// 高亮文本中的敏感信息
-export function highlightText(
-  content: string, 
-  highlights: Array<{start: number, end: number, type_id: string, type_name: string}>
-): string {
-  if (!highlights || highlights.length === 0) {
-    return escapeHtml(content)
-  }
-  
-  // 按起始位置排序
-  const sorted = [...highlights].sort((a, b) => a.start - b.start)
-  
-  let result = ''
-  let lastIndex = 0
-  
-  for (const highlight of sorted) {
-    // 添加普通文本
-    if (highlight.start > lastIndex) {
-      result += escapeHtml(content.substring(lastIndex, highlight.start))
-    }
-    
-    // 添加高亮文本
-    const highlightedText = escapeHtml(content.substring(highlight.start, highlight.end))
-    const colorClass = getColorClass(highlight.type_id)
-    result += `<mark class="${colorClass}" title="${highlight.type_name}">${highlightedText}</mark>`
-    
-    lastIndex = highlight.end
-  }
-  
-  // 添加剩余文本
-  if (lastIndex < content.length) {
-    result += escapeHtml(content.substring(lastIndex))
-  }
-  
-  return result
-}
-
-// 转义 HTML
-function escapeHtml(text: string): string {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
-}
-
-// 根据类型获取颜色类
-function getColorClass(typeId: string): string {
-  const colorMap: Record<string, string> = {
-    person_id: 'highlight-id',
-    phone: 'highlight-phone',
-    email: 'highlight-email',
-    bank_card: 'highlight-bank',
-    name: 'highlight-name',
-    address: 'highlight-address',
-    ip_address: 'highlight-ip',
-    password: 'highlight-password',
-  }
-  
-  return colorMap[typeId] || 'highlight-default'
-}
-
 // 【新增】防抖函数
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
