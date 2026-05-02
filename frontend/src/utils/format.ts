@@ -33,12 +33,6 @@ export function formatTime(isoString: string): string {
   }
 }
 
-// 获取文件扩展名
-export function getFileExtension(filePath: string): string {
-  const parts = filePath.split('.')
-  return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : ''
-}
-
 // 【新增】防抖函数
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
