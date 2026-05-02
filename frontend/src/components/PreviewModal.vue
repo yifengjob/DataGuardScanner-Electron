@@ -181,13 +181,9 @@ async function performBatchRender() {
   }
 }
 
-// 获取指定行的字符偏移量
+// 【性能优化】使用虚拟滚动器的行索引缓存，O(1) 复杂度
 function getLineOffset(lineNumber: number): number {
-  let offset = 0
-  for (let i = 0; i < lineNumber && i < streamState.value.renderedLines.length; i++) {
-    offset += streamState.value.renderedLines[i].length + 1
-  }
-  return offset
+  return scroller.getLineOffset(lineNumber)
 }
 
 // 渲染可见区域
@@ -328,9 +324,11 @@ async function loadFile(filePath: string) {
   scroller.reset()
   visibleContent.value = ''
   
+  let unsubscribe: (() => void) | null = null
+  
   try {
     // 【方案 D3】监听数据块
-    const unsubscribe = await onPreviewChunk((chunk: PreviewChunk) => {
+    unsubscribe = await onPreviewChunk((chunk: PreviewChunk) => {
       if (currentTaskId.value !== taskId) return  // 已取消
       
       streamState.value.receivedChunks.push(chunk)
@@ -350,7 +348,7 @@ async function loadFile(filePath: string) {
     
     // 检查是否被取消
     if (currentTaskId.value !== taskId) {
-      unsubscribe()
+      unsubscribe?.()
       return
     }
     
@@ -358,14 +356,17 @@ async function loadFile(filePath: string) {
     if (!result.success) {
       error.value = getFriendlyErrorMessage('预览失败')
       errorSeverity.value = 'error'
-      unsubscribe()
+      unsubscribe?.()
       return
     }
     
     // 【优化】不需要等待，数据已经通过事件接收
-    unsubscribe()
+    unsubscribe?.()
     
   } catch (err) {
+    // 确保取消订阅，防止内存泄漏
+    unsubscribe?.()
+    
     // 如果是取消错误，不显示错误信息
     if (String(err).includes('已取消')) {
       return

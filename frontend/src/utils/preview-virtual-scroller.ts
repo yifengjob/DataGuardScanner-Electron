@@ -275,6 +275,16 @@ export class PreviewVirtualScroller {
   }
   
   /**
+   * 获取指定行的字符偏移量（O(1) 复杂度）
+   */
+  getLineOffset(lineNumber: number): number {
+    if (lineNumber < this.state.lineStartPositions.length) {
+      return this.state.lineStartPositions[lineNumber]
+    }
+    return 0
+  }
+  
+  /**
    * 重置状态
    */
   reset() {
