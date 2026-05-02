@@ -169,7 +169,9 @@ const handleToggleSelectAll = () => {
     appStore.deselectAllDirectories()
   } else {
     // 当前是全不选状态，执行全选
-    appStore.selectAllDirectories(rootNodes.value)
+    // 【修复】使用 allNodesMap 而不是 rootNodes，确保包含懒加载的子节点
+    const allNodes = Array.from(allNodesMap.value.values())
+    appStore.selectAllDirectories(allNodes)
   }
 }
 
