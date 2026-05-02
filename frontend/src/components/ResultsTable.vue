@@ -673,6 +673,9 @@ const handleBatchDelete = async () => {
 
   /* 【新增】路径列 max-width 配置（由 JS 动态计算） */
   --path-col-max-width: 10em; /* 默认值 */
+  
+  /* 【冻结列】表头滚动偏移量（由 JS 动态设置） */
+  --scroll-offset: 0px;
 }
 
 .table-header {
