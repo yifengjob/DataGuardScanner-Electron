@@ -837,12 +837,6 @@ const handleBatchDelete = async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-right: 1px solid var(--border-color); /* 【新增】纵向分隔线，使用主题色 */
-}
-
-/* 最后一列不需要右边框 */
-.cell:last-child {
-  border-right: none;
 }
 
 .checkbox-col {
