@@ -411,7 +411,123 @@ function setupIpcHandlers() {
         return {success: true};
     });
 
-    // 预览文件（使用 Worker 线程，避免阻塞主进程）
+    // 【方案 D3】预览文件（流式模式）
+    ipcMain.handle('preview-file-stream', async (_, filePath: string) => {
+        try {
+            const fs = require('fs');
+            
+            // 检查文件大小
+            let stat;
+            try {
+                stat = await fs.promises.stat(filePath);
+            } catch (err: any) {
+                return { error: `无法访问文件：${err.message}` };
+            }
+            
+            const { Worker } = require('worker_threads');
+            const pathModule = require('path');
+            
+            // 获取配置
+            const config = await loadConfig();
+            const enabledTypes = config.enabledSensitiveTypes || [];
+            
+            // 创建 Worker
+            const workerPath = pathModule.join(__dirname, 'file-worker.js');
+            const taskId = Date.now();
+            const worker = new Worker(workerPath, {
+                resourceLimits: {
+                    maxOldGenerationSizeMb: WORKER_MAX_OLD_GENERATION_MB,
+                    maxYoungGenerationSizeMb: WORKER_MAX_YOUNG_GENERATION_MB,
+                }
+            });
+            
+            // 注册 Worker，支持取消
+            previewWorkers.set(taskId, worker);
+            
+            return new Promise((resolve) => {
+                let messageReceived = false;
+                
+                const timeout = setTimeout(() => {
+                    if (!messageReceived) {
+                        worker.terminate();
+                        previewWorkers.delete(taskId);
+                        resolve({ error: '预览超时，文件可能太大或太复杂' });
+                    }
+                }, PREVIEW_TIMEOUT);
+                
+                worker.on('message', (result: any) => {
+                    // 跳过 ready 消息
+                    if (result.type === 'ready') {
+                        return;
+                    }
+                    
+                    // 【方案 D3】处理流式数据块
+                    if (result.type === 'chunk') {
+                        // 转发数据块到前端
+                        mainWindow?.webContents.send('preview-chunk', {
+                            chunkIndex: result.chunkIndex,
+                            lines: result.lines,
+                            highlights: result.highlights,
+                            startLine: result.startLine,
+                            totalLines: result.totalLines
+                        });
+                        return;
+                    }
+                    
+                    // 处理完成消息
+                    if (result.type === 'complete') {
+                        messageReceived = true;
+                        clearTimeout(timeout);
+                        previewWorkers.delete(taskId);
+                        worker.terminate();
+                        resolve({ success: true, totalChunks: result.totalChunks });
+                        return;
+                    }
+                    
+                    // 处理错误
+                    if (result.error) {
+                        messageReceived = true;
+                        clearTimeout(timeout);
+                        previewWorkers.delete(taskId);
+                        worker.terminate();
+                        resolve({ error: result.error });
+                        return;
+                    }
+                });
+                
+                worker.on('error', (error: any) => {
+                    clearTimeout(timeout);
+                    previewWorkers.delete(taskId);
+                    resolve({ error: '预览失败：' + error.message });
+                });
+                
+                worker.on('exit', (code: number) => {
+                    if (code !== 0 && !messageReceived) {
+                        clearTimeout(timeout);
+                        previewWorkers.delete(taskId);
+                        resolve({ error: `预览异常退出 (代码: ${code})` });
+                    }
+                });
+                
+                // 发送任务到 Worker（启用流式模式）
+                worker.postMessage({
+                    taskId: taskId,
+                    filePath: filePath,
+                    enabledSensitiveTypes: [],
+                    previewMode: true,
+                    streamMode: true,  // 【方案 D3】启用流式模式
+                    chunkSize: 1000,   // 每块 1000 行
+                    config: {
+                        enabledSensitiveTypes: enabledTypes
+                    }
+                });
+            });
+        } catch (error: any) {
+            return { error: error.message };
+        }
+    });
+
+    // 预览文件（非流式，兼容旧代码）（使用 Worker 线程，避免阻塞主进程）
     ipcMain.handle('preview-file', async (_, filePath: string) => {
         try {
             const fs = require('fs');

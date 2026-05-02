@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 预览
   previewFile: (filePath: string) =>
     ipcRenderer.invoke('preview-file', filePath),
+  previewFileStream: (filePath: string) =>
+    ipcRenderer.invoke('preview-file-stream', filePath),  // 【方案 D3】流式预览
   cancelPreview: (taskId: number) =>
     ipcRenderer.invoke('cancel-preview', taskId),
   
@@ -80,6 +82,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('scan-log', listener);
   },
   
+  // 【方案 D3】预览数据块事件
+  onPreviewChunk: (callback: (chunk: any) => void) => {
+    const listener = (_event: any, chunk: any) => callback(chunk);
+    ipcRenderer.on('preview-chunk', listener);
+    return () => ipcRenderer.removeListener('preview-chunk', listener);
+  },
+  
   // 保存文件对话框
   showSaveDialog: (options?: any) =>
     ipcRenderer.invoke('show-save-dialog', options),
@@ -111,6 +120,7 @@ declare global {
       scanStart: (config: any) => Promise<any>;
       scanCancel: () => Promise<any>;
       previewFile: (filePath: string) => Promise<any>;
+      previewFileStream: (filePath: string) => Promise<any>;  // 【方案 D3】
       cancelPreview: (taskId: number) => Promise<any>;
       openFile: (filePath: string) => Promise<any>;
       openFileLocation: (filePath: string) => Promise<any>;
@@ -127,6 +137,7 @@ declare global {
       onScanFinished: (callback: () => void) => () => void;
       onScanError: (callback: (error: string) => void) => () => void;
       onScanLog: (callback: (msg: string) => void) => () => void;
+      onPreviewChunk: (callback: (chunk: any) => void) => () => void;  // 【方案 D3】
       showSaveDialog: (options?: any) => Promise<any>;
       showMessageBox: (options: {
         message: string;

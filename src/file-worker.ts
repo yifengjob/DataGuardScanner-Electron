@@ -48,6 +48,8 @@ interface WorkerTask {
   filePath: string;
   enabledSensitiveTypes: string[];
   previewMode?: boolean; // 预览模式：只提取文本，不检测敏感数据
+  streamMode?: boolean;  // 【方案 D3】流式模式：分块发送
+  chunkSize?: number;    // 【方案 D3】每块行数（默认 1000）
   config?: any; // 预览模式下传入配置（包含启用的敏感类型）
 }
 
@@ -62,6 +64,21 @@ interface WorkerResult {
   total?: number;
   unsupportedPreview?: boolean;
   error?: string;
+}
+
+// 【方案 D3】流式数据块接口
+interface StreamChunk {
+  type: 'chunk';
+  chunkIndex: number;
+  lines: string[];
+  highlights: Array<{start: number, end: number, typeId: string, typeName: string}>;
+  startLine: number;
+  totalLines: number;
+}
+
+interface StreamComplete {
+  type: 'complete';
+  totalChunks: number;
 }
 
 // 【新增】添加全局错误处理器，防止 Worker 因未捕获异常而崩溃
@@ -147,14 +164,65 @@ parentPort?.on('message', async (task: WorkerTask) => {
       // 从配置中获取启用的敏感类型
       const enabledTypes = task.config?.enabledSensitiveTypes || [];
       
-      // 【方案 B】在 Worker 中计算高亮，不阻塞主线程
+      // 【方案 D3】流式模式：分块发送
+      if (task.streamMode) {
+        const lines = text.split('\n');
+        const chunkSize = task.chunkSize || 1000;
+        const totalLines = lines.length;
+        
+        // 构建行索引
+        const lineStartPositions: number[] = [0];
+        let position = 0;
+        for (let i = 0; i < lines.length; i++) {
+          position += lines[i].length + 1;  // +1 是换行符
+          lineStartPositions.push(position);
+        }
+        
+        // 计算全局高亮
+        const allHighlights = getHighlights(text, enabledTypes);
+        
+        // 【关键】连续发送所有块，不等待前端响应
+        for (let i = 0; i < lines.length; i += chunkSize) {
+          const chunkLines = lines.slice(i, i + chunkSize);
+          const chunkHighlights = getHighlightsForLines(
+            chunkLines,
+            i,
+            allHighlights,
+            lineStartPositions
+          );
+          
+          parentPort?.postMessage({
+            type: 'chunk',
+            chunkIndex: Math.floor(i / chunkSize),
+            lines: chunkLines,
+            highlights: chunkHighlights,
+            startLine: i,
+            totalLines: totalLines
+          } as StreamChunk);
+          
+          // 每发送 10 块，让出控制权，避免阻塞 Worker
+          if (i % (chunkSize * 10) === 0 && i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
+        
+        // 发送完成消息
+        parentPort?.postMessage({ 
+          type: 'complete',
+          totalChunks: Math.ceil(totalLines / chunkSize)
+        } as StreamComplete);
+        
+        return;
+      }
+      
+      // 非流式模式：一次性返回（兼容旧代码）
       const highlights = getHighlights(text, enabledTypes);
       
       parentPort?.postMessage({
         taskId,
         filePath,
         text: text,
-        highlights: highlights,  // ✅ 返回高亮信息
+        highlights: highlights,
         unsupportedPreview: false
       } as WorkerResult);
       return;
@@ -202,3 +270,26 @@ parentPort?.on('message', async (task: WorkerTask) => {
 
 // 通知主线程 Worker 已就绪
 parentPort?.postMessage({ type: 'ready' });
+
+// 【方案 D3】辅助函数：按行范围提取高亮
+function getHighlightsForLines(
+  lines: string[],
+  startLineIndex: number,
+  allHighlights: Array<{start: number, end: number, typeId: string, typeName: string}>,
+  lineStartPositions: number[]
+): Array<{start: number, end: number, typeId: string, typeName: string}> {
+  const lineStart = lineStartPositions[startLineIndex];
+  const lineEnd = startLineIndex + lines.length < lineStartPositions.length 
+    ? lineStartPositions[startLineIndex + lines.length] - 1
+    : Infinity;
+  
+  // 筛选出在该行范围内的高亮
+  return allHighlights.filter(h => 
+    h.start >= lineStart && h.end <= lineEnd
+  ).map(h => ({
+    ...h,
+    // 转换为行内偏移
+    start: h.start - lineStart,
+    end: h.end - lineStart
+  }));
+}

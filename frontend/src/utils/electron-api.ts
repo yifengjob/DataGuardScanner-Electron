@@ -14,7 +14,9 @@ declare global {
             scanStart: (config: any) => Promise<any>;
             scanCancel: () => Promise<any>;
             previewFile: (filePath: string) => Promise<any>;
+            previewFileStream: (filePath: string) => Promise<any>;  // 【方案 D3】
             cancelPreview: (taskId: number) => Promise<any>;
+            onPreviewChunk: (callback: (chunk: any) => void) => () => void;  // 【方案 D3】
             openFile: (filePath: string) => Promise<any>;
             openFileLocation: (filePath: string) => Promise<any>;
             deleteFile: (filePath: string, toTrash: boolean) => Promise<any>;
@@ -67,6 +69,18 @@ export async function previewFile(filePath: string): Promise<PreviewResult & { t
     const result = await window.electronAPI.previewFile(filePath)
     if (result.error) throw new Error(result.error)
     return result
+}
+
+// 【方案 D3】流式预览文件
+export async function previewFileStream(filePath: string): Promise<{ success: boolean; totalChunks?: number }> {
+    const result = await window.electronAPI.previewFileStream(filePath)
+    if (result.error) throw new Error(result.error)
+    return result
+}
+
+// 【方案 D3】监听预览数据块
+export async function onPreviewChunk(callback: (chunk: any) => void): Promise<() => void> {
+    return window.electronAPI.onPreviewChunk(callback)
 }
 
 // 【方案 B】取消预览（传入 taskId）
