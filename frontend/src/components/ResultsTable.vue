@@ -849,7 +849,6 @@ const handleBatchDelete = async () => {
   left: 0;
   z-index: 5;
   background-color: inherit; /* 继承父元素背景色 */
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.08); /* 右侧阴影，使用半透明黑色适配所有主题 */
 }
 
 /* 复选框列固定在左侧 */
@@ -869,7 +868,6 @@ const handleBatchDelete = async () => {
   right: 0;
   z-index: 5;
   background-color: inherit;
-  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.08); /* 左侧阴影，使用半透明黑色适配所有主题 */
 }
 
 /* 【关键】当表头使用 transform 时，冻结列需要反向 transform 来保持固定 */
