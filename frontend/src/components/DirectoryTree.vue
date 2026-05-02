@@ -3,38 +3,34 @@
     <div class="tree-header">
       <h3>扫描路径</h3>
       <div class="tree-actions">
-        <!-- 全选/全不选切换 -->
-        <button 
-          class="btn-icon" 
-          @click="handleToggleSelectAll"
-          :title="isAllSelected ? '全不选' : '全选'"
-        >
-          <svg class="action-icon" :class="{ 'icon-rotate': isAnimatingSelect }">
-            <use :href="isAllSelected ? '#icon-unchecked' : '#icon-check-all'"></use>
-          </svg>
-        </button>
+        <!-- 全选/全不选/半选 - 使用复选框 -->
+        <input
+          type="checkbox"
+          ref="selectAllCheckboxRef"
+          :checked="isAllSelected"
+          :indeterminate="isIndeterminate"
+          @change="handleToggleSelectAll"
+          class="action-checkbox"
+          title="全选/取消全选"
+        />
         
-        <!-- 展开/折叠切换 -->
+        <!-- 展开/折叠切换 - 使用 HTML 字符 -->
         <button 
           class="btn-icon" 
           @click="handleToggleExpand"
           :title="isAllExpanded ? '折叠全部' : '展开全部'"
         >
-          <svg class="action-icon" :class="{ 'icon-rotate': isAnimatingExpand }">
-            <use :href="isAllExpanded ? '#icon-collapse' : '#icon-expand'"></use>
-          </svg>
+          <span class="action-char">{{ isAllExpanded ? '▼' : '▶' }}</span>
         </button>
         
-        <!-- 刷新 -->
+        <!-- 刷新 - 使用 HTML 字符 -->
         <button 
           class="btn-icon" 
           @click="handleRefresh"
           title="刷新目录树"
           :disabled="loading"
         >
-          <svg class="action-icon" :class="{ 'icon-spin': loading }">
-            <use href="#icon-refresh"></use>
-          </svg>
+          <span class="action-char refresh-char" :class="{ 'spinning': loading }">↻</span>
         </button>
       </div>
     </div>
@@ -59,8 +55,6 @@
         :node="node"
         :level="0"
         :all-nodes-map="allNodesMap"
-        :force-expand="shouldExpandAll"
-        :force-collapse="shouldCollapseAll"
         @toggle="handleToggleNode"
       />
     </div>
@@ -81,14 +75,12 @@ const allNodesMap = ref<Map<string, DirectoryNode>>(new Map())
 const loading = ref(false)
 // 【新增】全选状态
 const isAllSelected = ref(true)
+// 【新增】半选状态
+const isIndeterminate = ref(false)
 // 【新增】展开状态
 const isAllExpanded = ref(false)
-// 【新增】动画状态
-const isAnimatingSelect = ref(false)
-const isAnimatingExpand = ref(false)
-// 【新增】强制展开/折叠标志（用于通知 TreeNode 组件）
-const shouldExpandAll = ref(false)
-const shouldCollapseAll = ref(false)
+// 【新增】复选框引用
+const selectAllCheckboxRef = ref<HTMLInputElement | null>(null)
 
 // 加载根目录
 onMounted(async () => {
@@ -184,20 +176,12 @@ const countTotalPaths = (nodes: DirectoryNode[]): number => {
 
 // 【新增】切换全选/全不选
 const handleToggleSelectAll = () => {
-  // 触发动画
-  isAnimatingSelect.value = true
-  setTimeout(() => {
-    isAnimatingSelect.value = false
-  }, 300)
-  
-  if (isAllSelected.value) {
-    // 当前是全选状态，执行全不选
+  if (isAllSelected.value || isIndeterminate.value) {
+    // 当前是全选或半选状态，执行全不选
     appStore.deselectAllDirectories()
-    isAllSelected.value = false
   } else {
     // 当前是全不选状态，执行全选
     appStore.selectAllDirectories(rootNodes.value)
-    isAllSelected.value = true
   }
 }
 
@@ -205,9 +189,26 @@ const handleToggleSelectAll = () => {
 watch(
   () => appStore.selectedPaths.size,
   (newSize) => {
-    // 如果选中的目录数量等于总目录数量，则为全选状态
     const totalPaths = countTotalPaths(rootNodes.value)
-    isAllSelected.value = newSize === totalPaths && totalPaths > 0
+    
+    if (newSize === 0) {
+      // 全不选
+      isAllSelected.value = false
+      isIndeterminate.value = false
+    } else if (newSize === totalPaths && totalPaths > 0) {
+      // 全选
+      isAllSelected.value = true
+      isIndeterminate.value = false
+    } else {
+      // 半选
+      isAllSelected.value = false
+      isIndeterminate.value = true
+    }
+    
+    // 【关键】同步复选框的 indeterminate 属性
+    if (selectAllCheckboxRef.value) {
+      selectAllCheckboxRef.value.indeterminate = isIndeterminate.value
+    }
   },
   { immediate: true }
 )
@@ -218,31 +219,37 @@ const handleToggleNode = (path: string) => {
 
 // 【新增】切换展开/折叠全部
 const handleToggleExpand = () => {
-  // 触发动画
-  isAnimatingExpand.value = true
-  setTimeout(() => {
-    isAnimatingExpand.value = false
-  }, 300)
-  
   if (isAllExpanded.value) {
     // 当前是展开状态，执行折叠
-    shouldCollapseAll.value = true
-    shouldExpandAll.value = false
+    collapseAllNodes()
     isAllExpanded.value = false
-    // 重置标志（下一个 tick 后）
-    setTimeout(() => {
-      shouldCollapseAll.value = false
-    }, 100)
   } else {
     // 当前是折叠状态，执行展开
-    shouldExpandAll.value = true
-    shouldCollapseAll.value = false
+    expandAllNodes()
     isAllExpanded.value = true
-    // 重置标志（下一个 tick 后）
-    setTimeout(() => {
-      shouldExpandAll.value = false
-    }, 100)
   }
+}
+
+// 【辅助方法】递归展开所有节点（通过触发 TreeNode 的点击事件）
+const expandAllNodes = () => {
+  const treeNodes = document.querySelectorAll('.tree-node')
+  treeNodes.forEach((nodeElement) => {
+    const expandIcon = nodeElement.querySelector('.expand-icon') as HTMLElement
+    if (expandIcon && expandIcon.textContent === '▶') {
+      expandIcon.click()
+    }
+  })
+}
+
+// 【辅助方法】递归折叠所有节点
+const collapseAllNodes = () => {
+  const treeNodes = document.querySelectorAll('.tree-node')
+  treeNodes.forEach((nodeElement) => {
+    const expandIcon = nodeElement.querySelector('.expand-icon') as HTMLElement
+    if (expandIcon && expandIcon.textContent === '▼') {
+      expandIcon.click()
+    }
+  })
 }
 
 // 【新增】刷新目录树
@@ -345,6 +352,15 @@ const handleRefresh = async () => {
 .tree-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+/* 【新增】全选复选框样式 */
+.action-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
 }
 
 /* 【新增】图标按钮样式 */
@@ -379,32 +395,16 @@ const handleRefresh = async () => {
   cursor: not-allowed;
 }
 
-.action-icon {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-  transition: transform 0.3s ease;
+/* 【新增】动作字符样式 */
+.action-char {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-block;
+  transition: transform 0.2s ease;
 }
 
-/* 【新增】旋转动画（切换图标时） */
-.icon-rotate {
-  animation: rotateIcon 0.3s ease;
-}
-
-@keyframes rotateIcon {
-  0% {
-    transform: rotate(0deg) scale(1);
-  }
-  50% {
-    transform: rotate(180deg) scale(1.2);
-  }
-  100% {
-    transform: rotate(360deg) scale(1);
-  }
-}
-
-/* 【新增】刷新旋转动画 */
-.icon-spin {
+/* 【新增】刷新字符旋转动画 */
+.refresh-char.spinning {
   animation: spinIcon 0.8s linear infinite;
 }
 
