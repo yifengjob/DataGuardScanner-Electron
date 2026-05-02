@@ -183,6 +183,8 @@ import {DynamicScroller, DynamicScrollerItem} from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 // 【C2 优化】导入错误处理工具
 import {getFriendlyErrorMessage} from '../utils/error-handler'
+// 【D2 优化】导入 UI 配置常量
+import {UI_SEARCH_DEBOUNCE_DELAY} from '../../../../src/scan-config'
 
 const appStore = useAppStore()
 const {scanResults, config} = storeToRefs(appStore)
@@ -354,7 +356,7 @@ const filteredResults = computed(() => {
 // 【P1】监听搜索关键词，使用防抖
 watch(searchKeyword, debounce((val) => {
   debouncedSearchKeyword.value = val
-}, 300))
+}, UI_SEARCH_DEBOUNCE_DELAY))  // 使用配置的防抖延迟
 
 // 【修复】监听 filteredResults 变化，在数据加载后设置滚动同步
 watch(

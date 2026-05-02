@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type {ScanResultItem, AppConfig, DirectoryNode} from '../types'
+// 【D2 优化】导入 UI 配置常量
+import { UI_BATCH_UPDATE_INTERVAL, UI_LOG_BATCH_INTERVAL } from '../../../../src/scan-config'
 
 export const useAppStore = defineStore('app', () => {
   // 扫描结果
@@ -138,7 +140,7 @@ export const useAppStore = defineStore('app', () => {
   function addScanResult(item: ScanResultItem) {
     pendingResults.push(item)
     
-    // 如果还没有定时器，设置一个 100ms 的批处理定时器
+    // 如果还没有定时器，设置一个批处理定时器
     if (batchTimer === null) {
       batchTimer = window.setTimeout(() => {
         // 批量添加所有待处理的结果
@@ -147,14 +149,14 @@ export const useAppStore = defineStore('app', () => {
           pendingResults.length = 0  // 清空数组
         }
         batchTimer = null
-      }, 100)  // 每 100ms 批量更新一次
+      }, UI_BATCH_UPDATE_INTERVAL)  // 使用配置的批量更新间隔
     }
   }
   
   function addLog(log: string) {
     pendingLogs.push(log)
     
-    // 如果还没有定时器，设置一个 200ms 的批处理定时器（日志可以更慢）
+    // 如果还没有定时器，设置一个批处理定时器（日志可以更慢）
     if (logBatchTimer === null) {
       logBatchTimer = window.setTimeout(() => {
         if (pendingLogs.length > 0) {
@@ -162,7 +164,7 @@ export const useAppStore = defineStore('app', () => {
           pendingLogs.length = 0
         }
         logBatchTimer = null
-      }, 200)
+      }, UI_LOG_BATCH_INTERVAL)  // 使用配置的日志批量更新间隔
     }
   }
   
