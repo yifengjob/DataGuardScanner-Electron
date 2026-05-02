@@ -309,7 +309,27 @@ watch([() => props.visible, () => props.filePath], async ([isVisible, newPath]) 
       currentTaskId.value = null
     }
     
-    // 清空状态
+    // 【资源清理】清理流式状态，防止内存泄漏
+    streamState.value.receivedChunks = []
+    streamState.value.renderedLines = []
+    streamState.value.renderedHighlights = []
+    streamState.value.isRendering = false
+    streamState.value.totalChunks = 0
+    streamState.value.receivedChunksCount = 0
+    
+    // 【资源清理】清理虚拟滚动器
+    scroller.reset()
+    
+    // 【资源清理】清理可见内容
+    visibleContent.value = ''
+    
+    // 【资源清理】清理滚动定时器
+    if (scrollTimeout) {
+      clearTimeout(scrollTimeout)
+      scrollTimeout = null
+    }
+    
+    // 清空旧状态
     loading.value = false
     error.value = ''
     content.value = ''
@@ -400,11 +420,17 @@ const handleOpenFile = async () => {
 
 const handleCopyContent = async () => {
   try {
-    await navigator.clipboard.writeText(content.value)
-    // 【P1 修复】使用 Electron 对话框替代 alert
+    // 【方案 A】从流式状态中获取完整内容
+    const fullText = streamState.value.renderedLines.join('\n')
+    
+    if (!fullText) {
+      await showMessage('暂无内容可复制', { type: 'warning' })
+      return
+    }
+    
+    await navigator.clipboard.writeText(fullText)
     await showMessage('✅ 已复制到剪贴板', { type: 'info' })
   } catch (err) {
-    // 【P1 修复】使用 Electron 对话框替代 alert
     await showMessage(getFriendlyErrorMessage(err), { type: 'error' })
   }
 }
