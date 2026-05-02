@@ -390,7 +390,11 @@ async function loadFile(filePath: string) {
 
 const handleOpenFile = async () => {
   if (props.filePath) {
-    await openFile(props.filePath)
+    try {
+      await openFile(props.filePath)
+    } catch (err) {
+      await showMessage(getFriendlyErrorMessage(err), { type: 'error' })
+    }
   }
 }
 
