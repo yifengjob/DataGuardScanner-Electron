@@ -492,8 +492,14 @@ const setupScrollSync = () => {
 
 // 【关键】处理滚动事件，同步表头
 const handleScroll = (event: Event) => {
-  // 【冻结列优化】不再使用 transform 同步，改用 CSS sticky 定位
-  // 表头和冻结列会通过 position: sticky 自动跟随滚动
+  if (headerRef.value && event.target) {
+    const target = event.target as HTMLElement
+    const scrollLeft = target.scrollLeft
+
+    // 【冻结列优化】同步表头的 scrollLeft，而不是使用 transform
+    // 这样 sticky 定位可以正常工作
+    headerRef.value.scrollLeft = scrollLeft
+  }
 }
 
 const sortBy = (field: string) => {
@@ -757,7 +763,7 @@ const handleBatchDelete = async () => {
   width: max-content; /* 【关键】根据列宽总和自动计算 */
   min-width: 100%; /* 至少占满容器 */
   z-index: 10;
-  overflow-x: auto !important; /* 【关键】允许横向滚动，覆盖继承 */
+  overflow-x: auto !important; /* 【关键】允许横向滚动 */
   overflow-y: hidden !important;
   position: sticky; /* 【冻结列】表头固定在顶部 */
   top: 0;
@@ -853,29 +859,6 @@ const handleBatchDelete = async () => {
   right: 0;
   z-index: 5;
   background-color: inherit;
-}
-
-/* 冻结列阴影效果 - 增强视觉分隔 */
-.frozen-left::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 4px;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.05), transparent);
-  pointer-events: none;
-}
-
-.frozen-right::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 4px;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.05), transparent);
-  pointer-events: none;
 }
 
 .path-col {
