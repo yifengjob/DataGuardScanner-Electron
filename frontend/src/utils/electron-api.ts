@@ -26,6 +26,13 @@ declare global {
       getRecommendedConcurrency: () => Promise<number>;
       checkSystemEnvironment: () => Promise<any>;
       showSaveDialog: (options?: any) => Promise<any>;
+      showMessageBox: (options: {
+        message: string;
+        title?: string;
+        type?: 'info' | 'warning' | 'error' | 'question';
+        buttons?: string[];
+        cancelId?: number;
+      }) => Promise<{ response: number }>;
       clearCache: () => Promise<{ success: boolean; cleanedSize?: number; error?: string }>;
       onScanProgress: (callback: (data: any) => void) => () => void;
       onScanResult: (callback: (data: any) => void) => () => void;
@@ -165,8 +172,29 @@ export async function onScanLog(callback: (log: string) => void): Promise<() => 
 
 // 显示消息对话框
 export async function showMessage(message: string, options?: { title?: string; type?: 'info' | 'warning' | 'error' }): Promise<void> {
-  // Electron中可以使用alert或自定义dialog
-  alert(`${options?.title || '提示'}\n\n${message}`)
+  await window.electronAPI.showMessageBox({
+    message,
+    title: options?.title || '提示',
+    type: options?.type || 'info',
+    buttons: ['确定']
+  })
+}
+
+// 【新增】确认对话框（类似 confirm）
+export async function askDialog(message: string, options?: {
+  title?: string;
+  type?: 'info' | 'warning' | 'error' | 'question';
+  okLabel?: string;
+  cancelLabel?: string;
+}): Promise<boolean> {
+  const result = await window.electronAPI.showMessageBox({
+    message,
+    title: options?.title || '确认',
+    type: options?.type || 'question',
+    buttons: [options?.okLabel || '确定', options?.cancelLabel || '取消'],
+    cancelId: 1  // 第二个按钮是取消
+  })
+  return result.response === 0  // 0 表示点击了第一个按钮（确定）
 }
 
 // 保存文件对话框

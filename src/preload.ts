@@ -84,6 +84,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showSaveDialog: (options?: any) =>
     ipcRenderer.invoke('show-save-dialog', options),
   
+  // 【新增】消息对话框（确认/提示）
+  showMessageBox: (options: {
+    message: string;
+    title?: string;
+    type?: 'info' | 'warning' | 'error' | 'question';
+    buttons?: string[];
+    cancelId?: number;
+  }) =>
+    ipcRenderer.invoke('show-message-box', options),
+  
   // 清理缓存
   clearCache: () =>
     ipcRenderer.invoke('clear-cache'),
@@ -118,6 +128,13 @@ declare global {
       onScanError: (callback: (error: string) => void) => () => void;
       onScanLog: (callback: (msg: string) => void) => () => void;
       showSaveDialog: (options?: any) => Promise<any>;
+      showMessageBox: (options: {
+        message: string;
+        title?: string;
+        type?: 'info' | 'warning' | 'error' | 'question';
+        buttons?: string[];
+        cancelId?: number;
+      }) => Promise<{ response: number }>;
       clearCache: () => Promise<{ success: boolean; cleanedSize?: number }>;
       openDevTools: () => Promise<void>;
     };

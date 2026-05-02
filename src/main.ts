@@ -579,6 +579,25 @@ function setupIpcHandlers() {
         });
     });
 
+    // 【新增】消息对话框（确认/提示）
+    ipcMain.handle('show-message-box', async (_, options: {
+        message: string;
+        title?: string;
+        type?: 'info' | 'warning' | 'error' | 'question';
+        buttons?: string[];
+        cancelId?: number;
+    }) => {
+        const result = await dialog.showMessageBox(mainWindow!, {
+            type: options.type || 'info',
+            title: options.title || '提示',
+            message: options.message,
+            buttons: options.buttons || ['确定'],
+            cancelId: options.cancelId,
+            defaultId: 0
+        });
+        return { response: result.response };
+    });
+
     // 清理应用缓存
     ipcMain.handle('clear-cache', async () => {
         try {

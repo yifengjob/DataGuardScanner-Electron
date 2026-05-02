@@ -177,8 +177,7 @@ import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue'
 import {useAppStore} from '../stores/app'
 import {storeToRefs} from 'pinia'
 import {formatFileSize, formatTime, debounce, promisePool} from '../utils/format'
-import {openFile, openFileLocation, deleteFile, getSensitiveRules, showMessage} from '../utils/electron-api'
-import {ask} from "@tauri-apps/plugin-dialog"
+import {openFile, openFileLocation, deleteFile, getSensitiveRules, showMessage, askDialog} from '../utils/electron-api'
 // 【虚拟滚动优化】导入 vue-virtual-scroller（支持动态行高）
 import {DynamicScroller, DynamicScrollerItem} from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
@@ -468,22 +467,22 @@ const getScrollbarWidth = (): number => {
   if (cachedScrollbarWidth !== null) {
     return cachedScrollbarWidth
   }
-  
+
   const outer = document.createElement('div')
   outer.style.visibility = 'hidden'
   outer.style.overflow = 'scroll'
   outer.style.width = '100px'
   outer.style.height = '100px'
   document.body.appendChild(outer)
-  
+
   const inner = document.createElement('div')
   inner.style.width = '100%'
   inner.style.height = '100px'
   outer.appendChild(inner)
-  
+
   const scrollbarWidth = outer.offsetWidth - inner.offsetWidth
   document.body.removeChild(outer)
-  
+
   // 缓存结果
   cachedScrollbarWidth = scrollbarWidth || 8
   return cachedScrollbarWidth
@@ -495,10 +494,10 @@ let scrollbarObserver: ResizeObserver | null = null
 const setupScrollbarObserver = () => {
   const scroller = document.querySelector('.virtual-scroller') as HTMLElement
   if (!scroller) return
-  
+
   const headerContainer = document.querySelector('.header-scroll-container') as HTMLElement
   if (!headerContainer) return
-  
+
   // 初始检查
   const checkScrollbar = () => {
     const hasScrollbar = scroller.scrollHeight > scroller.clientHeight
@@ -509,15 +508,15 @@ const setupScrollbarObserver = () => {
       headerContainer.style.paddingRight = '0'
     }
   }
-  
+
   // 初始执行
   checkScrollbar()
-  
+
   // 监听 scroller 尺寸变化
   scrollbarObserver = new ResizeObserver(() => {
     checkScrollbar()
   })
-  
+
   scrollbarObserver.observe(scroller)
 }
 
@@ -536,7 +535,7 @@ onUnmounted(() => {
     pathMaxWidthObserver.disconnect()
     pathMaxWidthObserver = null
   }
-  
+
   // 【新增】清理滚动条监听器
   if (scrollbarObserver) {
     scrollbarObserver.disconnect()
@@ -575,7 +574,7 @@ const handleScroll = (event: Event) => {
 
     // 【冻结列优化】使用 transform 移动整个表头 Grid
     headerRef.value.style.transform = `translateX(${-scrollLeft}px)`
-    
+
     // 【关键】设置 CSS 变量，让冻结列反向移动来保持固定
     headerRef.value.style.setProperty('--scroll-offset', `${scrollLeft}px`)
   }
@@ -638,9 +637,9 @@ const handleOpenLocation = async (item: any) => {
 const handleDelete = async (item: any) => {
   const deleteMode = config.value.deleteToTrash ? '移入回收站' : '永久删除'
   // 【P1】使用 Electron 对话框替代 confirm
-  const confirmed = await ask(`确定要${deleteMode}此文件吗？\n${item.filePath}`, {
+  const confirmed = await askDialog(`确定要${deleteMode}此文件吗？\n${item.filePath}`, {
     title: '确认删除',
-    kind: 'warning',
+    type: 'warning',
     okLabel: '删除',
     cancelLabel: '取消'
   })
@@ -719,9 +718,9 @@ const handleBatchDelete = async () => {
       ? `确定要${deleteMode}选中的 ${count} 个文件吗？`
       : `确定要${deleteMode}选中的 ${count} 个文件吗？\n\n此操作不可恢复！`
 
-  const confirmed = await ask(warningText, {
+  const confirmed = await askDialog(warningText, {
     title: '确认批量删除',
-    kind: 'warning',
+    type: 'warning',
     okLabel: '删除',
     cancelLabel: '取消'
   })
@@ -732,23 +731,23 @@ const handleBatchDelete = async () => {
 
   // 【P0】并行删除文件，提升性能（带并发控制）
   const filesToDelete = Array.from(selectedFiles.value)
-  
+
   // 创建任务队列（每个任务返回 Promise<void>）
   const tasks = filesToDelete.map(filePath => async () => {
     await deleteFile(filePath, config.value.deleteToTrash)
     appStore.removeResult(filePath)
   })
-  
+
   // 执行并发删除（限制并发数为 10）
   const results = await promisePool(
-    tasks,
-    10  // 最大并发数：平衡性能和资源占用
+      tasks,
+      10  // 最大并发数：平衡性能和资源占用
   )
-  
+
   // 统计成功和失败数量
   let successCount = 0
   let failCount = 0
-  
+
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') {
       successCount++
@@ -782,7 +781,7 @@ const handleBatchDelete = async () => {
 
   /* 【新增】路径列 max-width 配置（由 JS 动态计算） */
   --path-col-max-width: 10em; /* 默认值 */
-  
+
   /* 【冻结列】表头滚动偏移量（由 JS 动态设置） */
   --scroll-offset: 0px;
 }
