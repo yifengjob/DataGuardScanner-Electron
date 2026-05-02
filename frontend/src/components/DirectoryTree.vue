@@ -7,7 +7,7 @@
           class="btn-small" 
           @click="handleToggleSelectAll"
         >
-          {{ isAllSelected ? '全不选' : (isIndeterminate ? '半选' : '全选') }}
+          {{ isAllSelected ? '全不选' : '全选' }}
         </button>
         
         <button 
@@ -67,8 +67,6 @@ const allNodesMap = ref<Map<string, DirectoryNode>>(new Map())
 const loading = ref(false)
 // 【新增】全选状态
 const isAllSelected = ref(true)
-// 【新增】半选状态
-const isIndeterminate = ref(false)
 // 【新增】展开状态
 const isAllExpanded = ref(false)
 
@@ -166,8 +164,8 @@ const countTotalPaths = (nodes: DirectoryNode[]): number => {
 
 // 【新增】切换全选/全不选
 const handleToggleSelectAll = () => {
-  if (isAllSelected.value || isIndeterminate.value) {
-    // 当前是全选或半选状态，执行全不选
+  if (isAllSelected.value) {
+    // 当前是全选状态，执行全不选
     appStore.deselectAllDirectories()
   } else {
     // 当前是全不选状态，执行全选
@@ -180,20 +178,8 @@ watch(
   () => appStore.selectedPaths.size,
   (newSize) => {
     const totalPaths = countTotalPaths(rootNodes.value)
-    
-    if (newSize === 0) {
-      // 全不选
-      isAllSelected.value = false
-      isIndeterminate.value = false
-    } else if (newSize === totalPaths && totalPaths > 0) {
-      // 全选
-      isAllSelected.value = true
-      isIndeterminate.value = false
-    } else {
-      // 半选
-      isAllSelected.value = false
-      isIndeterminate.value = true
-    }
+    // 只有当选中数量等于总数时才是全选状态
+    isAllSelected.value = newSize === totalPaths && totalPaths > 0
   },
   { immediate: true }
 )
