@@ -454,8 +454,15 @@ const fixedColumnsTotalPx = computed(() => {
   )
 })
 
-// 【新增】获取浏览器滚动条宽度
+// 【新增】获取浏览器滚动条宽度（带缓存）
+let cachedScrollbarWidth: number | null = null
+
 const getScrollbarWidth = (): number => {
+  // 如果已缓存，直接返回
+  if (cachedScrollbarWidth !== null) {
+    return cachedScrollbarWidth
+  }
+  
   const outer = document.createElement('div')
   outer.style.visibility = 'hidden'
   outer.style.overflow = 'scroll'
@@ -471,7 +478,9 @@ const getScrollbarWidth = (): number => {
   const scrollbarWidth = outer.offsetWidth - inner.offsetWidth
   document.body.removeChild(outer)
   
-  return scrollbarWidth || 8 // 默认 8px
+  // 缓存结果
+  cachedScrollbarWidth = scrollbarWidth || 8
+  return cachedScrollbarWidth
 }
 
 // 【新增】监听数据行滚动条，同步表头容器 padding
@@ -530,6 +539,7 @@ onUnmounted(() => {
 
   // 【修复】重置缓存和标记，防止内存泄漏
   cachedBaseFontSize = null
+  cachedScrollbarWidth = null  // 【新增】清理滚动条宽度缓存
   scrollSyncSetup = false
   containerQuerySetup = false
 })
