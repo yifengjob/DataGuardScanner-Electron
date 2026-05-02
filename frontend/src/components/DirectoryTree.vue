@@ -3,34 +3,26 @@
     <div class="tree-header">
       <h3>扫描路径</h3>
       <div class="tree-actions">
-        <!-- 全选/全不选/半选 - 使用复选框 -->
-        <input
-          type="checkbox"
-          ref="selectAllCheckboxRef"
-          :checked="isAllSelected"
-          :indeterminate="isIndeterminate"
-          @change="handleToggleSelectAll"
-          class="action-checkbox"
-          title="全选/取消全选"
-        />
-        
-        <!-- 展开/折叠切换 - 使用 HTML 字符 -->
         <button 
-          class="btn-icon" 
-          @click="handleToggleExpand"
-          :title="isAllExpanded ? '折叠全部' : '展开全部'"
+          class="btn-small" 
+          @click="handleToggleSelectAll"
         >
-          <span class="action-char">{{ isAllExpanded ? '▼' : '▶' }}</span>
+          {{ isAllSelected ? '全不选' : (isIndeterminate ? '半选' : '全选') }}
         </button>
         
-        <!-- 刷新 - 使用 HTML 字符 -->
         <button 
-          class="btn-icon" 
+          class="btn-small" 
+          @click="handleToggleExpand"
+        >
+          {{ isAllExpanded ? '折叠' : '展开' }}
+        </button>
+        
+        <button 
+          class="btn-small" 
           @click="handleRefresh"
-          title="刷新目录树"
           :disabled="loading"
         >
-          <span class="action-char refresh-char" :class="{ 'spinning': loading }">↻</span>
+          {{ loading ? '刷新中...' : '刷新' }}
         </button>
       </div>
     </div>
@@ -79,8 +71,6 @@ const isAllSelected = ref(true)
 const isIndeterminate = ref(false)
 // 【新增】展开状态
 const isAllExpanded = ref(false)
-// 【新增】复选框引用
-const selectAllCheckboxRef = ref<HTMLInputElement | null>(null)
 
 // 加载根目录
 onMounted(async () => {
@@ -203,11 +193,6 @@ watch(
       // 半选
       isAllSelected.value = false
       isIndeterminate.value = true
-    }
-    
-    // 【关键】同步复选框的 indeterminate 属性
-    if (selectAllCheckboxRef.value) {
-      selectAllCheckboxRef.value.indeterminate = isIndeterminate.value
     }
   },
   { immediate: true }
@@ -351,66 +336,28 @@ const handleRefresh = async () => {
 
 .tree-actions {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 5px;
 }
 
-/* 【新增】全选复选框样式 */
-.action-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  accent-color: var(--primary-color);
-}
-
-/* 【新增】图标按钮样式 */
-.btn-icon {
-  padding: 6px;
+.btn-small {
+  padding: 3px 8px;
+  font-size: 12px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-color);
   color: var(--text-color);
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
 }
 
-.btn-icon:hover:not(:disabled) {
+.btn-small:hover:not(:disabled) {
   background-color: var(--bg-hover);
   border-color: var(--primary-color);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.btn-icon:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.btn-icon:disabled {
+.btn-small:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-/* 【新增】动作字符样式 */
-.action-char {
-  font-size: 18px;
-  line-height: 1;
-  display: inline-block;
-  transition: transform 0.2s ease;
-}
-
-/* 【新增】刷新字符旋转动画 */
-.refresh-char.spinning {
-  animation: spinIcon 0.8s linear infinite;
-}
-
-@keyframes spinIcon {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .tree-content {
