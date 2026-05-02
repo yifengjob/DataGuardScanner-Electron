@@ -14,7 +14,7 @@ declare global {
             scanStart: (config: any) => Promise<any>;
             scanCancel: () => Promise<any>;
             previewFile: (filePath: string) => Promise<any>;
-            cancelPreview: () => Promise<any>;
+            cancelPreview: (taskId: number) => Promise<any>;
             openFile: (filePath: string) => Promise<any>;
             openFileLocation: (filePath: string) => Promise<any>;
             deleteFile: (filePath: string, toTrash: boolean) => Promise<any>;
@@ -63,15 +63,16 @@ export async function cancelScan(): Promise<boolean> {
 }
 
 // 预览文件
-export async function previewFile(filePath: string): Promise<PreviewResult> {
+export async function previewFile(filePath: string): Promise<PreviewResult & { taskId?: number }> {
     const result = await window.electronAPI.previewFile(filePath)
     if (result.error) throw new Error(result.error)
     return result
 }
 
-// 取消预览
-export async function cancelPreview(): Promise<boolean> {
-    const result = await window.electronAPI.cancelPreview()
+// 【方案 B】取消预览（传入 taskId）
+export async function cancelPreview(taskId?: number): Promise<boolean> {
+    if (!taskId) return false
+    const result = await window.electronAPI.cancelPreview(taskId)
     return result.success
 }
 

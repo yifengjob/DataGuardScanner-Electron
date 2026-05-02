@@ -160,6 +160,9 @@ process.on('exit', (code) => {
 let mainWindow: BrowserWindow | null = null;
 const scanState = new ScanState();
 
+// 【方案 B】预览 Worker 管理（支持取消）
+const previewWorkers = new Map<number, any>(); // taskId -> Worker
+
 // 【新增】计算窗口位置和尺寸（屏幕的 85%，居中显示）
 function getWindowBounds(): { x?: number; y?: number; width: number; height: number } {
     try {
@@ -413,8 +416,13 @@ function setupIpcHandlers() {
             const { Worker } = require('worker_threads');
             const pathModule = require('path');
             
+            // 【方案 B】获取配置（在创建 Worker 之前，避免在 message 回调中执行异步操作）
+            const config = await loadConfig();
+            const enabledTypes = config.enabledSensitiveTypes || [];
+            
             // 创建单个 Worker 来处理预览
             const workerPath = pathModule.join(__dirname, 'file-worker.js');
+            const taskId = Date.now();
             const worker = new Worker(workerPath, {
                 resourceLimits: {
                     maxOldGenerationSizeMb: WORKER_MAX_OLD_GENERATION_MB,
@@ -422,17 +430,21 @@ function setupIpcHandlers() {
                 }
             });
             
+            // 【方案 B】注册 Worker，支持取消
+            previewWorkers.set(taskId, worker);
+            
             return new Promise((resolve) => {
                 let messageReceived = false;
                 
                 const timeout = setTimeout(() => {
                     if (!messageReceived) {
                         worker.terminate();
+                        previewWorkers.delete(taskId);  // 清理
                         resolve({ error: '预览超时，文件可能太大或太复杂' });
                     }
                 }, PREVIEW_TIMEOUT);
                 
-                worker.on('message', async (result: any) => {
+                worker.on('message', (result: any) => {
                     // 跳过 ready 消息
                     if (result.type === 'ready') {
                         return;
@@ -440,6 +452,7 @@ function setupIpcHandlers() {
                     
                     messageReceived = true;
                     clearTimeout(timeout);
+                    previewWorkers.delete(taskId);  // 清理
                     
                     if (result.error) {
                         worker.terminate();
@@ -447,40 +460,38 @@ function setupIpcHandlers() {
                         return;
                     }
                     
-                    // 获取启用的敏感类型
-                    const config = await loadConfig();
-                    const enabledTypes = config.enabledSensitiveTypes || [];
-                    
-                    // 生成高亮信息
-                    const { getHighlights } = await import('./sensitive-detector');
-                    const highlights = getHighlights(result.text || '', enabledTypes);
-                    
+                    // 【方案 B】Worker 已经计算好高亮，直接返回
                     worker.terminate();
                     resolve({
                         content: result.text || '',
-                        highlights: highlights,
+                        highlights: result.highlights || [],  // ✅ 直接使用 Worker 返回的高亮
                         unsupportedPreview: result.unsupportedPreview || false
                     });
                 });
                 
                 worker.on('error', (error: any) => {
                     clearTimeout(timeout);
+                    previewWorkers.delete(taskId);  // 清理
                     resolve({ error: '预览失败：' + error.message });
                 });
                 
                 worker.on('exit', (code: number) => {
                     if (code !== 0 && !messageReceived) {
                         clearTimeout(timeout);
+                        previewWorkers.delete(taskId);  // 清理
                         resolve({ error: `预览异常退出 (代码: ${code})` });
                     }
                 });
                 
-                // 发送任务到 Worker
+                // 发送任务到 Worker（包含配置）
                 worker.postMessage({
-                    taskId: Date.now(),
+                    taskId: taskId,
                     filePath: filePath,
                     enabledSensitiveTypes: [],
-                    previewMode: true // 预览模式：只提取文本
+                    previewMode: true, // 预览模式：只提取文本
+                    config: {  // 【方案 B】传入配置，让 Worker 计算高亮
+                        enabledSensitiveTypes: enabledTypes
+                    }
                 });
             });
         } catch (error: any) {
@@ -488,9 +499,15 @@ function setupIpcHandlers() {
         }
     });
 
-    // 取消预览
-    ipcMain.handle('cancel-preview', () => {
-        return {success: true};
+    // 【方案 B】取消预览（真正终止 Worker）
+    ipcMain.handle('cancel-preview', (_, taskId: number) => {
+        const worker = previewWorkers.get(taskId);
+        if (worker) {
+            console.log(`[预览取消] 终止 Worker (taskId: ${taskId})`);
+            worker.terminate();  // 强制终止
+            previewWorkers.delete(taskId);  // 清理
+        }
+        return { success: true };
     });
 
     // 打开文件

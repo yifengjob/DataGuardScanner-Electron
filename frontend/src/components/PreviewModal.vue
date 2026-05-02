@@ -23,9 +23,9 @@
       </div>
       
       <div class="modal-footer">
-        <button class="btn" @click="handleOpenFile">打开文件</button>
-        <button class="btn" @click="handleCopyContent">复制内容</button>
-        <button class="btn btn-primary" @click="$emit('close')">关闭</button>
+        <button class="btn" :disabled="loading" @click="handleOpenFile">打开文件</button>
+        <button class="btn" :disabled="loading" @click="handleCopyContent">复制内容</button>
+        <button class="btn btn-primary" @click="handleClose">{{ loading ? '取消' : '关闭' }}</button>
       </div>
     </div>
   </div>
@@ -42,7 +42,7 @@ const props = defineProps<{
   visible: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
 }>()
 
@@ -96,10 +96,10 @@ watch([() => props.visible, () => props.filePath], async ([isVisible, newPath]) 
     })
   } else if (!isVisible) {
     // 窗口关闭时，取消当前任务并清空状态
-    // 取消正在进行的预览任务
+    // 【方案 B】取消正在进行的预览任务（传入 taskId）
     if (currentTaskId.value !== null) {
       try {
-        await cancelPreview()
+        await cancelPreview(currentTaskId.value)  // ✅ 传入 taskId
       } catch (err) {
         // 忽略错误
       }
@@ -168,6 +168,20 @@ const handleCopyContent = async () => {
   } catch (err) {
     // 【P1 修复】使用 Electron 对话框替代 alert
     await showMessage(getFriendlyErrorMessage(err), { type: 'error' })
+  }
+}
+
+// 【方案 B】处理关闭/取消
+const handleClose = () => {
+  if (loading.value && currentTaskId.value !== null) {
+    // 正在加载时，点击“取消”按钮
+    // 立即关闭对话框，后台继续取消任务
+    emit('close')
+    // 不等待取消完成，避免阻塞 UI
+    cancelPreview(currentTaskId.value).catch(() => {})
+  } else {
+    // 正常关闭
+    emit('close')
   }
 }
 </script>
@@ -392,5 +406,19 @@ const handleCopyContent = async () => {
 
 .btn-primary:active {
   transform: translateY(0);
+}
+
+/* 【方案 B】禁用状态的按钮样式 */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.btn:disabled:hover {
+  background-color: var(--bg-color);
+  transform: none;
+  box-shadow: none;
 }
 </style>

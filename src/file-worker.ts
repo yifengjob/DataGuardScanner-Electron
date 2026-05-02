@@ -32,7 +32,7 @@ try {
 }
 
 import { extractTextFromFile } from './file-parser';
-import { detectSensitiveData } from './sensitive-detector';
+import { detectSensitiveData, getHighlights } from './sensitive-detector';
 // 【优化】导入配置常量
 import { 
   WORKER_DEFAULT_TIMEOUT,
@@ -48,12 +48,14 @@ interface WorkerTask {
   filePath: string;
   enabledSensitiveTypes: string[];
   previewMode?: boolean; // 预览模式：只提取文本，不检测敏感数据
+  config?: any; // 预览模式下传入配置（包含启用的敏感类型）
 }
 
 interface WorkerResult {
   taskId: number;
   filePath: string;
   text?: string; // 预览模式下返回文本内容
+  highlights?: Array<{start: number, end: number, typeId: string, typeName: string}>; // 预览模式下返回高亮信息
   fileSize?: number;
   modifiedTime?: string;
   counts?: Record<string, number>;
@@ -140,12 +142,19 @@ parentPort?.on('message', async (task: WorkerTask) => {
       return;
     }
     
-    // 如果是预览模式，只返回文本内容，不检测敏感数据
+    // 如果是预览模式，提取文本并计算高亮（在 Worker 中执行，避免阻塞主线程）
     if (previewMode) {
+      // 从配置中获取启用的敏感类型
+      const enabledTypes = task.config?.enabledSensitiveTypes || [];
+      
+      // 【方案 B】在 Worker 中计算高亮，不阻塞主线程
+      const highlights = getHighlights(text, enabledTypes);
+      
       parentPort?.postMessage({
         taskId,
         filePath,
         text: text,
+        highlights: highlights,  // ✅ 返回高亮信息
         unsupportedPreview: false
       } as WorkerResult);
       return;

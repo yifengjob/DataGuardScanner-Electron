@@ -18,7 +18,7 @@ interface ElectronAPI {
   
   // 文件操作
   previewFile: (filePath: string) => Promise<any>
-  cancelPreview: () => Promise<any>
+  cancelPreview: (taskId: number) => Promise<any>
   openFile: (filePath: string) => Promise<any>
   openFileLocation: (filePath: string) => Promise<any>
   deleteFile: (filePath: string, toTrash: boolean) => Promise<any>

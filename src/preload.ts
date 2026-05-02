@@ -14,8 +14,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 预览
   previewFile: (filePath: string) =>
     ipcRenderer.invoke('preview-file', filePath),
-  cancelPreview: () =>
-    ipcRenderer.invoke('cancel-preview'),
+  cancelPreview: (taskId: number) =>
+    ipcRenderer.invoke('cancel-preview', taskId),
   
   // 文件操作
   openFile: (filePath: string) =>
@@ -111,7 +111,7 @@ declare global {
       scanStart: (config: any) => Promise<any>;
       scanCancel: () => Promise<any>;
       previewFile: (filePath: string) => Promise<any>;
-      cancelPreview: () => Promise<any>;
+      cancelPreview: (taskId: number) => Promise<any>;
       openFile: (filePath: string) => Promise<any>;
       openFileLocation: (filePath: string) => Promise<any>;
       deleteFile: (filePath: string, toTrash: boolean) => Promise<any>;
