@@ -184,7 +184,7 @@ import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 // 【C2 优化】导入错误处理工具
 import {getFriendlyErrorMessage} from '../utils/error-handler'
 // 【D2 优化】导入 UI 配置常量
-import {UI_SEARCH_DEBOUNCE_DELAY} from '../../../../src/scan-config'
+import {UI_SEARCH_DEBOUNCE_DELAY} from '../config/ui-config'
 
 const appStore = useAppStore()
 const {scanResults, config} = storeToRefs(appStore)

@@ -140,14 +140,3 @@ export const BYTES_TO_GB = 1024 * 1024 * 1024;
 
 /** 毫秒到天的转换因子 */
 export const MS_TO_DAYS = 1000 * 60 * 60 * 24;
-
-// ==================== UI 批量更新配置 ====================
-
-/** 扫描结果批量更新间隔（毫秒） */
-export const UI_BATCH_UPDATE_INTERVAL = 100;
-
-/** 日志批量更新间隔（毫秒） */
-export const UI_LOG_BATCH_INTERVAL = 200;
-
-/** 搜索防抖延迟（毫秒） */
-export const UI_SEARCH_DEBOUNCE_DELAY = 300;
