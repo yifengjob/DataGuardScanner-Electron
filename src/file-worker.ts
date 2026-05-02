@@ -40,7 +40,8 @@ import {
   WORKER_TIMEOUT_MEDIUM,
   WORKER_TIMEOUT_LARGE,
   WORKER_TIMEOUT_HUGE,
-  BYTES_TO_MB
+  BYTES_TO_MB,
+  PREVIEW_CHUNK_SIZE  // 【方案 D3】预览流式传输块大小
 } from './scan-config';
 
 interface WorkerTask {
@@ -167,7 +168,7 @@ parentPort?.on('message', async (task: WorkerTask) => {
       // 【方案 D3】流式模式：分块发送
       if (task.streamMode) {
         const lines = text.split('\n');
-        const chunkSize = task.chunkSize || 1000;
+        const chunkSize = task.chunkSize || PREVIEW_CHUNK_SIZE;
         const totalLines = lines.length;
         
         // 构建行索引

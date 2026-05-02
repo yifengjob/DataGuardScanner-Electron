@@ -55,6 +55,13 @@ import { previewFileStream, openFile, cancelPreview, showMessage, onPreviewChunk
 import { getFriendlyErrorMessage, getErrorSeverity } from '../utils/error-handler'
 import { PreviewVirtualScroller, GlobalHighlight, LineHighlight } from '../utils/preview-virtual-scroller'
 
+// 【配置常量】虚拟滚动参数（从后端同步）
+const PREVIEW_CONFIG = {
+  LINE_HEIGHT: 20,        // 行高（像素）
+  BUFFER_LINES: 10,       // 缓冲行数
+  SCROLL_DEBOUNCE_MS: 50  // 滚动防抖时间（毫秒）
+} as const
+
 const props = defineProps<{
   filePath: string
   visible: boolean
@@ -90,7 +97,7 @@ const streamState = ref({
 })
 
 // 【方案 D3】虚拟滚动器
-const scroller = new PreviewVirtualScroller(20, 10)  // 行高 20px，缓冲 10 行
+const scroller = new PreviewVirtualScroller(PREVIEW_CONFIG.LINE_HEIGHT, PREVIEW_CONFIG.BUFFER_LINES)
 
 // 【方案 D3】渲染相关
 const scrollContainer = ref<HTMLElement | null>(null)
@@ -420,7 +427,7 @@ function handleScroll() {
   scrollTimeout = window.setTimeout(() => {
     scrollTimeout = null
     renderVisibleContent()
-  }, 50)
+  }, PREVIEW_CONFIG.SCROLL_DEBOUNCE_MS)
 }
 </script>
 

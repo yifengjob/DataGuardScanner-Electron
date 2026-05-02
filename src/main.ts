@@ -52,6 +52,7 @@ import {
     WORKER_MAX_OLD_GENERATION_MB,
     WORKER_MAX_YOUNG_GENERATION_MB,
     PREVIEW_TIMEOUT,
+    PREVIEW_CHUNK_SIZE,  // 【方案 D3】预览流式传输块大小
     WINDOW_MIN_WIDTH,
     WINDOW_MIN_HEIGHT,
     WINDOW_DEFAULT_WIDTH,
@@ -516,7 +517,7 @@ function setupIpcHandlers() {
                     enabledSensitiveTypes: [],
                     previewMode: true,
                     streamMode: true,  // 【方案 D3】启用流式模式
-                    chunkSize: 1000,   // 每块 1000 行
+                    chunkSize: PREVIEW_CHUNK_SIZE,   // 每块行数（配置常量）
                     config: {
                         enabledSensitiveTypes: enabledTypes
                     }
