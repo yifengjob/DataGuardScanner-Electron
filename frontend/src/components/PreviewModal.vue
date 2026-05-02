@@ -55,7 +55,7 @@ import { previewFileStream, openFile, cancelPreview, showMessage, onPreviewChunk
 import { getFriendlyErrorMessage, getErrorSeverity } from '../utils/error-handler'
 import { PreviewVirtualScroller, GlobalHighlight, LineHighlight } from '../utils/preview-virtual-scroller'
 
-// 【配置常量】虚拟滚动参数（从后端同步）
+// 【配置常量】UI 渲染参数（与后端独立管理）
 const PREVIEW_CONFIG = {
   LINE_HEIGHT: 20,        // 行高（像素）
   BUFFER_LINES: 10,       // 缓冲行数
