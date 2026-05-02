@@ -91,9 +91,11 @@ export async function deleteFile(filePath: string, toTrash: boolean = false): Pr
   
   try {
     if (toTrash) {
-      // 移入回收站 - 使用动态导入ES Module
-      const trash = await import('trash');
-      await trash.default(filePath);
+      // 移入回收站 - 【修复】使用 Function 构造器绕过 TypeScript 编译转换
+      // trash v9.0.0 是纯 ES Module，不能用 require() 加载
+      const importTrash = new Function('return import("trash")') as () => Promise<any>;
+      const trashModule = await importTrash();
+      await trashModule.default(filePath);
     } else {
       // 永久删除
       await fs.promises.unlink(filePath);
