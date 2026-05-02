@@ -651,6 +651,8 @@ const handleDelete = async (item: any) => {
   try {
     await deleteFile(item.filePath, config.value.deleteToTrash)
     appStore.removeResult(item.filePath)
+    // 【修复】从选中集合中移除，更新一键删除按钮计数
+    selectedFiles.value.delete(item.filePath)
   } catch (error) {
     console.error('删除文件失败:', error)
     // 【P1】使用 Electron 对话框替代 alert
