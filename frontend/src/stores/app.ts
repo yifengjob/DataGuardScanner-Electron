@@ -232,9 +232,14 @@ export const useAppStore = defineStore('app', () => {
   
   // 全选所有目录
   function selectAllDirectories(allNodes: DirectoryNode[]) {
-    allNodes.filter(n => n.isDir).forEach(n => {
-      selectedPaths.value.add(n.path)
-    })
+    // 【修复】选择所有节点（包括文件和目录）
+    const selectNode = (node: DirectoryNode) => {
+      selectedPaths.value.add(node.path)
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(selectNode)
+      }
+    }
+    allNodes.forEach(selectNode)
   }
   
   // 全不选
