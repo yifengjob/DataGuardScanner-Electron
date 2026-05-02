@@ -841,7 +841,7 @@ const handleBatchDelete = async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-right: 1px solid rgba(0, 0, 0, 0.06); /* 【新增】淡淡的纵向分隔线 */
+  border-right: 1px solid var(--border-color); /* 【新增】纵向分隔线，使用主题色 */
 }
 
 /* 最后一列不需要右边框 */
