@@ -104,6 +104,9 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const visibleContent = ref('')  // 可见区域的 HTML
 let renderScheduled = false
 
+// 【方案 D3】滚动处理（防抖）
+let scrollTimeout: number | null = null
+
 // 【C2优化】错误图标
 const errorIcon = computed(() => {
   switch (errorSeverity.value) {
@@ -449,8 +452,6 @@ const handleClose = () => {
   }
 }
 
-// 【方案 D3】滚动处理（防抖）
-let scrollTimeout: number | null = null
 function handleScroll() {
   if (scrollTimeout) return
   
