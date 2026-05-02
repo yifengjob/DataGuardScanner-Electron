@@ -120,8 +120,8 @@ export function debounce<T extends (...args: any[]) => any>(
 export async function promisePool<T>(
   tasks: Array<() => Promise<T>>,
   concurrency: number = 10
-): Promise<Array<{status: 'fulfilled', value: T} | {status: 'rejected', reason: any}>> {
-  const results: Array<{status: 'fulfilled', value: T} | {status: 'rejected', reason: any}> = []
+): Promise<Array<{status: 'fulfilled', value?: T} | {status: 'rejected', reason: any}>> {
+  const results: Array<{status: 'fulfilled', value?: T} | {status: 'rejected', reason: any}> = []
   let index = 0
   
   async function worker() {
