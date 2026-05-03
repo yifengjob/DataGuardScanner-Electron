@@ -58,10 +58,12 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 - 配置文件：`.csv`, `.json`, `.xml`, `.yaml`, `.yml`, `.properties`, `.toml`
 
 #### 文档文件
-- PDF 文档（使用 `pdf-parse` 库解析）
-- Excel 表格（`.xlsx`, `.xls`，使用 `exceljs` 库）
-- Word 文档（`.docx`, `.doc`，实验性支持）
-- PowerPoint 演示文稿（`.pptx`, `.ppt`，实验性支持）
+- **PDF 文档**（使用 `pdf-parse` 库解析）
+- **Excel 表格**（`.xlsx`, `.xls`, `.et`，使用 `exceljs` + `SheetJS` 双引擎）
+- **Word 文档**（`.docx`, `.doc`, `.wps`，使用 `word-extractor` 库）
+- **PowerPoint 演示文稿**（`.pptx`，自定义解压方案；`.ppt`, `.dps` 二进制扫描）
+- **RTF 富文本**（`.rtf`，使用 iconv-lite 解码 GBK 编码）
+- **OpenDocument 格式**（`.odt`, `.ods`, `.odp`，自定义 XML 提取）
 
 ### 3. 核心功能
 
@@ -107,11 +109,14 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 | `typescript` | 5.x | 类型系统 |
 | `pdf-parse` | 1.x | PDF 文本提取 |
 | `exceljs` | 4.x | Excel 文件读写 |
-| `docstream` | 0.2.x | Word/PPT 文档解析 |
+| `xlsx` | 0.20.3 | SheetJS，快速解析 Excel |
+| `word-extractor` | 1.x | Word/PPT 文档解析 |
 | `walkdir` | 0.4.x | 目录遍历 |
 | `trash` | 9.x | 文件回收站操作 |
 | `chrono-node` | 2.x | 时间处理 |
 | `vue-virtual-scroller` | 2.x | 虚拟滚动组件 |
+| `fflate` | 0.8.x | ZIP 解压（替代 adm-zip） |
+| `iconv-lite` | 0.7.x | 编码转换（GBK/UTF-8） |
 
 ### 包管理器
 - **前端**：pnpm（推荐）或 npm
@@ -380,29 +385,68 @@ DataGuardScanner/
 │   ├── preload.ts         # Preload脚本
 │   ├── types.ts           # TypeScript类型定义
 │   ├── scan-state.ts      # 扫描状态管理
-│   ├── directory-tree.ts  # 目录树
-│   ├── scanner.ts         # 扫描引擎
+│   ├── scan-config.ts     # 扫描配置常量
+│   ├── directory-tree.ts  # 目录树生成
+│   ├── scanner.ts         # 扫描引擎核心
+│   ├── scanner-helpers.ts # 扫描辅助函数
 │   ├── sensitive-detector.ts  # 敏感数据检测
-│   ├── file-parser.ts     # 文件解析器
-│   ├── file-operations.ts # 文件操作
-│   ├── report-exporter.ts # 报告导出
+│   ├── file-parser.ts     # 文件解析器（支持20+格式）
+│   ├── file-worker.ts     # Worker 线程处理
+│   ├── walker-worker.ts   # 目录遍历 Worker
+│   ├── file-operations.ts # 文件操作（打开/删除）
+│   ├── report-exporter.ts # 报告导出（CSV/JSON/Excel）
 │   ├── config-manager.ts  # 配置管理
-│   └── environment-check.ts  # 环境检查
+│   ├── environment-check.ts  # 环境检查
+│   ├── error-utils.ts     # 错误处理工具
+│   ├── log-utils.ts       # 日志系统
+│   └── zip-utils.ts       # ZIP 解压工具
 │
 ├── frontend/              # 前端 Vue 应用
 │   ├── src/
 │   │   ├── components/    # Vue 组件
+│   │   │   ├── DirectoryTree.vue    # 目录树组件
+│   │   │   ├── ResultsTable.vue     # 结果表格
+│   │   │   ├── PreviewModal.vue     # 预览对话框（虚拟滚动）
+│   │   │   ├── ExportModal.vue      # 导出对话框
+│   │   │   ├── SettingsModal.vue    # 设置对话框
+│   │   │   ├── FileTypeFilter.vue   # 文件类型过滤器
+│   │   │   ├── EnvironmentCheck.vue # 环境检查
+│   │   │   ├── LogsModal.vue        # 日志查看器
+│   │   │   └── AboutModal.vue       # 关于对话框
+│   │   ├── composables/   # Vue Composition API
+│   │   │   └── useEventListener.ts  # 事件监听 composable
 │   │   ├── stores/        # Pinia 状态管理
+│   │   │   └── app.ts     # 应用状态
 │   │   ├── types/         # TypeScript 类型定义
+│   │   │   └── index.ts   # 通用类型
 │   │   ├── utils/         # 工具函数
 │   │   │   ├── electron-api.ts  # Electron API封装
-│   │   │   └── theme.ts   # 主题管理
+│   │   │   ├── theme.ts   # 主题管理
+│   │   │   ├── format.ts  # 格式化工具
+│   │   │   ├── error-handler.ts  # 错误处理
+│   │   │   └── preview-virtual-scroller.ts  # 虚拟滚动器
 │   │   ├── App.vue        # 主应用组件
-│   │   └── main.ts        # 入口文件
+│   │   ├── main.ts        # 入口文件
+│   │   └── style.css      # 全局样式
 │   ├── package.json
 │   └── vite.config.ts
 │
+├── build/                 # 构建资源
+│   ├── icon.ico          # Windows 图标
+│   ├── icon.icns         # macOS 图标
+│   └── icon.png          # Linux 图标
+│
+├── docs/                  # 文档
+│   ├── USE_EVENT_LISTENER_CODE_REVIEW.md
+│   ├── PREVIEW_MODAL_OPTIMIZATION_REVIEW.md
+│   └── ...               # 其他技术文档
+│
+├── scripts/              # 构建脚本
+│   ├── generate-icons.js # 图标生成
+│   └── fix-readable-stream.js  # 依赖修复
+│
 ├── package.json           # 根级别 npm 脚本
+├── tsconfig.json          # 前端TS配置
 ├── tsconfig.main.json     # 主进程TS配置
 └── README.md
 ```
@@ -509,15 +553,15 @@ prettier --write "src/**/*.ts"
 ## 📝 更新日志
 
 ### v1.0.5 (当前版本)
-- ✅ 从 Tauri2 迁移到 Electron，完整实现所有功能
+- ✅ 基于 Electron 构建的跨平台桌面应用，完整实现所有功能
 - ✅ 完整的敏感数据扫描功能，支持 8 种敏感类型检测
-- ✅ 支持多种文件格式解析（TXT、PDF、Excel、Word、PPT）
+- ✅ 支持多种文件格式解析（TXT、PDF、Excel、Word、PPT、RTF、ODT 等）
 - ✅ 跨平台桌面应用（Windows 7/10/11、macOS、Linux）
-- ✅ 支持 CSV/JSON/Excel 报告导出
+- ✅ 支持 CSV/JSON/Excel 三种格式报告导出
 - ✅ Worker Threads 多线程技术，智能并发控制
 - ✅ **方案 D3：流式传输 + 虚拟滚动**，大文件预览首屏 < 500ms
-- ✅ 响应式布局，自适应窗口大小
-- ✅ 性能优化：rAF 批量处理、防抖节流、CSS 优化
+- ✅ 响应式布局，自适应窗口大小，操作列始终紧贴右侧
+- ✅ 性能优化：rAF 批量处理、防抖节流、CSS 容器查询优化
 - ✅ 内存管理：动态内存限制、资源清理、防止泄漏
 - ✅ 错误处理：统一错误分类、友好提示、全局异常捕获
 - ✅ **代码质量提升**：消除魔法数字、工具函数抽取、完善异常处理
@@ -540,10 +584,13 @@ prettier --write "src/**/*.ts"
 - [Vite](https://vitejs.dev/) - 下一代前端构建工具
 - [pdf-parse](https://www.npmjs.com/package/pdf-parse) - PDF 文本提取库
 - [exceljs](https://www.npmjs.com/package/exceljs) - Excel 文件读写库
-- [docstream](https://www.npmjs.com/package/docstream) - Word/PPT 文档解析库
+- [SheetJS](https://sheetjs.com/) - 高性能 Excel 解析库
+- [word-extractor](https://www.npmjs.com/package/word-extractor) - Word/PPT 文档解析库
 - [vue-virtual-scroller](https://github.com/Akryum/vue-virtual-scroller) - 虚拟滚动组件
 - [walkdir](https://www.npmjs.com/package/walkdir) - 目录遍历库
 - [trash](https://www.npmjs.com/package/trash) - 文件回收站操作库
+- [fflate](https://www.npmjs.com/package/fflate) - 高性能 ZIP 解压库
+- [iconv-lite](https://www.npmjs.com/package/iconv-lite) - 编码转换库
 
 ---
 
