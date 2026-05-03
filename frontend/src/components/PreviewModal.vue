@@ -26,7 +26,6 @@
           <div 
             class="virtual-scroll-container"
             ref="scrollContainer"
-            @scroll="handleScroll"
           >
             <div class="virtual-spacer" :style="{ height: scroller.getTotalHeight() + 'px' }">
               <div 
@@ -54,6 +53,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { previewFileStream, openFile, cancelPreview, showMessage, onPreviewChunk } from '../utils/electron-api'
 import { getFriendlyErrorMessage, getErrorSeverity } from '../utils/error-handler'
 import { PreviewVirtualScroller, GlobalHighlight, LineHighlight } from '../utils/preview-virtual-scroller'
+import { useEventListener } from '../composables/useEventListener'
 
 // 【配置常量】UI 渲染参数（与后端独立管理）
 const PREVIEW_CONFIG = {
@@ -103,9 +103,6 @@ const scroller = new PreviewVirtualScroller(PREVIEW_CONFIG.LINE_HEIGHT, PREVIEW_
 const scrollContainer = ref<HTMLElement | null>(null)
 const visibleContent = ref('')  // 可见区域的 HTML
 let renderScheduled = false
-
-// 【方案 D3】滚动处理（防抖）
-let scrollTimeout: number | null = null
 
 // 【C2优化】错误图标
 const errorIcon = computed(() => {
@@ -326,12 +323,6 @@ watch([() => props.visible, () => props.filePath], async ([isVisible, newPath]) 
     // 【资源清理】清理可见内容
     visibleContent.value = ''
     
-    // 【资源清理】清理滚动定时器
-    if (scrollTimeout) {
-      clearTimeout(scrollTimeout)
-      scrollTimeout = null
-    }
-    
     // 清空旧状态
     loading.value = false
     error.value = ''
@@ -452,14 +443,11 @@ const handleClose = () => {
   }
 }
 
-function handleScroll() {
-  if (scrollTimeout) return
-  
-  scrollTimeout = window.setTimeout(() => {
-    scrollTimeout = null
-    renderVisibleContent()
-  }, PREVIEW_CONFIG.SCROLL_DEBOUNCE_MS)
-}
+// 【优化】使用 useEventListener 自动管理 scroll 事件和防抖
+useEventListener(scrollContainer, 'scroll', {
+  handler: renderVisibleContent,
+  rateLimit: { type: 'debounce', delay: PREVIEW_CONFIG.SCROLL_DEBOUNCE_MS }
+})
 </script>
 
 <style scoped>
