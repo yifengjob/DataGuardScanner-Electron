@@ -13,8 +13,15 @@
     "moduleResolution": "node",
     "declaration": true,
     "declarationMap": false,
-    "sourceMap": false
+    "sourceMap": true  // 开发时启用，便于调试；生产构建由 electron-builder 控制
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "frontend"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "frontend",
+    "release",
+    "build",
+    "docs"
+  ]
 }
