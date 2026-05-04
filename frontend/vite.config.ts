@@ -34,7 +34,8 @@ export default defineConfig({
         target: 'es2020',  // Electron 22 支持 ES2020
         minify: 'esbuild',  // 生产环境自动启用，速度快 10-20 倍
         sourcemap: process.env.NODE_ENV !== 'production',
-        outDir: 'dist',
+        outDir: '../dist/renderer',  // 渲染进程输出到 dist/renderer，与主进程区分
+        emptyOutDir: true,  // 每次构建前清空输出目录
         assetsDir: 'assets',
         assetsInlineLimit: 4096,  // 小于 4KB 的资源内联为 base64
         chunkSizeWarningLimit: 1000,  // chunk 大小警告阈值（KB）

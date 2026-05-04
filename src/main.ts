@@ -250,7 +250,7 @@ function createWindow() {
     // 优先使用环境变量，其次检查dist目录是否存在
     const isDev = process.env.NODE_ENV === 'development' || 
                   process.env.ELECTRON_IS_DEV === '1' ||
-                  !require('fs').existsSync(path.join(__dirname, '../frontend/dist/index.html'));
+                  !require('fs').existsSync(path.join(__dirname, '../dist/renderer/index.html'));
 
     console.log('运行模式:', isDev ? '开发模式 (Vite)' : '生产模式 (文件)');
 
@@ -261,7 +261,7 @@ function createWindow() {
             console.log('尝试加载本地文件...');
             // 如果开发服务器不可用，尝试加载本地文件
             if (mainWindow) {
-                mainWindow.loadFile(path.join(__dirname, '../frontend/dist/index.html')).catch((fileErr) => {
+                mainWindow.loadFile(path.join(__dirname, '../dist/renderer/index.html')).catch((fileErr) => {
                     console.error('加载本地文件也失败:', fileErr);
                 });
             }
@@ -270,7 +270,7 @@ function createWindow() {
     } else {
         // 生产模式：使用 app.getAppPath() 获取正确的路径
         const appPath = app.getAppPath();
-        const indexPath = path.join(appPath, 'frontend', 'dist', 'index.html');
+        const indexPath = path.join(appPath, 'dist', 'renderer', 'index.html');
         console.log('应用路径:', appPath);
         console.log('加载本地文件:', indexPath);
         
@@ -279,7 +279,7 @@ function createWindow() {
         if (!fs.existsSync(indexPath)) {
             console.error('前端文件不存在:', indexPath);
             // 尝试其他可能的路径
-            const altPath = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+            const altPath = path.join(__dirname, '..', 'dist', 'renderer', 'index.html');
             console.log('尝试备用路径:', altPath);
             if (fs.existsSync(altPath)) {
                 mainWindow.loadFile(altPath).catch((err) => {
