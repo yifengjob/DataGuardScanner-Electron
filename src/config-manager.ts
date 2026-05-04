@@ -62,7 +62,8 @@ function getBaseSystemDirs(): string[] {
             '/System', '/usr',
             '/bin', '/sbin',
             '/etc', '/dev',
-            '/cores', '/Network'
+            '/cores', '/Network',
+            '/Applications', '/Library',
         ];
     } else if (process.platform === 'linux') {
         systemDirs = [
