@@ -1,35 +1,52 @@
-import { defineConfig } from 'vite'
+import {defineConfig} from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
-import { createSvgIconsPlugin } from 'vite-plugin-svg-icons'
+import {createSvgIconsPlugin} from 'vite-plugin-svg-icons'
 
 export default defineConfig({
-  plugins: [
-    vue(),
-    createSvgIconsPlugin({
-      // 指定需要缓存的图标文件夹
-      iconDirs: [path.resolve(process.cwd(), 'src/assets')],
-      // 指定symbolId格式
-      symbolId: 'icon-[name]',
-    }),
-  ],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
+    plugins: [
+        vue(),
+        createSvgIconsPlugin({
+            // 指定需要缓存的图标文件夹
+            iconDirs: [path.resolve(process.cwd(), 'src/assets')],
+            // 指定symbolId格式
+            symbolId: 'icon-[name]',
+        }),
+    ],
+    resolve: {
+        alias: {
+            '@': path.resolve(__dirname, './src'),
+        },
     },
-  },
-  base: './',  // 使用相对路径，适配 Electron
-  clearScreen: false,
-  server: {
-    port: 1420,
-    strictPort: true,
-  },
-  envPrefix: ['VITE_'],
-  build: {
-    target: 'es2020',  // Electron 22 支持 ES2020
-    minify: process.env.NODE_ENV === 'production' ? 'esbuild' : false,
-    sourcemap: process.env.NODE_ENV !== 'production',
-    outDir: 'dist',
-    assetsDir: 'assets',
-  },
+    base: './',  // 使用相对路径，适配 Electron
+    clearScreen: false,
+    server: {
+        port: 1420,
+        strictPort: false,  // 端口被占用时自动尝试下一个
+        open: false,  // 不自动打开浏览器（Electron 应用不需要）
+        cors: true,  // 允许跨域（方便调试）
+        hmr: {
+            overlay: true,  // 显示错误覆盖层
+        },
+    },
+    envPrefix: ['VITE_'],
+    build: {
+        target: 'es2020',  // Electron 22 支持 ES2020
+        minify: 'esbuild',  // 生产环境自动启用，速度快 10-20 倍
+        sourcemap: process.env.NODE_ENV !== 'production',
+        outDir: 'dist',
+        assetsDir: 'assets',
+        assetsInlineLimit: 4096,  // 小于 4KB 的资源内联为 base64
+        chunkSizeWarningLimit: 1000,  // chunk 大小警告阈值（KB）
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    // Vue 核心库单独分包
+                    'vue-vendor': ['vue', 'pinia'],
+                    // 虚拟滚动单独分包
+                    'virtual-scroller': ['vue-virtual-scroller'],
+                },
+            },
+        },
+    },
 })
