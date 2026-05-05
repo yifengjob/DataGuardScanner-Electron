@@ -197,13 +197,13 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
   },
   
   // ==================== 压缩文件（不支持预览）====================
-  {
-    extensions: ['zip', 'rar', '7z', 'tar', 'gz'],
-    processor: FileProcessorType.BINARY_SCAN,
-    supportsStreaming: false,
-    extractor: extractWithBinary,
-    description: '压缩文件（不支持预览）'
-  }
+  // {
+  //   extensions: ['zip', 'rar', '7z', 'tar', 'gz'],
+  //   processor: FileProcessorType.BINARY_SCAN,
+  //   supportsStreaming: false,
+  //   extractor: extractWithBinary,
+  //   description: '压缩文件（不支持预览）'
+  // }
 ];
 
 /**

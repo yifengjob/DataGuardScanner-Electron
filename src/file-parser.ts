@@ -7,9 +7,6 @@ import { getFileExtractor, SUPPORTED_EXTENSIONS } from './file-types';
 // 【D3 优化】导入错误处理工具
 import { logError } from './error-utils';
 
-// 【重构】导出 SUPPORTED_EXTENSIONS (保持向后兼容)
-export { SUPPORTED_EXTENSIONS };
-
 /**
  * 从文件中提取文本的主入口函数
  * @param filePath - 文件路径

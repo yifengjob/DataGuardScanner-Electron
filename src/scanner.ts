@@ -106,18 +106,21 @@ export async function startScan(
 
     // 【A1 优化】根据系统可用内存和文件大小动态计算每个 Worker 的内存限制
     const freeMemoryMB = os.freemem() / BYTES_TO_MB;
-    
+
     // 【新增】等待 taskQueue 填充后计算平均文件大小
     // 这里先使用默认值，在 Walker 完成后会重新调整
     // 【修复】降低初始值为 60%，预留 40% 给 V8 内部开销和内存碎片
     let dynamicOldGenMB = Math.floor(WORKER_MAX_OLD_GENERATION_MB * 0.6);  // 768 * 0.6 = 460MB
     let dynamicYoungGenMB = Math.floor(WORKER_MAX_YOUNG_GENERATION_MB * 0.6); // 96 * 0.6 = 57MB
-    
+
     // 【新增】计算智能内存配置的函数
-    function calculateSmartMemoryLimits(avgFileSizeMB: number, workerCount: number): { oldGen: number; youngGen: number } {
+    function calculateSmartMemoryLimits(avgFileSizeMB: number, workerCount: number): {
+        oldGen: number;
+        youngGen: number
+    } {
         // 根据平均文件大小调整内存分配策略
         let memoryMultiplier = 1.0;
-        
+
         if (avgFileSizeMB > 50) {
             // 超大文件：增加内存限制，减少并发压力
             memoryMultiplier = 1.5;
@@ -131,40 +134,40 @@ export async function startScan(
             memoryMultiplier = 0.6;
             log(`【智能内存】检测到小文件（平均 ${avgFileSizeMB.toFixed(2)}MB），降低 Worker 内存以节省资源`);
         }
-        
+
         // 基础内存计算：取系统可用内存的 60% / Worker 数量
         const systemBasedLimit = Math.floor(freeMemoryMB * 0.6 / workerCount);
-        
+
         // 配置限制的内存
         const configBasedLimit = Math.floor(
             (WORKER_MAX_OLD_GENERATION_MB + WORKER_MAX_YOUNG_GENERATION_MB) * memoryMultiplier
         );
-        
+
         // 取两者中的较小值，确保不超过系统承受能力
         const baseMemoryPerWorker = Math.min(systemBasedLimit, configBasedLimit);
-        
+
         // 设置最低和最高限制
         const minMemoryPerWorker = 200; // 【修复】最少 512MB（原200MB，防止 PDF/DOCX 解析超时）
         const maxMemoryPerWorker = Math.floor(freeMemoryMB * 0.8 / workerCount); // 最多使用 80% 可用内存
-        
+
         const finalMemoryPerWorker = Math.max(
             minMemoryPerWorker,
             Math.min(baseMemoryPerWorker, maxMemoryPerWorker)
         );
-        
+
         return {
             oldGen: Math.floor(finalMemoryPerWorker * 0.8),
             youngGen: Math.floor(finalMemoryPerWorker * 0.2)
         };
     }
-    
+
     // 初始日志
     log(`【内存优化】可用内存: ${freeMemoryMB.toFixed(0)}MB, 初始每 Worker 限制: ${dynamicOldGenMB + dynamicYoungGenMB}MB`);
 
     // 创建 Consumer Worker
     function createConsumer(id: number, customOldGen?: number, customYoungGen?: number) {
         const workerPath = path.join(__dirname, 'file-worker.js');
-        
+
         // 使用自定义内存限制或默认值
         const oldGenLimit = customOldGen || dynamicOldGenMB;
         const youngGenLimit = customYoungGen || dynamicYoungGenMB;
@@ -285,12 +288,12 @@ export async function startScan(
         worker.on('exit', (code: number, signal: string | null) => {
             // 【修复】区分主动终止和异常退出
             const consumerRef = consumer as typeof consumers[0];
-            
+
             // 【新增】记录详细的退出信息
             if (signal) {
                 console.error(`[Consumer ${id}] Worker 被信号终止: ${signal}, 代码: ${code}`);
             }
-            
+
             if (consumerRef.isTerminating) {
                 // 主动终止（超时等情况），不视为异常
                 console.log(`[Consumer ${id}] Worker 已终止（代码: ${code}）`);
@@ -302,7 +305,7 @@ export async function startScan(
             if (code !== 0 && !scanState.cancelFlag) {
                 // 【优化】只记录到日志文件
                 console.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}, 信号: ${signal || 'none'}`);
-                
+
                 // 【新增】检测是否是 OOM 导致的退出
                 const isOOM = signal === 'SIGABRT' || code === 134; // 134 是 abort() 的退出码
                 if (isOOM) {
@@ -319,9 +322,9 @@ export async function startScan(
                         clearTimeout(pending.timeoutId);
                         pendingTasks.delete(consumerRef.taskId);
                         consumerProcessedCount++;
-                        
+
                         // 【新增】返回友好的 OOM 错误信息
-                        const errorMsg = isOOM 
+                        const errorMsg = isOOM
                             ? '内存不足，文件可能过大或格式异常，已跳过'
                             : `Worker 异常退出（代码: ${code}）`;
                         pending.reject(new Error(errorMsg));
@@ -339,6 +342,14 @@ export async function startScan(
                             console.log(`[Consumer ${id}] 正在重启 Worker...`);
                             consumers.splice(index, 1);
                             createConsumer(id);
+
+                            // 【新增】Worker 重启后强制 GC，释放内存
+                            if ((global as any).gc) {
+                                if (process.env.NODE_ENV === 'development') {
+                                    console.log(`[Consumer ${id}] 执行强制垃圾回收...`);
+                                }
+                                (global as any).gc();
+                            }
                             // 【关键】重启后立即尝试调度任务，防止停滞
                             setTimeout(() => tryDispatch(), 100);
                         }
@@ -366,16 +377,16 @@ export async function startScan(
     // 尝试调度任务
     function tryDispatch() {
         let dispatched = 0;
-        
+
         // 【关键修复】使用轮询调度，从上次结束的位置开始查找
         const startIndex = nextConsumerIndex;
         const totalConsumers = consumers.length;
-        
+
         for (let i = 0; i < totalConsumers; i++) {
             // 计算当前要检查的 Consumer 索引（循环）
             const currentIndex = (startIndex + i) % totalConsumers;
             const consumer = consumers[currentIndex];
-            
+
             if (!consumer.busy && taskQueue.length > 0) {
                 // 处理 Promise rejection，避免未捕获的错误
                 const promise = dispatchNextTask(consumer);
@@ -435,6 +446,14 @@ export async function startScan(
                     consumers.splice(index, 1);
                     createConsumer(index);
                     // console.log(`[超时处理] 新 Worker 已创建，当前 Consumers 数量: ${consumers.length}`);
+
+                    // 【新增】Worker 重启后强制 GC，释放内存
+                    if (process.env.NODE_ENV === 'development') {
+                        if ((global as any).gc) {
+                            console.log(`[超时处理] 执行强制垃圾回收...`);
+                            (global as any).gc();
+                        }
+                    }
                     // 【关键】立即尝试调度任务
                     setTimeout(() => {
                         // console.log(`[超时处理] 尝试调度任务，队列长度: ${taskQueue.length}, Consumers: ${consumers.length}`);
@@ -533,19 +552,19 @@ export async function startScan(
             }
 
             console.log(`[Walker] 已完成 ${walkerCompletedCount}/${totalWalkerTasks} 个任务`);
-            
+
             // 【A1 优化】Walker 完成后，根据实际文件大小重新计算内存限制
             if (taskQueue.length > 0) {
                 const totalSize = taskQueue.reduce((sum, task) => sum + task.fileSize, 0);
                 const avgFileSizeMB = (totalSize / taskQueue.length) / BYTES_TO_MB;
-                
+
                 // 计算新的内存限制
                 const newLimits = calculateSmartMemoryLimits(avgFileSizeMB, poolSize);
                 dynamicOldGenMB = newLimits.oldGen;
                 dynamicYoungGenMB = newLimits.youngGen;
-                
+
                 log(`【智能内存调整】平均文件大小: ${avgFileSizeMB.toFixed(2)}MB, 新内存限制: 老生代=${dynamicOldGenMB}MB, 新生代=${dynamicYoungGenMB}MB`);
-                
+
                 // 【关键】重启所有空闲的 Consumer Workers 以应用新配置
                 // 【修复】延迟 100ms 确保所有 Worker 的状态已同步
                 setTimeout(() => {
@@ -560,15 +579,23 @@ export async function startScan(
                             } catch (e) {
                                 // 忽略终止错误
                             }
-                            
+
                             // 创建新的 Worker（使用新内存限制）
                             createConsumer(i, dynamicOldGenMB, dynamicYoungGenMB);
                             restartedCount++;
                         }
                     }
-                    
+
                     if (restartedCount > 0) {
                         log(`【智能内存】已重启 ${restartedCount} 个空闲 Worker 以应用新内存配置`);
+
+                        // 【新增】批量重启后强制 GC，释放内存
+                        if ((global as any).gc) {
+                            if (process.env.NODE_ENV === 'development') {
+                                console.log(`【智能内存】执行强制垃圾回收...`);
+                            }
+                            (global as any).gc();
+                        }
                     }
                 }, 100);
             }
@@ -755,7 +782,9 @@ export async function startScan(
 
             // 【新增】强制触发垃圾回收（如果可用）
             if ((global as any).gc) {
-                console.log('[cleanup] 触发垃圾回收...');
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('[cleanup] 触发垃圾回收...');
+                }
                 (global as any).gc();
             }
         } catch (error) {

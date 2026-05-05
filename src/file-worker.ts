@@ -32,18 +32,15 @@ try {
 }
 
 import { extractTextFromFile } from './file-parser';
-import { detectSensitiveData } from './sensitive-detector';
 // 【新增】导入流式处理器
 import { FileStreamProcessor } from './file-stream-processor';
 // 【新增】导入文件类型配置
 import { 
   getFileTypeConfig, 
-  FileProcessorType,
-  getMaxFileSizeMB,
-  supportsTrueStreaming 
+  FileProcessorType
 } from './file-types';
 // 【优化】导入配置常量和智能超时计算函数
-import { calculateWorkerTimeout } from './scan-config';
+import {calculateWorkerTimeout} from './scan-config';
 
 interface WorkerTask {
   taskId: number;
@@ -143,11 +140,52 @@ parentPort?.on('message', async (task: WorkerTask) => {
       return;
     }
     
-    // 获取文件大小限制
-    const maxSizeMB = getMaxFileSizeMB(filePath, task.config);
+    // 【优化】Walker 阶段已过滤文件大小，此处无需重复检查
+    // 创建流式处理器（使用默认限制作为安全兜底）
+    const processor = new FileStreamProcessor();
     
-    // 创建流式处理器
-    const processor = new FileStreamProcessor(maxSizeMB);
+    // 【重构】提取公共回调函数，消除重复代码
+    const createCallbacks = () => ({
+      onChunk: (chunkData: any) => {
+        if (previewMode) {
+          parentPort?.postMessage({
+            type: 'chunk',
+            chunkIndex: chunkData.chunkIndex,
+            lines: chunkData.lines,
+            highlights: chunkData.highlights,
+            startLine: chunkData.startLine
+          });
+        }
+      },
+      
+      onComplete: (stats: any) => {
+        if (previewMode) {
+          parentPort?.postMessage({
+            type: 'complete',
+            totalChunks: stats.totalChunks
+          });
+        } else {
+          // 返回累计的检测结果
+          parentPort?.postMessage({
+            taskId,
+            filePath,
+            fileSize: stat.size,
+            modifiedTime: stat.mtime.toISOString(),
+            counts: processor.getAccumulatedCounts(),
+            total: processor.getTotalCount(),
+            unsupportedPreview: false
+          } as WorkerResult);
+        }
+      },
+      
+      onError: (error: Error) => {
+        parentPort?.postMessage({
+          taskId,
+          filePath,
+          error: error.message
+        } as WorkerResult);
+      }
+    });
     
     // 【关键决策】根据 supportsStreaming 选择处理路径
     if (config.supportsStreaming) {
@@ -156,46 +194,7 @@ parentPort?.on('message', async (task: WorkerTask) => {
         processor.processFile(filePath, {
           mode: previewMode ? 'preview' : 'detect',
           enabledTypes: enabledSensitiveTypes,
-          
-          onChunk: (chunkData) => {
-            if (previewMode) {
-              parentPort?.postMessage({
-                type: 'chunk',
-                chunkIndex: chunkData.chunkIndex,
-                lines: chunkData.lines,
-                highlights: chunkData.highlights,
-                startLine: chunkData.startLine
-              });
-            }
-          },
-          
-          onComplete: (stats) => {
-            if (previewMode) {
-              parentPort?.postMessage({
-                type: 'complete',
-                totalChunks: stats.totalChunks
-              });
-            } else {
-              // 返回累计的检测结果
-              parentPort?.postMessage({
-                taskId,
-                filePath,
-                fileSize: stat.size,
-                modifiedTime: stat.mtime.toISOString(),
-                counts: processor.getAccumulatedCounts(),
-                total: processor.getTotalCount(),
-                unsupportedPreview: false
-              } as WorkerResult);
-            }
-          },
-          
-          onError: (error) => {
-            parentPort?.postMessage({
-              taskId,
-              filePath,
-              error: error.message
-            } as WorkerResult);
-          }
+          ...createCallbacks()
         }),
         timeoutPromise
       ]);
@@ -225,46 +224,7 @@ parentPort?.on('message', async (task: WorkerTask) => {
       await processor.processFile('', {
         mode: previewMode ? 'preview' : 'detect',
         enabledTypes: enabledSensitiveTypes,
-        
-        onChunk: (chunkData) => {
-          if (previewMode) {
-            parentPort?.postMessage({
-              type: 'chunk',
-              chunkIndex: chunkData.chunkIndex,
-              lines: chunkData.lines,
-              highlights: chunkData.highlights,
-              startLine: chunkData.startLine
-            });
-          }
-        },
-        
-        onComplete: (stats) => {
-          if (previewMode) {
-            parentPort?.postMessage({
-              type: 'complete',
-              totalChunks: stats.totalChunks
-            });
-          } else {
-            // 返回累计的检测结果
-            parentPort?.postMessage({
-              taskId,
-              filePath,
-              fileSize: stat.size,
-              modifiedTime: stat.mtime.toISOString(),
-              counts: processor.getAccumulatedCounts(),
-              total: processor.getTotalCount(),
-              unsupportedPreview: false
-            } as WorkerResult);
-          }
-        },
-        
-        onError: (error) => {
-          parentPort?.postMessage({
-            taskId,
-            filePath,
-            error: error.message
-          } as WorkerResult);
-        }
+        ...createCallbacks()
       }, text); // 传入预提取的文本
     }
     

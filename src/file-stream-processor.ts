@@ -66,12 +66,12 @@ export interface StreamProcessorOptions {
 export class FileStreamProcessor {
   private readonly chunkSize: number;     // 分块大小（字节）
   private readonly overlapSize: number;   // 重叠区大小（字符）
-  private readonly maxFileSize: number;   // 最大文件大小（字节）
   
   // 状态变量
   private buffer: string = '';            // 累积缓冲区
   private previousOverlap: string = '';   // 上一块的重叠尾部
   private totalProcessed: number = 0;     // 已处理的总字节数
+  private totalChars: number = 0;         // 【新增】已处理的总字符数（用于高亮偏移）
   private chunkIndex: number = 0;         // 当前块索引
   private globalLineOffset: number = 0;   // 全局行偏移
   
@@ -79,11 +79,10 @@ export class FileStreamProcessor {
   private accumulatedCounts: Record<string, number> = {};
   private totalCount: number = 0;
 
-  constructor(maxFileSizeMB?: number) {
+  constructor() {
     this.chunkSize = SLIDING_WINDOW_CHUNK_SIZE_MB * BYTES_TO_MB;
     this.overlapSize = SLIDING_WINDOW_OVERLAP_SIZE;
-    // 如果传入了自定义限制，使用它；否则使用默认值
-    this.maxFileSize = (maxFileSizeMB || 25) * BYTES_TO_MB;
+    // 【优化】Walker 阶段已过滤文件大小，此处无需维护 maxFileSize
   }
 
   /**
@@ -129,16 +128,7 @@ export class FileStreamProcessor {
         this.buffer += chunkStr;
         this.totalProcessed += Buffer.byteLength(chunkStr, 'utf-8');
 
-        // 检查文件大小限制
-        if (this.totalProcessed > this.maxFileSize) {
-          stream.destroy();
-          isResolved = true;
-          options.onError?.(new Error(
-            `文件过大 (${(this.totalProcessed / BYTES_TO_MB).toFixed(1)}MB)`
-          ));
-          return;
-        }
-
+        // 【修复】文件大小检查已移至 file-worker.ts 前置检查，此处不再重复检查
         // 当缓冲区达到阈值时处理
         if (this.buffer.length >= this.chunkSize) {
           this.processBufferChunk(options);
@@ -200,23 +190,32 @@ export class FileStreamProcessor {
 
       // 检测敏感词 (带重叠区)
       const fullChunk = this.previousOverlap + chunkText;
-      const highlights = this.detectWithOverlap(fullChunk, options.enabledTypes);
+      const localHighlights = this.detectWithOverlap(fullChunk, options.enabledTypes);
+      
+      // 【修复】将局部偏移转换为全局偏移（基于字符数）
+      const charsBefore = this.totalChars;  // 当前块之前的总字符数
+      const globalHighlights = localHighlights.map(h => ({
+        ...h,
+        start: h.start - this.previousOverlap.length + charsBefore,
+        end: h.end - this.previousOverlap.length + charsBefore
+      }));
 
       // 发送数据块
       options.onChunk?.({
         chunkIndex: this.chunkIndex,
         text: chunkText,
         lines,
-        highlights,
+        highlights: globalHighlights,
         startLine: this.globalLineOffset,
         byteOffset: offset
       });
-
+      
       // 更新状态
       this.previousOverlap = fullChunk.slice(-this.overlapSize);
       this.globalLineOffset += lines.length;
       this.chunkIndex++;
       this.totalProcessed += Buffer.byteLength(chunkText, 'utf-8');
+      this.totalChars += chunkText.length;  // 【新增】累加字符数
 
       offset = splitPos;
     }
@@ -240,7 +239,15 @@ export class FileStreamProcessor {
     const currentChunk = this.previousOverlap + this.buffer.slice(0, splitPos);
 
     // 检测敏感词
-    const highlights = this.detectWithOverlap(currentChunk, options.enabledTypes);
+    const localHighlights = this.detectWithOverlap(currentChunk, options.enabledTypes);
+    
+    // 【修复】将局部偏移转换为全局偏移（基于字符数）
+    const charsBefore = this.totalChars;  // 当前块之前的总字符数
+    const globalHighlights = localHighlights.map(h => ({
+      ...h,
+      start: h.start - this.previousOverlap.length + charsBefore,
+      end: h.end - this.previousOverlap.length + charsBefore
+    }));
 
     // 分割成行
     const chunkText = this.buffer.slice(0, splitPos);
@@ -251,7 +258,7 @@ export class FileStreamProcessor {
       chunkIndex: this.chunkIndex,
       text: chunkText,
       lines,
-      highlights,
+      highlights: globalHighlights,
       startLine: this.globalLineOffset,
       byteOffset: this.totalProcessed - this.buffer.length
     });
@@ -261,6 +268,7 @@ export class FileStreamProcessor {
     this.globalLineOffset += lines.length;
     this.chunkIndex++;
     this.totalProcessed += splitPos;
+    this.totalChars += chunkText.length;  // 【新增】累加字符数
 
     // 移除已处理的部分
     this.buffer = this.buffer.slice(splitPos);
@@ -349,6 +357,7 @@ export class FileStreamProcessor {
     this.buffer = '';
     this.previousOverlap = '';
     this.totalProcessed = 0;
+    this.totalChars = 0;  // 【新增】重置字符计数
     this.chunkIndex = 0;
     this.globalLineOffset = 0;
     this.accumulatedCounts = {};

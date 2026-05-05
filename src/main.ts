@@ -12,14 +12,14 @@ process.env.NODE_NO_WARNINGS = '1';
 // 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
 // pdfjs-dist v5.x+ 使用了 ES2024 的 Promise.withResolvers，需要 polyfill
 if (typeof (Promise as any).withResolvers === 'undefined') {
-  (Promise as any).withResolvers = function() {
-    let resolve: any, reject: any;
-    const promise = new Promise((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    return { promise, resolve, reject };
-  };
+    (Promise as any).withResolvers = function () {
+        let resolve: any, reject: any;
+        const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        return {promise, resolve, reject};
+    };
 }
 
 // 【新增】启用 V8 垃圾回收 API（用于扫描完成后释放内存）
@@ -28,13 +28,15 @@ app.commandLine.appendSwitch('js-flags', '--expose-gc');
 // 【修复】在 Node.js 环境中全局定义 DOMMatrix，解决 pdfjs-dist 的依赖问题
 // docstream 使用 pdfjs-dist 解析 PDF，需要 DOMMatrix API
 try {
-  const { DOMMatrix } = require('@napi-rs/canvas');
-  if (typeof (global as any).DOMMatrix === 'undefined') {
-    (global as any).DOMMatrix = DOMMatrix;
-    console.log('[初始化] DOMMatrix 已全局定义（用于 PDF 解析）');
-  }
+    const {DOMMatrix} = require('@napi-rs/canvas');
+    if (typeof (global as any).DOMMatrix === 'undefined') {
+        (global as any).DOMMatrix = DOMMatrix;
+        if (process.env.NODE_ENV === 'development') {
+            console.log('[初始化] DOMMatrix 已全局定义（用于 PDF 解析）');
+        }
+    }
 } catch (error) {
-  console.warn('[警告] 无法加载 @napi-rs/canvas，PDF 解析可能失败:', error);
+    console.warn('[警告] 无法加载 @napi-rs/canvas，PDF 解析可能失败:', error);
 }
 
 import {ScanState} from './scan-state';
@@ -61,78 +63,77 @@ import {
     WINDOW_TARGET_RATIO,
     MS_TO_DAYS,
     BYTES_TO_MB,
-    LOG_RETENTION_DAYS,
-    DEFAULT_MAX_FILE_SIZE_MB  // 【方案 C】预览文件大小限制
+    LOG_RETENTION_DAYS// 【方案 C】预览文件大小限制
 } from './scan-config';
 
 // 【新增】设置日志文件
 function setupLogFile() {
-  const logDir = path.join(app.getPath('userData'), 'logs');
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-  }
-  
-  // 【修复】使用北京时间生成日志文件名
-  const now = new Date();
-  // 直接格式化为北京时间的字符串
-  const beijingTimeStr = now.toLocaleString('zh-CN', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
-  // 将 "2026/5/1 18:45:50" 转换为 "2026-05-01T18-45-50"
-  const timeStr = beijingTimeStr
-    .replace(/\//g, '-')
-    .replace(/ /g, 'T')
-    .replace(/:/g, '-');
-  const logFile = path.join(logDir, `app-${timeStr}.log`);
-  const logStream = fs.createWriteStream(logFile, { flags: 'a' });
-  
-  // 重定向 console 输出到文件
-  const originalLog = console.log;
-  const originalError = console.error;
-  const originalWarn = console.warn;
-  
-  console.log = function(...args) {
-    // 【修复】使用本地时间（北京时间），24小时制
-    const timestamp = new Date().toLocaleString('zh-CN', { 
-      timeZone: 'Asia/Shanghai',
-      hour12: false  // 24小时制
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, {recursive: true});
+    }
+
+    // 【修复】使用北京时间生成日志文件名
+    const now = new Date();
+    // 直接格式化为北京时间的字符串
+    const beijingTimeStr = now.toLocaleString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
     });
-    const message = `[${timestamp}] [INFO] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
-    logStream.write(message);
-    originalLog.apply(console, args);
-  };
-  
-  console.error = function(...args) {
-    // 【修复】使用本地时间（北京时间），24小时制
-    const timestamp = new Date().toLocaleString('zh-CN', { 
-      timeZone: 'Asia/Shanghai',
-      hour12: false  // 24小时制
-    });
-    const message = `[${timestamp}] [ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
-    logStream.write(message);
-    originalError.apply(console, args);
-  };
-  
-  console.warn = function(...args) {
-    // 注意：具体的警告过滤已由 log-utils 统一处理
-    // 【修复】使用本地时间（北京时间），24小时制
-    const timestamp = new Date().toLocaleString('zh-CN', { 
-      timeZone: 'Asia/Shanghai',
-      hour12: false  // 24小时制
-    });
-    const message = `[${timestamp}] [WARN] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
-    logStream.write(message);
-    originalWarn.apply(console, args);
-  };
-  
-  console.log(`日志文件已创建: ${logFile}`);
+    // 将 "2026/5/1 18:45:50" 转换为 "2026-05-01T18-45-50"
+    const timeStr = beijingTimeStr
+        .replace(/\//g, '-')
+        .replace(/ /g, 'T')
+        .replace(/:/g, '-');
+    const logFile = path.join(logDir, `app-${timeStr}.log`);
+    const logStream = fs.createWriteStream(logFile, {flags: 'a'});
+
+    // 重定向 console 输出到文件
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    console.log = function (...args) {
+        // 【修复】使用本地时间（北京时间），24小时制
+        const timestamp = new Date().toLocaleString('zh-CN', {
+            timeZone: 'Asia/Shanghai',
+            hour12: false  // 24小时制
+        });
+        const message = `[${timestamp}] [INFO] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
+        logStream.write(message);
+        originalLog.apply(console, args);
+    };
+
+    console.error = function (...args) {
+        // 【修复】使用本地时间（北京时间），24小时制
+        const timestamp = new Date().toLocaleString('zh-CN', {
+            timeZone: 'Asia/Shanghai',
+            hour12: false  // 24小时制
+        });
+        const message = `[${timestamp}] [ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
+        logStream.write(message);
+        originalError.apply(console, args);
+    };
+
+    console.warn = function (...args) {
+        // 注意：具体的警告过滤已由 log-utils 统一处理
+        // 【修复】使用本地时间（北京时间），24小时制
+        const timestamp = new Date().toLocaleString('zh-CN', {
+            timeZone: 'Asia/Shanghai',
+            hour12: false  // 24小时制
+        });
+        const message = `[${timestamp}] [WARN] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}\n`;
+        logStream.write(message);
+        originalWarn.apply(console, args);
+    };
+
+    console.log(`日志文件已创建: ${logFile}`);
 }
 
 // 在应用启动时设置日志文件
@@ -140,24 +141,24 @@ setupLogFile();
 
 // 【修复】添加全局未处理异常处理器，防止 Windows 闪退
 process.on('unhandledRejection', (reason, _promise) => {
-  console.error('[全局错误] 未处理的 Promise Rejection:', reason);
+    console.error('[全局错误] 未处理的 Promise Rejection:', reason);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('[全局错误] 未捕获的异常:', error);
-  // 【关键】不退出进程，让应用继续运行
-  // 注意：某些致命错误（如 OOM）可能无法阻止退出
+    console.error('[全局错误] 未捕获的异常:', error);
+    // 【关键】不退出进程，让应用继续运行
+    // 注意：某些致命错误（如 OOM）可能无法阻止退出
 });
 
 // 【新增】监听进程退出，帮助诊断闪退原因
 // 如果闪退时看不到这条日志，说明进程被外部强制终止（如杀毒软件、段错误）
 process.on('exit', (code) => {
-  // 【修复】使用本地时间（北京时间），24小时制
-  const timestamp = new Date().toLocaleString('zh-CN', { 
-    timeZone: 'Asia/Shanghai',
-    hour12: false  // 24小时制
-  });
-  console.log(`[进程退出] 代码: ${code}, 时间: ${timestamp}`);
+    // 【修复】使用本地时间（北京时间），24小时制
+    const timestamp = new Date().toLocaleString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        hour12: false  // 24小时制
+    });
+    console.log(`[进程退出] 代码: ${code}, 时间: ${timestamp}`);
 });
 
 let mainWindow: BrowserWindow | null = null;
@@ -172,45 +173,45 @@ function getWindowBounds(): { x?: number; y?: number; width: number; height: num
         // 获取鼠标所在的显示器
         const cursorPoint = screen.getCursorScreenPoint();
         const display = screen.getDisplayNearestPoint(cursorPoint);
-        
+
         // 获取工作区（排除任务栏/Dock）
         const workArea = display.workArea;
-        
+
         // 计算目标尺寸
         const targetWidth = Math.floor(workArea.width * WINDOW_TARGET_RATIO);
         const targetHeight = Math.floor(workArea.height * WINDOW_TARGET_RATIO);
-        
+
         // 应用尺寸限制
         const width = Math.max(WINDOW_MIN_WIDTH, Math.min(1920, targetWidth));
         const height = Math.max(WINDOW_MIN_HEIGHT, Math.min(1080, targetHeight));
-        
+
         // 居中计算
         const x = workArea.x + Math.floor((workArea.width - width) / 2);
         const y = workArea.y + Math.floor((workArea.height - height) / 2);
-        
+
         console.log(`窗口位置: (${x}, ${y}), 尺寸: ${width}x${height}`);
         console.log(`显示器工作区: ${workArea.width}x${workArea.height}, 缩放: ${display.scaleFactor}x`);
-        
-        return { x, y, width, height };
+
+        return {x, y, width, height};
     } catch (error) {
         console.error('计算窗口位置失败，使用默认值:', error);
         // 降级方案：使用默认尺寸，系统会自动居中
-        return { width: WINDOW_DEFAULT_WIDTH, height: WINDOW_DEFAULT_HEIGHT };
+        return {width: WINDOW_DEFAULT_WIDTH, height: WINDOW_DEFAULT_HEIGHT};
     }
 }
 
 function createWindow() {
     // 【新增】计算窗口位置和尺寸
     const bounds = getWindowBounds();
-    
+
     // 加载应用图标
     let icon: any = undefined;
     try {
         // macOS优先使用.icns，其他平台使用.png
-        const iconPath = process.platform === 'darwin' 
+        const iconPath = process.platform === 'darwin'
             ? path.join(__dirname, '../build/icon.icns')
             : path.join(__dirname, '../build/icon.png');
-        
+
         console.log('尝试加载图标，路径:', iconPath);
         if (fs.existsSync(iconPath)) {
             icon = nativeImage.createFromPath(iconPath);
@@ -249,9 +250,9 @@ function createWindow() {
 
     // 检查是否为开发模式
     // 优先使用环境变量，其次检查dist目录是否存在
-    const isDev = process.env.NODE_ENV === 'development' || 
-                  process.env.ELECTRON_IS_DEV === '1' ||
-                  !require('fs').existsSync(path.join(__dirname, '../dist/renderer/index.html'));
+    const isDev = process.env.NODE_ENV === 'development' ||
+        process.env.ELECTRON_IS_DEV === '1' ||
+        !require('fs').existsSync(path.join(__dirname, '../dist/renderer/index.html'));
 
     console.log('运行模式:', isDev ? '开发模式 (Vite)' : '生产模式 (文件)');
 
@@ -274,7 +275,7 @@ function createWindow() {
         const indexPath = path.join(appPath, 'dist', 'renderer', 'index.html');
         console.log('应用路径:', appPath);
         console.log('加载本地文件:', indexPath);
-        
+
         // 检查文件是否存在
         const fs = require('fs');
         if (!fs.existsSync(indexPath)) {
@@ -338,13 +339,13 @@ app.on('window-all-closed', () => {
 function getDirectorySize(dirPath: string): number {
     const fs = require('fs');
     let totalSize = 0;
-    
+
     try {
         const files = fs.readdirSync(dirPath);
         for (const file of files) {
             const filePath = path.join(dirPath, file);
             const stat = fs.statSync(filePath);
-            
+
             if (stat.isDirectory()) {
                 totalSize += getDirectorySize(filePath);
             } else {
@@ -354,7 +355,7 @@ function getDirectorySize(dirPath: string): number {
     } catch (e) {
         // 忽略无法访问的文件
     }
-    
+
     return totalSize;
 }
 
@@ -391,25 +392,25 @@ function setupIpcHandlers() {
         if (!scanState.isScanning) {
             return {success: true};
         }
-        
+
         cancelScan(scanState);
-        
+
         // 【修复】等待扫描状态真正重置，避免竞态条件
         // 最多等待一定时间，定期检查状态
         let waitedTime = 0;
-        
+
         while (scanState.isScanning && waitedTime < CANCEL_SCAN_MAX_WAIT) {
             await new Promise(resolve => setTimeout(resolve, CANCEL_SCAN_CHECK_INTERVAL));
             waitedTime += CANCEL_SCAN_CHECK_INTERVAL;
         }
-        
+
         if (scanState.isScanning) {
             console.warn(`[scan-cancel] 警告: 等待 ${CANCEL_SCAN_MAX_WAIT / 1000} 秒后扫描仍未结束，强制重置状态`);
             scanState.isScanning = false;
         } else {
             console.log('[scan-cancel] 扫描已安全取消');
         }
-        
+
         return {success: true};
     });
 
@@ -417,22 +418,14 @@ function setupIpcHandlers() {
     ipcMain.handle('preview-file-stream', async (_, filePath: string) => {
         try {
             const fs = require('fs');
-            
-            // 检查文件大小
-            let stat;
-            try {
-                stat = await fs.promises.stat(filePath);
-            } catch (err: any) {
-                return { error: `无法访问文件：${err.message}` };
-            }
-            
-            const { Worker } = require('worker_threads');
+
+            const {Worker} = require('worker_threads');
             const pathModule = require('path');
-            
+
             // 获取配置
             const config = await loadConfig();
             const enabledTypes = config.enabledSensitiveTypes || [];
-            
+
             // 创建 Worker
             const workerPath = pathModule.join(__dirname, 'file-worker.js');
             const taskId = Date.now();
@@ -442,14 +435,14 @@ function setupIpcHandlers() {
                     maxYoungGenerationSizeMb: WORKER_MAX_YOUNG_GENERATION_MB,
                 }
             });
-            
+
             // 注册 Worker，支持取消
             previewWorkers.set(taskId, worker);
-            
+
             return new Promise((resolve) => {
                 let messageReceived = false;
                 let timeout: NodeJS.Timeout | null = null; // 【重构】提升 timeout 到外层作用域
-                
+
                 // 【重构】根据文件大小智能计算预览超时
                 const getTimeout = async () => {
                     try {
@@ -460,23 +453,23 @@ function setupIpcHandlers() {
                         return PREVIEW_BASE_TIMEOUT; // 使用基础超时
                     }
                 };
-                
+
                 getTimeout().then((timeoutMs) => {
                     timeout = setTimeout(() => {
                         if (!messageReceived) {
                             worker.terminate();
                             previewWorkers.delete(taskId);
-                            resolve({ error: '预览超时，文件可能太大或太复杂' });
+                            resolve({error: '预览超时，文件可能太大或太复杂'});
                         }
                     }, timeoutMs);
                 });
-                
+
                 worker.on('message', (result: any) => {
                     // 跳过 ready 消息
                     if (result.type === 'ready') {
                         return;
                     }
-                    
+
                     // 【方案 D3】处理流式数据块
                     if (result.type === 'chunk') {
                         // 转发数据块到前端
@@ -489,47 +482,47 @@ function setupIpcHandlers() {
                         });
                         return;
                     }
-                    
+
                     // 处理完成消息
                     if (result.type === 'complete') {
                         messageReceived = true;
                         if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         worker.terminate();
-                        resolve({ success: true, totalChunks: result.totalChunks });
+                        resolve({success: true, totalChunks: result.totalChunks});
                         return;
                     }
-                    
+
                     // 处理错误
                     if (result.error) {
                         messageReceived = true;
                         if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         worker.terminate();
-                        resolve({ error: result.error });
+                        resolve({error: result.error});
                         return;
                     }
                 });
-                
+
                 worker.on('error', (error: any) => {
                     if (timeout) clearTimeout(timeout);
                     previewWorkers.delete(taskId);
-                    resolve({ error: '预览失败：' + error.message });
+                    resolve({error: '预览失败：' + error.message});
                 });
-                
+
                 worker.on('exit', (code: number) => {
                     if (code !== 0 && !messageReceived) {
                         if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
-                        resolve({ error: `预览异常退出 (代码: ${code})` });
+                        resolve({error: `预览异常退出 (代码: ${code})`});
                     }
                 });
-                
+
                 // 发送任务到 Worker（启用流式模式）
                 worker.postMessage({
                     taskId: taskId,
                     filePath: filePath,
-                    enabledSensitiveTypes: [],
+                    enabledSensitiveTypes: enabledTypes,  // 【修复】传递用户配置的敏感词类型
                     previewMode: true,
                     streamMode: true,  // 【方案 D3】启用流式模式
                     chunkSize: PREVIEW_CHUNK_SIZE,   // 每块行数（配置常量）
@@ -541,7 +534,7 @@ function setupIpcHandlers() {
                 });
             });
         } catch (error: any) {
-            return { error: error.message };
+            return {error: error.message};
         }
     });
 
@@ -559,7 +552,7 @@ function setupIpcHandlers() {
             worker.terminate();  // 强制终止
             previewWorkers.delete(taskId);  // 清理
         }
-        return { success: true };
+        return {success: true};
     });
 
     // 打开文件
@@ -664,7 +657,7 @@ function setupIpcHandlers() {
             cancelId: options.cancelId,
             defaultId: 0
         });
-        return { response: result.response };
+        return {response: result.response};
     });
 
     // 清理应用缓存
@@ -673,10 +666,10 @@ function setupIpcHandlers() {
             const fs = require('fs');
             const os = require('os');
             const userDataPath = app.getPath('userData');
-            
+
             let cleanedSize = 0;
             const cleanedFiles: string[] = [];
-            
+
             // 1. 清理 Chromium 缓存
             const cacheDirs = [
                 path.join(userDataPath, 'Cache'),
@@ -684,29 +677,29 @@ function setupIpcHandlers() {
                 path.join(userDataPath, 'Code Cache'),
                 path.join(userDataPath, 'Service Worker'),
             ];
-            
+
             for (const cacheDir of cacheDirs) {
                 if (fs.existsSync(cacheDir)) {
                     const size = getDirectorySize(cacheDir);
-                    fs.rmSync(cacheDir, { recursive: true, force: true });
+                    fs.rmSync(cacheDir, {recursive: true, force: true});
                     cleanedSize += size;
                     cleanedFiles.push(path.basename(cacheDir));
                 }
             }
-            
+
             // 2. 【新增】清理日志文件（保留当前正在使用的日志）
             const logDir = path.join(userDataPath, 'logs');
             if (fs.existsSync(logDir)) {
                 const logFiles = fs.readdirSync(logDir);
                 const currentLogFile = `app-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
-                
+
                 for (const logFile of logFiles) {
                     // 跳过当前正在使用的日志文件
                     if (logFile === currentLogFile) {
                         console.log(`[clear-cache] 保留当前日志: ${logFile}`);
                         continue;
                     }
-                    
+
                     const logFilePath = path.join(logDir, logFile);
                     try {
                         const stat = fs.statSync(logFilePath);
@@ -719,7 +712,7 @@ function setupIpcHandlers() {
                         console.warn(`[clear-cache] 无法删除日志文件 ${logFile}:`, e);
                     }
                 }
-                
+
                 // 【优化】清空当前日志文件内容（不删除文件本身）
                 const currentLogPath = path.join(logDir, currentLogFile);
                 if (fs.existsSync(currentLogPath)) {
@@ -731,7 +724,7 @@ function setupIpcHandlers() {
                     }
                 }
             }
-            
+
             // 3. 清理系统临时目录中的本应用相关文件
             const tempDir = os.tmpdir();
             if (fs.existsSync(tempDir)) {
@@ -752,24 +745,24 @@ function setupIpcHandlers() {
                     }
                 }
             }
-            
+
             const cleanedSizeMB = Math.round(cleanedSize / BYTES_TO_MB);
             console.log(`[clear-cache] 缓存清理完成，释放 ${cleanedSizeMB} MB 空间`);
             console.log(`[clear-cache] 清理的文件: ${cleanedFiles.join(', ') || '无'}`);
-            
-            return { success: true, cleanedSize, cleanedFiles };
+
+            return {success: true, cleanedSize, cleanedFiles};
         } catch (error: any) {
             console.error('[clear-cache] 清理缓存失败:', error);
-            return { error: error.message };
+            return {error: error.message};
         }
     });
-    
+
     // 【新增】打开开发者工具
     ipcMain.handle('open-dev-tools', () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.openDevTools();
-            return { success: true };
+            return {success: true};
         }
-        return { error: '窗口未初始化' };
+        return {error: '窗口未初始化'};
     });
 }

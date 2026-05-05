@@ -35,29 +35,29 @@ export const WORKER_BASE_TIMEOUT = 30000; // 30 秒
 export const WORKER_TIMEOUT_PER_MB = 3000; // 3 秒/MB
 
 /** Worker 最大超时时间（毫秒）- 防止超大文件超时过长 */
-export const WORKER_MAX_TIMEOUT = 90000; // 90 秒
+export const WORKER_MAX_TIMEOUT = 120000; // 120 秒
 
 // --- 文件解析超时配置（解析器内部使用）---
 
 /** 文件解析基础超时时间（毫秒）- 适用于 <1MB 的小文件 */
-export const PARSER_BASE_TIMEOUT = 15000; // 15 秒
+export const PARSER_BASE_TIMEOUT = 10000; // 10 秒
 
 /** 文件解析超时增长系数（毫秒/MB）- 每增加 1MB 文件大小，增加的超时时间 */
-export const PARSER_TIMEOUT_PER_MB = 3000; // 3 秒/MB
+export const PARSER_TIMEOUT_PER_MB = 2000; // 2 秒/MB
 
 /** 文件解析最大超时时间（毫秒）- 防止超大文件超时过长 */
-export const PARSER_MAX_TIMEOUT = 60000; // 60 秒（1 分钟）
+export const PARSER_MAX_TIMEOUT = 30000; // 30 秒
 
 // --- 预览超时配置（预览模式使用，比解析更短）---
 
 /** 预览基础超时时间（毫秒）- 适用于 <1MB 的小文件 */
-export const PREVIEW_BASE_TIMEOUT = 15000; // 15 秒
+export const PREVIEW_BASE_TIMEOUT = 8000; // 8 秒
 
 /** 预览超时增长系数（毫秒/MB）- 每增加 1MB 文件大小，增加的超时时间 */
-export const PREVIEW_TIMEOUT_PER_MB = 3000; // 3 秒/MB
+export const PREVIEW_TIMEOUT_PER_MB = 1500; // 1.5 秒/MB
 
 /** 预览最大超时时间（毫秒）- 防止超大文件超时过长 */
-export const PREVIEW_MAX_TIMEOUT = 60000; // 60 秒
+export const PREVIEW_MAX_TIMEOUT = 20000; // 20 秒
 
 // ==================== 智能超时计算函数 ====================
 
@@ -194,8 +194,8 @@ export const LOG_RETENTION_DAYS = 30;
 
 // ==================== 并发数配置 ====================
 
-/** 每个 Worker 预估内存占用（GB）- 优化为 0.15，SheetJS 非常轻量 */
-export const MEMORY_PER_WORKER_GB = 0.15;
+/** 每个 Worker 预估内存占用（GB） */
+export const MEMORY_PER_WORKER_GB = 0.20;
 
 /** 并发数绝对最大值 */
 export const CONCURRENCY_ABSOLUTE_MAX = 6;

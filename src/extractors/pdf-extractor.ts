@@ -23,7 +23,7 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
   const timeoutMs = calculateParserTimeout(stat.size);
   let isResolved = false;
   
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const textChunks: string[] = [];
     let totalLength = 0;
     const maxTextLength = MAX_TEXT_CONTENT_SIZE_MB * BYTES_TO_MB;

@@ -126,7 +126,7 @@ export function getDefaultConfig(): AppConfig {
         // 版本控制和开发工具
         'node_modules', '.git', '.svn', '.hg', '.bzr', '_darcs',
         // IDE 和编辑器
-        '.vscode', '.idea', '.eclipse', '.settings', '.project',
+        '.vscode', '.idea', '.eclipse', '.settings', '.project', '.cargo', '.rustup', '.lingma',
         // 构建和缓存
         // 'dist', 'build', '.next', 'out', '.cache', '__pycache__',
         // 包管理器

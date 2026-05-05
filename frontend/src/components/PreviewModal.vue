@@ -212,9 +212,9 @@ function renderVisibleContent() {
   const visibleStartOffset = getLineOffset(startIndex)
   const visibleEndOffset = getLineOffset(startIndex + lines.length)
   
-  // 获取该行范围的高亮
+  // 获取该行范围的高亮（修复：使用 < 而非 <=，允许跨边界高亮）
   const visibleHighlights = streamState.value.renderedHighlights.filter(h => {
-    return h.start >= visibleStartOffset && h.end <= visibleEndOffset
+    return h.start < visibleEndOffset && h.end > visibleStartOffset
   })
   
   // 转换为行内高亮
