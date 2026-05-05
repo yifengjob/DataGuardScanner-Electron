@@ -699,21 +699,24 @@ export async function startScan(
 
             // 【双层保护策略】
             // 第一层：短时间停滞警告（30秒）
-            const hasPendingTasks = pendingTasks.size > 0;
             if (idleTime > STAGNATION_THRESHOLD &&
                 idleTime <= MAX_IDLE_TIME &&
                 activeWorkerCount === 0 &&
-                taskQueue.length === 0 &&
-                !hasPendingTasks) {  // 【修复】必须没有待处理的任务
-                log(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展，但仍在等待可能的恢复...`);
+                taskQueue.length === 0) {
+                log(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展（待处理任务: ${pendingTasks.size}），但仍在等待可能的恢复...`);
             }
 
             // 第二层：长时间停滞强制结束（2分钟）
             if (idleTime > MAX_IDLE_TIME &&
                 activeWorkerCount === 0 &&
-                taskQueue.length === 0 &&
-                !hasPendingTasks) {  // 【修复】必须没有待处理的任务
-                log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}），且系统空闲，强制结束`);
+                taskQueue.length === 0) {
+                log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 待处理:${pendingTasks.size}），强制结束`);
+                // 先清理所有 pendingTasks
+                for (const [taskId, pending] of pendingTasks.entries()) {
+                    clearTimeout(pending.timeoutId);
+                    pending.reject(new Error('扫描超时强制结束'));
+                }
+                pendingTasks.clear();
                 cleanup();
             }
         }
@@ -763,11 +766,13 @@ export async function startScan(
             // 【关键】清空 consumers 数组，释放内存
             consumers.length = 0;
 
-            // 清除所有超时定时器
-            for (const pending of pendingTasks.values()) {
-                clearTimeout(pending.timeoutId);
+            // 清除所有超时定时器（如果还没有被清理）
+            if (pendingTasks.size > 0) {
+                for (const pending of pendingTasks.values()) {
+                    clearTimeout(pending.timeoutId);
+                }
+                pendingTasks.clear();
             }
-            pendingTasks.clear();
 
             // 【关键】清空任务队列
             taskQueue.length = 0;
