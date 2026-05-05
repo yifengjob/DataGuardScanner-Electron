@@ -31,6 +31,19 @@ try {
   // Worker 中静默失败，由主进程的错误处理捕获
 }
 
+// 【修复】为 pdf.js 3.x legacy build 添加浏览器环境 polyfill
+// Worker 线程有独立的全局作用域，必须在这里设置
+if (typeof (global as any).window === 'undefined') {
+  (global as any).window = global;
+  (global as any).document = {
+    documentElement: { style: {} },
+    createElement: () => ({ style: {}, getContext: () => null }),
+    createTextNode: () => ({}),
+  };
+  (global as any).navigator = { userAgent: 'Node.js' };
+  (global as any).HTMLElement = class HTMLElement {};
+}
+
 import { extractTextFromFile } from './file-parser';
 // 【新增】导入流式处理器
 import { FileStreamProcessor } from './file-stream-processor';
