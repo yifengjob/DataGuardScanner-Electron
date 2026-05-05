@@ -129,8 +129,9 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     // 使用 Function 构造器避免 TypeScript 编译为 require()
     extractor: async (filePath: string) => {
       const dynamicImport = new Function('modulePath', 'return import(modulePath)');
-      // 【修复】添加 .js 扩展名，Node.js ES Module 需要完整路径
-      const pdfExtractor = await dynamicImport('./extractors/pdf-extractor.js');
+      // 【修复】使用 require.resolve 获取绝对路径，然后动态导入
+      const absolutePath = require.resolve('./extractors/pdf-extractor');
+      const pdfExtractor = await dynamicImport(absolutePath);
       return pdfExtractor.extractPdf(filePath);
     },
     description: 'PDF 文件（使用 pdf.js 逐页解析，支持纯图检测）'
