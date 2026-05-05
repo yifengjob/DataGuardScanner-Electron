@@ -9,23 +9,10 @@ import './log-utils';
 process.env.PDFJS_DISABLE_WARNINGS = '1';
 process.env.NODE_NO_WARNINGS = '1';
 
-// 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
-// pdfjs-dist v5.x+ 使用了 ES2024 的 Promise.withResolvers，需要 polyfill
-if (typeof (Promise as any).withResolvers === 'undefined') {
-    (Promise as any).withResolvers = function () {
-        let resolve: any, reject: any;
-        const promise = new Promise((res, rej) => {
-            resolve = res;
-            reject = rej;
-        });
-        return {promise, resolve, reject};
-    };
-}
-
 // 【新增】启用 V8 垃圾回收 API（用于扫描完成后释放内存）
 app.commandLine.appendSwitch('js-flags', '--expose-gc');
 
-// 【修复】初始化 PDF.js 所需的 polyfill
+// 【修复】初始化 PDF.js 所需的 polyfill（包括 Promise.withResolvers、DOMMatrix、浏览器环境模拟）
 import { setupAllPdfPolyfills } from './pdf-polyfills';
 setupAllPdfPolyfills();
 console.log('[初始化] PDF.js polyfills 已设置');
