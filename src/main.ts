@@ -39,6 +39,20 @@ try {
     console.warn('[警告] 无法加载 @napi-rs/canvas，PDF 解析可能失败:', error);
 }
 
+// 【修复】为 pdf.js 3.x legacy build 添加浏览器环境 polyfill
+// 必须在 Worker 创建之前设置，这样 Worker 线程会继承这些全局对象
+if (typeof (global as any).window === 'undefined') {
+    (global as any).window = global;
+    (global as any).document = {
+        documentElement: { style: {} },
+        createElement: () => ({ style: {}, getContext: () => null }),
+        createTextNode: () => ({}),
+    };
+    (global as any).navigator = { userAgent: 'Node.js' };
+    (global as any).HTMLElement = class HTMLElement {};
+    console.log('[初始化] pdf.js 浏览器 polyfill 已设置');
+}
+
 import {ScanState} from './scan-state';
 import {getDirectoryTree} from './directory-tree';
 import {cancelScan, startScan} from './scanner';

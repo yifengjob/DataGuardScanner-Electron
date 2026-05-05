@@ -12,25 +12,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-
-// 【修复】pdf.js 3.x legacy build 需要的完整 polyfill
-// 必须在 require pdf.js 之前设置
-if (typeof (global as any).window === 'undefined') {
-  (global as any).window = global;
-  (global as any).document = {
-    documentElement: { style: {} },
-    createElement: () => ({ style: {}, getContext: () => null }),
-    createTextNode: () => ({}),
-  };
-  (global as any).navigator = { userAgent: 'Node.js' };
-  (global as any).HTMLElement = class HTMLElement {};
-}
-
 import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_TIMEOUT_MS, PDF_OCR_ENABLED } from '../scan-config';
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
 // 【修复】使用 pdf.js 3.x legacy build（CommonJS），兼容 Node.js Worker
+// 注意：浏览器环境 polyfill 已在 main.ts 中全局设置
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 
