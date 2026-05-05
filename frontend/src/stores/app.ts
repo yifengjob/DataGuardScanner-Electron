@@ -32,8 +32,8 @@ export const useAppStore = defineStore('app', () => {
     ],
     ignoreDirNames: ['node_modules', '.git', 'System Volume Information'],
     systemDirs: [], // 会在加载配置时从后端获取
-    maxFileSizeMb: 50,
-    maxPdfSizeMb: 100,
+    maxFileSizeMb: 25, // 与后端 DEFAULT_MAX_FILE_SIZE_MB 保持一致
+    maxPdfSizeMb: 50,  // 与后端 DEFAULT_MAX_PDF_SIZE_MB 保持一致
     scanConcurrency: 4, // 默认并发数，后端会根据硬件智能调整
     theme: 'system',
     language: 'zh-CN',
