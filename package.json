@@ -30,6 +30,7 @@
   "build": {
     "appId": "com.dataguard.scanner",
     "productName": "DataGuard Scanner",
+    "npmRebuild": false,
     "directories": {
       "output": "release"
     },
