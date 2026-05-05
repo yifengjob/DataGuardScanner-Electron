@@ -6,63 +6,9 @@
 // 【关键】首先导入日志抑制工具（必须在任何其他导入之前）
 import './log-utils';
 
-// 【修复】在 Worker 线程中直接设置 PDF.js polyfill（避免模块导入导致的崩溃）
-try {
-  // 1. Promise.withResolvers
-  if (typeof (Promise as any).withResolvers === 'undefined') {
-    (Promise as any).withResolvers = function() {
-      let resolve: any, reject: any;
-      const promise = new Promise((res, rej) => {
-        resolve = res;
-        reject = rej;
-      });
-      return { promise, resolve, reject };
-    };
-  }
-  
-  // 2. DOMMatrix
-  try {
-    const { DOMMatrix } = require('@napi-rs/canvas');
-    if (typeof (global as any).DOMMatrix === 'undefined') {
-      (global as any).DOMMatrix = DOMMatrix;
-    }
-  } catch (e) {
-    // 静默失败
-  }
-  
-  // 3. 浏览器环境模拟
-  if (typeof (global as any).window === 'undefined') {
-    (global as any).window = global;
-    
-    // DOMException（pdf.js 需要）
-    if (typeof (global as any).DOMException === 'undefined') {
-      (global as any).DOMException = class DOMException extends Error {
-        constructor(message?: string, name?: string) {
-          super(message);
-          this.name = name || 'DOMException';
-        }
-      };
-    }
-    
-    // ReadableStream（pdf.js 需要）
-    if (typeof (global as any).ReadableStream === 'undefined') {
-      const { ReadableStream } = require('stream/web');
-      (global as any).ReadableStream = ReadableStream;
-    }
-    
-    (global as any).document = {
-      documentElement: { style: {} },
-      createElement: () => ({ style: {}, getContext: () => null }),
-      createTextNode: () => ({}),
-    };
-    (global as any).navigator = { userAgent: 'Node.js' };
-    (global as any).HTMLElement = class HTMLElement {};
-  }
-  
-  console.log('[Worker] PDF.js polyfills 设置成功');
-} catch (error) {
-  console.error('[Worker] ❌ PDF.js polyfill 设置失败:', error);
-}
+// 【修复】初始化 PDF.js 所需的 polyfill
+import { setupAllPdfPolyfills } from './pdf-polyfills';
+setupAllPdfPolyfills();
 
 import { parentPort, threadId } from 'worker_threads';
 
