@@ -31,6 +31,7 @@ import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
 // 【修复】使用 pdf.js 3.x legacy build（CommonJS），兼容 Node.js Worker
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 
 // 设置 worker
