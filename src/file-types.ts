@@ -126,9 +126,11 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     maxSizeMB: FILE_SIZE_LIMITS.pdfMaxSizeMB,  // 【限制】pdf.js 性能更好，限制为 50MB
     supportsStreaming: false,
     // 【关键】PDF extractor 需要动态导入，因为 pdf.js 4.x 是 ES Module
+    // 使用 Function 构造器避免 TypeScript 编译为 require()
     extractor: async (filePath: string) => {
-      const { extractPdf } = await import('./extractors/pdf-extractor');
-      return extractPdf(filePath);
+      const dynamicImport = new Function('modulePath', 'return import(modulePath)');
+      const pdfExtractor = await dynamicImport('./extractors/pdf-extractor');
+      return pdfExtractor.extractPdf(filePath);
     },
     description: 'PDF 文件（使用 pdf.js 逐页解析，支持纯图检测）'
   },

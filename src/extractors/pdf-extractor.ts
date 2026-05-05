@@ -17,12 +17,14 @@ import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
 // 【修复】动态导入 pdf.js (ES Module)，兼容 Worker 线程
+// 使用 eval 绕过 TypeScript 的模块转换
 let pdfjsLib: any = null;
 
 async function loadPdfJs() {
   if (!pdfjsLib) {
-    // 使用动态 import 加载 ES Module
-    const pdfjsModule = await import('pdfjs-dist');
+    // 【关键】使用 Function 构造器创建真正的动态 import，避免 TypeScript 编译为 require()
+    const dynamicImport = new Function('modulePath', 'return import(modulePath)');
+    const pdfjsModule = await dynamicImport('pdfjs-dist');
     pdfjsLib = pdfjsModule.default || pdfjsModule;
     
     // pdf.js 4.x 在 Node.js 环境中自动处理 worker
