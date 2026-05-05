@@ -25,7 +25,8 @@ import {
     markConsumerIdle,
     sendToMainWindow,
     calculateTimeout as calcTimeout,
-    safelyTerminateWorker
+    safelyTerminateWorker,
+    LogLevel  // 【新增】日志级别
 } from './scanner-helpers';
 
 export async function startScan(
@@ -60,8 +61,8 @@ export async function startScan(
     const poolSize = concurrencyInfo.actualConcurrency;
 
     if (config.scanConcurrency && config.scanConcurrency > concurrencyInfo.maxAllowedConcurrency) {
-        log(`警告: 配置的并发数 ${config.scanConcurrency} 超过最大值 ${concurrencyInfo.maxAllowedConcurrency}，已自动调整`);
-        log(`提示: 系统可用内存 ${concurrencyInfo.freeMemoryGB.toFixed(1)} GB, CPU ${concurrencyInfo.cpuCount} 核, 建议不超过 ${concurrencyInfo.maxAllowedConcurrency}`);
+        log(`警告: 配置的并发数 ${config.scanConcurrency} 超过最大值 ${concurrencyInfo.maxAllowedConcurrency}，已自动调整`, LogLevel.WARN);
+        log(`提示: 系统可用内存 ${concurrencyInfo.freeMemoryGB.toFixed(1)} GB, CPU ${concurrencyInfo.cpuCount} 核, 建议不超过 ${concurrencyInfo.maxAllowedConcurrency}`, LogLevel.INFO);
     }
 
     log(`使用 ${poolSize} 个 Consumer Workers (CPU: ${concurrencyInfo.cpuCount}核, 可用内存: ${concurrencyInfo.freeMemoryGB.toFixed(1)}GB)`);
@@ -190,7 +191,7 @@ export async function startScan(
                 }
             });
         } catch (error: any) {
-            log(`错误: 无法创建 Worker ${id} - ${error.message}`);
+            log(`错误: 无法创建 Worker ${id} - ${error.message}`, LogLevel.ERROR);
             return; // 跳过这个 Worker
         }
 
@@ -266,7 +267,7 @@ export async function startScan(
         });
 
         worker.on('error', (error: any) => {
-            log(`[Consumer ${id}] Worker 错误: ${error.message}`);
+            log(`[Consumer ${id}] Worker 错误: ${error.message}`, LogLevel.ERROR);
 
             // 【修复】只有当 consumer 处于 busy 状态时才减少计数
             if (consumer.busy) {
@@ -291,24 +292,24 @@ export async function startScan(
 
             // 【新增】记录详细的退出信息
             if (signal) {
-                log(`[Consumer ${id}] Worker 被信号终止: ${signal}, 代码: ${code}`);
+                log(`[Consumer ${id}] Worker 被信号终止: ${signal}, 代码: ${code}`, LogLevel.WARN);
             }
 
             if (consumerRef.isTerminating) {
                 // 主动终止（超时等情况），不视为异常
-                log(`[Consumer ${id}] Worker 已终止（代码: ${code}）`);
+                log(`[Consumer ${id}] Worker 已终止（代码: ${code}）`, LogLevel.INFO);
                 consumerRef.isTerminating = false;
                 consumerRef.busy = false;
                 return;
             }
 
             if (code !== 0 && !scanState.cancelFlag) {
-                log(`[Consumer ${id}] Worker 异常退出，代码: ${code}, 信号: ${signal || 'none'}`);
+                log(`[Consumer ${id}] Worker 异常退出，代码: ${code}, 信号: ${signal || 'none'}`, LogLevel.ERROR);
 
                 // 【新增】检测是否是 OOM 导致的退出
                 const isOOM = signal === 'SIGABRT' || code === 134; // 134 是 abort() 的退出码
                 if (isOOM) {
-                    log(`[Consumer ${id}] ⚠️ 检测到 Worker OOM！将重启 Worker 并跳过当前文件`);
+                    log(`[Consumer ${id}] ⚠️ 检测到 Worker OOM！将重启 Worker 并跳过当前文件`, LogLevel.ERROR);
                 }
 
                 // 【修复】只有当 consumer 处于 busy 状态时才更新计数
@@ -416,7 +417,7 @@ export async function startScan(
             // 设置超时
             const timeout = calculateTimeout(task.fileSize);
             const timeoutId = setTimeout(() => {
-                log(`[TaskQueue] 任务 ${taskId} 超时 (${timeout / 1000}秒): ${task.filePath}`);
+                log(`[TaskQueue] 任务 ${taskId} 超时 (${timeout / 1000}秒): ${task.filePath}`, LogLevel.WARN);
                 const pending = pendingTasks.get(taskId);
                 if (pending) {
                     pendingTasks.delete(taskId);
@@ -479,7 +480,7 @@ export async function startScan(
                     }
                 });
             } catch (error: any) {
-                log(`[TaskQueue] 发送任务失败: ${error.message}`);
+                log(`[TaskQueue] 发送任务失败: ${error.message}`, LogLevel.ERROR);
                 // 回滚状态
                 consumer.busy = false;
                 consumer.taskId = undefined;
@@ -503,7 +504,7 @@ export async function startScan(
             }
         });
     } catch (error: any) {
-        log(`错误: 无法创建 Walker Worker - ${error.message}`);
+        log(`错误: 无法创建 Walker Worker - ${error.message}`, LogLevel.ERROR);
         scanState.isScanning = false;
         // 【重构】使用辅助函数发送错误信息
         sendToMainWindow(mainWindow, 'scan-error', `无法创建 Walker Worker: ${error.message}`);
@@ -547,7 +548,7 @@ export async function startScan(
 
             // 【内存安全】防止计数器溢出
             if (walkerCompletedCount > totalWalkerTasks) {
-                log(`[Walker] 警告: 完成计数 (${walkerCompletedCount}) 超过总任务数 (${totalWalkerTasks})`);
+                log(`[Walker] 警告: 完成计数 (${walkerCompletedCount}) 超过总任务数 (${totalWalkerTasks})`, LogLevel.WARN);
                 walkerCompletedCount = totalWalkerTasks;
             }
 
@@ -603,7 +604,7 @@ export async function startScan(
         }
 
         if (message.type === 'walking-error') {
-            log(`Walker 错误: ${message.error}`);
+            log(`Walker 错误: ${message.error}`, LogLevel.ERROR);
 
             // 【事件驱动】检查是否应该结束
             checkAndComplete();
@@ -616,7 +617,7 @@ export async function startScan(
     });
 
     walkerWorker.on('error', (error: any) => {
-        log(`Walker Worker 错误: ${error.message}`);
+        log(`Walker Worker 错误: ${error.message}`, LogLevel.ERROR);
 
         // 【事件驱动】检查是否应该结束
         checkAndComplete();
@@ -713,12 +714,12 @@ export async function startScan(
             // 第一层：短时间停滞警告（30秒）
             if (idleTime > STAGNATION_THRESHOLD &&
                 idleTime <= MAX_IDLE_TIME) {
-                log(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展（活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），但仍在等待可能的恢复...`);
+                log(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展（活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），但仍在等待可能的恢复...`, LogLevel.WARN);
             }
 
             // 第二层：长时间停滞强制结束（2分钟）
             if (idleTime > MAX_IDLE_TIME) {
-                log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），强制结束`);
+                log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），强制结束`, LogLevel.ERROR);
                 // 先清理所有 pendingTasks
                 for (const [_taskId, pending] of pendingTasks.entries()) {
                     clearTimeout(pending.timeoutId);

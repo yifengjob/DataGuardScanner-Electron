@@ -8,15 +8,48 @@ import {ScanState} from './scan-state';
 import {BYTES_TO_MB, MAX_LOG_ENTRIES, WORKER_BASE_TIMEOUT, WORKER_TIMEOUT_PER_MB, WORKER_MAX_TIMEOUT} from './scan-config';
 
 /**
- * 创建日志函数
+ * 日志级别枚举
+ */
+export enum LogLevel {
+    DEBUG = 0,    // 调试信息（最详细，仅开发环境）
+    INFO = 1,     // 一般信息（默认级别）
+    WARN = 2,     // 警告信息
+    ERROR = 3     // 错误信息（最重要）
+}
+
+/**
+ * 日志配置
+ */
+interface LogConfig {
+    fileLevel: LogLevel;      // 写入文件的最低级别
+    frontendLevel: LogLevel;  // 发送到前端的最低级别
+    memoryLevel: LogLevel;    // 保存到内存的最低级别
+}
+
+/**
+ * 默认日志配置
+ * - 文件：记录 INFO 及以上（减少磁盘 I/O）
+ * - 前端：记录 WARN 及以上（减少 IPC 拥堵）
+ * - 内存：记录 INFO 及以上（保留必要历史）
+ */
+const DEFAULT_LOG_CONFIG: LogConfig = {
+    fileLevel: LogLevel.WARN,
+    frontendLevel: LogLevel.WARN,
+    memoryLevel: LogLevel.INFO
+};
+
+/**
+ * 创建日志函数（支持分级控制）
  * @param scanState 扫描状态
  * @param mainWindow 主窗口
+ * @param config 日志配置（可选）
  * @returns 日志记录函数
  */
 export function createLogger(
     scanState: ScanState,
-    mainWindow: BrowserWindow | null
-): (msg: string) => void {
+    mainWindow: BrowserWindow | null,
+    config: LogConfig = DEFAULT_LOG_CONFIG
+): (msg: string, level?: LogLevel) => void {
     // 【B1 优化】使用环形缓冲区替代数组 shift()
     const logs = new Array<string>(MAX_LOG_ENTRIES);
     let logIndex = 0;
@@ -26,7 +59,17 @@ export function createLogger(
     let cachedLogsArray: string[] = [];
     let needsUpdate = false;
 
-    return (msg: string) => {
+    return (msg: string, level: LogLevel = LogLevel.INFO) => {
+        // 【优化】根据级别判断是否需要处理
+        const shouldSaveToMemory = level >= config.memoryLevel;
+        const shouldSendToFrontend = level >= config.frontendLevel;
+        const shouldWriteToFile = level >= config.fileLevel;
+        
+        // 如果都不需要，直接返回
+        if (!shouldSaveToMemory && !shouldSendToFrontend && !shouldWriteToFile) {
+            return;
+        }
+        
         const now = new Date();
         // 【修复】显式指定 Asia/Shanghai 时区，确保显示北京时间
         const timeStr = now.toLocaleTimeString('zh-CN', {
@@ -36,52 +79,62 @@ export function createLogger(
             second: '2-digit',
             timeZone: 'Asia/Shanghai'  // 强制使用北京时间
         });
-        const logWithTime = `[${timeStr}] ${msg}`;
-
-        // 【修复】限制日志数组大小，防止内存泄漏
-        setImmediate(() => {
-            // 【B1 优化】环形缓冲区：O(1) 时间复杂度
-            logs[logIndex % MAX_LOG_ENTRIES] = logWithTime;
-            logIndex++;
-            logCount = Math.min(logCount + 1, MAX_LOG_ENTRIES);
-            
-            // 【性能优化】标记需要更新，但不立即转换
-            needsUpdate = true;
-        });
         
-        // 【性能优化】延迟批量转换，减少数组创建次数
-        setImmediate(() => {
-            if (needsUpdate) {
-                // 将环形缓冲区转换为普通数组（供前端显示）
-                if (logCount < MAX_LOG_ENTRIES) {
-                    // 未满时，直接截取
-                    cachedLogsArray = logs.slice(0, logCount);
-                } else {
-                    // 已满时，从当前位置开始循环读取
-                    const start = logIndex % MAX_LOG_ENTRIES;
-                    cachedLogsArray = [
-                        ...logs.slice(start),
-                        ...logs.slice(0, start)
-                    ];
-                }
+        // 【新增】添加级别前缀
+        const levelPrefix = LogLevel[level];
+        const logWithTime = `[${timeStr}] [${levelPrefix}] ${msg}`;
+
+        // 【优化】只有需要保存到内存时才执行
+        if (shouldSaveToMemory) {
+            // 【修复】限制日志数组大小，防止内存泄漏
+            setImmediate(() => {
+                // 【B1 优化】环形缓冲区：O(1) 时间复杂度
+                logs[logIndex % MAX_LOG_ENTRIES] = logWithTime;
+                logIndex++;
+                logCount = Math.min(logCount + 1, MAX_LOG_ENTRIES);
                 
-                // 更新到 scanState
-                scanState.logs = cachedLogsArray;
-                needsUpdate = false;
-            }
-        });
+                // 【性能优化】标记需要更新，但不立即转换
+                needsUpdate = true;
+            });
+            
+            // 【性能优化】延迟批量转换，减少数组创建次数
+            setImmediate(() => {
+                if (needsUpdate) {
+                    // 将环形缓冲区转换为普通数组（供前端显示）
+                    if (logCount < MAX_LOG_ENTRIES) {
+                        // 未满时，直接截取
+                        cachedLogsArray = logs.slice(0, logCount);
+                    } else {
+                        // 已满时，从当前位置开始循环读取
+                        const start = logIndex % MAX_LOG_ENTRIES;
+                        cachedLogsArray = [
+                            ...logs.slice(start),
+                            ...logs.slice(0, start)
+                        ];
+                    }
+                    
+                    // 更新到 scanState
+                    scanState.logs = cachedLogsArray;
+                    needsUpdate = false;
+                }
+            });
+        }
 
-        // 【优化】异步发送日志到前端，避免阻塞主线程
-        setImmediate(() => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('scan-log', logWithTime);
-            }
-        });
+        // 【优化】只有需要发送到前端时才执行
+        if (shouldSendToFrontend) {
+            setImmediate(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('scan-log', logWithTime);
+                }
+            });
+        }
         
-        // 【新增】同时写入日志文件
-        setImmediate(() => {
-            console.log(logWithTime);  // 通过 console.log 写入日志文件
-        });
+        // 【优化】只有需要写入文件时才执行
+        if (shouldWriteToFile) {
+            setImmediate(() => {
+                console.log(logWithTime);  // 通过 console.log 写入日志文件
+            });
+        }
     };
 }
 
