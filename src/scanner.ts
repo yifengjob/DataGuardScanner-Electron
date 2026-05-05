@@ -25,8 +25,7 @@ import {
     markConsumerIdle,
     sendToMainWindow,
     calculateTimeout as calcTimeout,
-    safelyTerminateWorker,
-    LogLevel  // 【新增】日志级别
+    safelyTerminateWorker// 【新增】日志级别
 } from './scanner-helpers';
 
 export async function startScan(
