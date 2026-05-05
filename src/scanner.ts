@@ -73,6 +73,7 @@ export async function startScan(
     let resultCount = 0;            // 发现的敏感文件数
     let totalSensitiveItems = 0;    // 【新增】发现的敏感信息总条数
     let activeWorkerCount = 0;      // 【优化】跟踪活跃的 Worker 数量
+    const countedTaskIds = new Set<number>(); // 【修复】防止重复计数
 
     // 创建 Consumer Workers 池
     const consumers: Array<{
@@ -212,7 +213,13 @@ export async function startScan(
                 // 【重构】使用辅助函数标记 Consumer 为空闲
                 markConsumerIdle(consumer);
                 activeWorkerCount--;
-                consumerProcessedCount++; // 即使任务已删除也要计数，避免死锁
+                
+                // 【修复】防止重复计数
+                if (!countedTaskIds.has(taskId)) {
+                    countedTaskIds.add(taskId);
+                    consumerProcessedCount++;
+                }
+                
                 tryDispatch();
                 return;
             }
@@ -224,7 +231,12 @@ export async function startScan(
             // 【重构】使用辅助函数标记 Worker 为空闲
             markConsumerIdle(consumer);
             activeWorkerCount--;
-            consumerProcessedCount++;
+            
+            // 【修复】防止重复计数
+            if (!countedTaskIds.has(taskId)) {
+                countedTaskIds.add(taskId);
+                consumerProcessedCount++;
+            }
 
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
@@ -278,7 +290,13 @@ export async function startScan(
                     if (pending) {
                         clearTimeout(pending.timeoutId);
                         pendingTasks.delete(consumer.taskId);
-                        consumerProcessedCount++;
+                        
+                        // 【修复】防止重复计数
+                        if (!countedTaskIds.has(consumer.taskId)) {
+                            countedTaskIds.add(consumer.taskId);
+                            consumerProcessedCount++;
+                        }
+                        
                         pending.reject(error);
                     }
                 }
@@ -321,7 +339,12 @@ export async function startScan(
                     if (pending) {
                         clearTimeout(pending.timeoutId);
                         pendingTasks.delete(consumerRef.taskId);
-                        consumerProcessedCount++;
+                        
+                        // 【修复】防止重复计数
+                        if (!countedTaskIds.has(consumerRef.taskId)) {
+                            countedTaskIds.add(consumerRef.taskId);
+                            consumerProcessedCount++;
+                        }
 
                         // 【新增】返回友好的 OOM 错误信息
                         const errorMsg = isOOM
@@ -424,7 +447,12 @@ export async function startScan(
                 if (pending) {
                     pendingTasks.delete(taskId);
                     activeWorkerCount--; // 【优化】减少活跃计数
-                    consumerProcessedCount++; // 超时也要计数
+                    
+                    // 【修复】防止重复计数
+                    if (!countedTaskIds.has(taskId)) {
+                        countedTaskIds.add(taskId);
+                        consumerProcessedCount++; // 超时也要计数
+                    }
 
                     // 【修复】发送进度更新，确保前端数字继续动
                     sendProgressUpdate(task.filePath);
