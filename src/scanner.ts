@@ -712,7 +712,7 @@ export async function startScan(
                 taskQueue.length === 0) {
                 log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 待处理:${pendingTasks.size}），强制结束`);
                 // 先清理所有 pendingTasks
-                for (const [taskId, pending] of pendingTasks.entries()) {
+                for (const [_taskId, pending] of pendingTasks.entries()) {
                     clearTimeout(pending.timeoutId);
                     pending.reject(new Error('扫描超时强制结束'));
                 }
