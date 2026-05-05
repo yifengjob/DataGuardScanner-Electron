@@ -143,10 +143,10 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
   // ==================== Excel 表格（需要先解析为文本）====================
   // 【优化】拆分为两个注册项，分别处理现代格式和旧格式
   {
-    extensions: ['xlsx', 'et'],  // 现代 Excel 格式，支持流式解析
+    extensions: ['xlsx', 'et'],  // 现代 Excel 格式
     processor: FileProcessorType.PARSER_REQUIRED,
-    supportsStreaming: true,  // ✅ exceljs 支持真正的流式处理
-    extractor: extractWithExcelJS,
+    supportsStreaming: false,  // ❌ 仍需先解析，不能直接流式读取原始文件
+    extractor: extractWithExcelJS,  // 使用 exceljs 流式解析器
     description: 'Excel 表格（使用 exceljs 流式解析，内存效率高）'
   },
   {
