@@ -49,23 +49,23 @@ export async function startScan(
     // 【重构】使用辅助函数创建 logger
     const log = createLogger(scanState, mainWindow);
 
-    log('开始扫描...');
-    log(`扫描路径数: ${config.selectedPaths.length}`);
-    log(`文件类型数: ${config.selectedExtensions.length}`);
-    log(`选中的扩展名: ${config.selectedExtensions.join(', ')}`);
-    log(`敏感检测类型: ${config.enabledSensitiveTypes.join(', ')}`);
-    log('---');
+    log.info('开始扫描...');
+    log.info(`扫描路径数: ${config.selectedPaths.length}`);
+    log.info(`文件类型数: ${config.selectedExtensions.length}`);
+    log.info(`选中的扩展名: ${config.selectedExtensions.join(', ')}`);
+    log.info(`敏感检测类型: ${config.enabledSensitiveTypes.join(', ')}`);
+    log.info('---');
 
     // 计算并发数
     const concurrencyInfo = calculateActualConcurrency(config.scanConcurrency);
     const poolSize = concurrencyInfo.actualConcurrency;
 
     if (config.scanConcurrency && config.scanConcurrency > concurrencyInfo.maxAllowedConcurrency) {
-        log(`警告: 配置的并发数 ${config.scanConcurrency} 超过最大值 ${concurrencyInfo.maxAllowedConcurrency}，已自动调整`, LogLevel.WARN);
-        log(`提示: 系统可用内存 ${concurrencyInfo.freeMemoryGB.toFixed(1)} GB, CPU ${concurrencyInfo.cpuCount} 核, 建议不超过 ${concurrencyInfo.maxAllowedConcurrency}`, LogLevel.INFO);
+        log.warn(`配置的并发数 ${config.scanConcurrency} 超过最大值 ${concurrencyInfo.maxAllowedConcurrency}，已自动调整`);
+        log.info(`系统可用内存 ${concurrencyInfo.freeMemoryGB.toFixed(1)} GB, CPU ${concurrencyInfo.cpuCount} 核, 建议不超过 ${concurrencyInfo.maxAllowedConcurrency}`);
     }
 
-    log(`使用 ${poolSize} 个 Consumer Workers (CPU: ${concurrencyInfo.cpuCount}核, 可用内存: ${concurrencyInfo.freeMemoryGB.toFixed(1)}GB)`);
+    log.info(`使用 ${poolSize} 个 Consumer Workers (CPU: ${concurrencyInfo.cpuCount}核, 可用内存: ${concurrencyInfo.freeMemoryGB.toFixed(1)}GB)`);
 
     // 统计信息
     let walkerTotalCount = 0;      // Walker 找到的文件总数
@@ -134,15 +134,15 @@ export async function startScan(
         if (avgFileSizeMB > 50) {
             // 超大文件：增加内存限制，减少并发压力
             memoryMultiplier = 1.5;
-            log(`【智能内存】检测到大文件（平均 ${avgFileSizeMB.toFixed(1)}MB），增加 Worker 内存至 ${memoryMultiplier}x`);
+            log.info(`【智能内存】检测到大文件（平均 ${avgFileSizeMB.toFixed(1)}MB），增加 Worker 内存至 ${memoryMultiplier}x`);
         } else if (avgFileSizeMB > 10) {
             // 大文件：适度增加内存
             memoryMultiplier = 1.2;
-            log(`【智能内存】检测到中大文件（平均 ${avgFileSizeMB.toFixed(1)}MB），适度增加 Worker 内存`);
+            log.info(`【智能内存】检测到中大文件（平均 ${avgFileSizeMB.toFixed(1)}MB），适度增加 Worker 内存`);
         } else if (avgFileSizeMB < 1) {
             // 小文件：降低内存限制，提高并发效率
             memoryMultiplier = 0.6;
-            log(`【智能内存】检测到小文件（平均 ${avgFileSizeMB.toFixed(2)}MB），降低 Worker 内存以节省资源`);
+            log.info(`【智能内存】检测到小文件（平均 ${avgFileSizeMB.toFixed(2)}MB），降低 Worker 内存以节省资源`);
         }
 
         // 基础内存计算：取系统可用内存的 60% / Worker 数量
@@ -172,7 +172,7 @@ export async function startScan(
     }
 
     // 初始日志
-    log(`【内存优化】可用内存: ${freeMemoryMB.toFixed(0)}MB, 初始每 Worker 限制: ${dynamicOldGenMB + dynamicYoungGenMB}MB`);
+    log.info(`【内存优化】可用内存: ${freeMemoryMB.toFixed(0)}MB, 初始每 Worker 限制: ${dynamicOldGenMB + dynamicYoungGenMB}MB`);
 
     // 创建 Consumer Worker
     function createConsumer(id: number, customOldGen?: number, customYoungGen?: number) {
@@ -191,7 +191,7 @@ export async function startScan(
                 }
             });
         } catch (error: any) {
-            log(`错误: 无法创建 Worker ${id} - ${error.message}`, LogLevel.ERROR);
+            log.error(`无法创建 Worker ${id} - ${error.message}`);
             return; // 跳过这个 Worker
         }
 
@@ -214,7 +214,7 @@ export async function startScan(
                 markConsumerIdle(consumer);
                 activeWorkerCount--;
                 incrementConsumerCount(taskId);
-                
+
                 tryDispatch();
                 return;
             }
@@ -236,13 +236,13 @@ export async function startScan(
 
             // 处理结果
             if (result.error) {
-                log(`处理文件失败: ${result.error}`);
+                log.info(`处理文件失败: ${result.error}`);
                 pending.reject(new Error(result.error));
             } else {
                 if (result.total && result.total > 0) {
                     resultCount++;
                     totalSensitiveItems += result.total; // 【新增】累加敏感信息总条数
-                    log(`发现敏感文件 [${resultCount}]: ${result.filePath} (总计: ${result.total} 个敏感项)`);
+                    log.info(`发现敏感文件 [${resultCount}]: ${result.filePath} (总计: ${result.total} 个敏感项)`);
 
                     const resultItem: ScanResultItem = {
                         filePath: result.filePath,
@@ -267,7 +267,7 @@ export async function startScan(
         });
 
         worker.on('error', (error: any) => {
-            log(`[Consumer ${id}] Worker 错误: ${error.message}`, LogLevel.ERROR);
+            log.error(`[Consumer ${id}] Worker 错误: ${error.message}`);
 
             // 【修复】只有当 consumer 处于 busy 状态时才减少计数
             if (consumer.busy) {
@@ -292,24 +292,24 @@ export async function startScan(
 
             // 【新增】记录详细的退出信息
             if (signal) {
-                log(`[Consumer ${id}] Worker 被信号终止: ${signal}, 代码: ${code}`, LogLevel.WARN);
+                log.warn(`[Consumer ${id}] Worker 被信号终止: ${signal}, 代码: ${code}`);
             }
 
             if (consumerRef.isTerminating) {
                 // 主动终止（超时等情况），不视为异常
-                log(`[Consumer ${id}] Worker 已终止（代码: ${code}）`, LogLevel.INFO);
+                log.info(`[Consumer ${id}] Worker 已终止（代码: ${code}）`);
                 consumerRef.isTerminating = false;
                 consumerRef.busy = false;
                 return;
             }
 
             if (code !== 0 && !scanState.cancelFlag) {
-                log(`[Consumer ${id}] Worker 异常退出，代码: ${code}, 信号: ${signal || 'none'}`, LogLevel.ERROR);
+                log.error(`[Consumer ${id}] Worker 异常退出，代码: ${code}, 信号: ${signal || 'none'}`);
 
                 // 【新增】检测是否是 OOM 导致的退出
                 const isOOM = signal === 'SIGABRT' || code === 134; // 134 是 abort() 的退出码
                 if (isOOM) {
-                    log(`[Consumer ${id}] ⚠️ 检测到 Worker OOM！将重启 Worker 并跳过当前文件`, LogLevel.ERROR);
+                    log.error(`[Consumer ${id}] ⚠️ 检测到 Worker OOM！将重启 Worker 并跳过当前文件`);
                 }
 
                 // 【修复】只有当 consumer 处于 busy 状态时才更新计数
@@ -339,13 +339,13 @@ export async function startScan(
                     if (!scanState.cancelFlag) {
                         const index = consumers.findIndex(c => c.worker === worker);
                         if (index > -1) {
-                            log(`[Consumer ${id}] 正在重启 Worker...`);
+                            log.info(`[Consumer ${id}] 正在重启 Worker...`);
                             consumers.splice(index, 1);
                             createConsumer(id);
 
                             // 【新增】Worker 重启后强制 GC，释放内存
                             if ((global as any).gc) {
-                                log(`[Consumer ${id}] 执行强制垃圾回收...`);
+                                log.info(`[Consumer ${id}] 执行强制垃圾回收...`);
                                 (global as any).gc();
                             }
                             // 【关键】重启后立即尝试调度任务，防止停滞
@@ -393,7 +393,7 @@ export async function startScan(
                     // 【关键修复】更新轮询索引到下一个位置
                     nextConsumerIndex = (currentIndex + 1) % totalConsumers;
                     promise.catch((error) => {
-                        log(`[TaskQueue] 任务分发失败: ${error.message}`);
+                        log.info(`[TaskQueue] 任务分发失败: ${error.message}`);
                     });
                 }
             }
@@ -417,7 +417,7 @@ export async function startScan(
             // 设置超时
             const timeout = calculateTimeout(task.fileSize);
             const timeoutId = setTimeout(() => {
-                log(`[TaskQueue] 任务 ${taskId} 超时 (${timeout / 1000}秒): ${task.filePath}`, LogLevel.WARN);
+                log.warn(`[TaskQueue] 任务 ${taskId} 超时 (${timeout / 1000}秒): ${task.filePath}`);
                 const pending = pendingTasks.get(taskId);
                 if (pending) {
                     pendingTasks.delete(taskId);
@@ -447,7 +447,7 @@ export async function startScan(
 
                     // 【新增】Worker 重启后强制 GC，释放内存
                     if ((global as any).gc) {
-                        log(`[超时处理] 执行强制垃圾回收...`);
+                        log.info(`[超时处理] 执行强制垃圾回收...`);
                         (global as any).gc();
                     }
                     // 【关键】立即尝试调度任务
@@ -480,7 +480,7 @@ export async function startScan(
                     }
                 });
             } catch (error: any) {
-                log(`[TaskQueue] 发送任务失败: ${error.message}`, LogLevel.ERROR);
+                log.error(`[TaskQueue] 发送任务失败: ${error.message}`);
                 // 回滚状态
                 consumer.busy = false;
                 consumer.taskId = undefined;
@@ -504,7 +504,7 @@ export async function startScan(
             }
         });
     } catch (error: any) {
-        log(`错误: 无法创建 Walker Worker - ${error.message}`, LogLevel.ERROR);
+        log.error(`错误: 无法创建 Walker Worker - ${error.message}`);
         scanState.isScanning = false;
         // 【重构】使用辅助函数发送错误信息
         sendToMainWindow(mainWindow, 'scan-error', `无法创建 Walker Worker: ${error.message}`);
@@ -521,7 +521,7 @@ export async function startScan(
 
             // 【调试】检测异常计数
             if (walkerTotalCount % 100 === 0) {
-                log(`[进度] walkerTotalCount=${walkerTotalCount}, consumerProcessedCount=${consumerProcessedCount}, taskQueue=${taskQueue.length}, pendingTasks=${pendingTasks.size}, activeWorkers=${activeWorkerCount}`);
+                log.info(`[进度] walkerTotalCount=${walkerTotalCount}, consumerProcessedCount=${consumerProcessedCount}, taskQueue=${taskQueue.length}, pendingTasks=${pendingTasks.size}, activeWorkers=${activeWorkerCount}`);
             }
 
             // 【事件驱动】更新最后活动时间
@@ -542,17 +542,17 @@ export async function startScan(
         }
 
         if (message.type === 'walking-complete') {
-            log(`Walker 完成: 找到 ${message.fileCount} 个文件, 跳过 ${message.skippedCount} 个`);
+            log.info(`Walker 完成: 找到 ${message.fileCount} 个文件, 跳过 ${message.skippedCount} 个`);
             walkerSkippedCount += message.skippedCount;
             walkerCompletedCount++; // 【修复】增加完成计数
 
             // 【内存安全】防止计数器溢出
             if (walkerCompletedCount > totalWalkerTasks) {
-                log(`[Walker] 警告: 完成计数 (${walkerCompletedCount}) 超过总任务数 (${totalWalkerTasks})`, LogLevel.WARN);
+                log.warn(`[Walker] 警告: 完成计数 (${walkerCompletedCount}) 超过总任务数 (${totalWalkerTasks})`);
                 walkerCompletedCount = totalWalkerTasks;
             }
 
-            log(`[Walker] 已完成 ${walkerCompletedCount}/${totalWalkerTasks} 个任务`);
+            log.info(`[Walker] 已完成 ${walkerCompletedCount}/${totalWalkerTasks} 个任务`);
 
             // 【A1 优化】Walker 完成后，根据实际文件大小重新计算内存限制
             if (taskQueue.length > 0) {
@@ -564,7 +564,7 @@ export async function startScan(
                 dynamicOldGenMB = newLimits.oldGen;
                 dynamicYoungGenMB = newLimits.youngGen;
 
-                log(`【智能内存调整】平均文件大小: ${avgFileSizeMB.toFixed(2)}MB, 新内存限制: 老生代=${dynamicOldGenMB}MB, 新生代=${dynamicYoungGenMB}MB`);
+                log.info(`【智能内存调整】平均文件大小: ${avgFileSizeMB.toFixed(2)}MB, 新内存限制: 老生代=${dynamicOldGenMB}MB, 新生代=${dynamicYoungGenMB}MB`);
 
                 // 【关键】重启所有空闲的 Consumer Workers 以应用新配置
                 // 【修复】延迟 100ms 确保所有 Worker 的状态已同步
@@ -588,11 +588,11 @@ export async function startScan(
                     }
 
                     if (restartedCount > 0) {
-                        log(`【智能内存】已重启 ${restartedCount} 个空闲 Worker 以应用新内存配置`);
+                        log.info(`【智能内存】已重启 ${restartedCount} 个空闲 Worker 以应用新内存配置`);
 
                         // 【新增】批量重启后强制 GC，释放内存
                         if ((global as any).gc) {
-                            log(`【智能内存】执行强制垃圾回收...`);
+                            log.info(`【智能内存】执行强制垃圾回收...`);
                             (global as any).gc();
                         }
                     }
@@ -604,7 +604,7 @@ export async function startScan(
         }
 
         if (message.type === 'walking-error') {
-            log(`Walker 错误: ${message.error}`, LogLevel.ERROR);
+            log.error(`Walker 错误: ${message.error}`);
 
             // 【事件驱动】检查是否应该结束
             checkAndComplete();
@@ -612,12 +612,12 @@ export async function startScan(
 
         // 【调试】接收 Walker Worker 的日志
         if (message.type === 'walker-log') {
-            log(message.message);
+            log.info(message.message);
         }
     });
 
     walkerWorker.on('error', (error: any) => {
-        log(`Walker Worker 错误: ${error.message}`, LogLevel.ERROR);
+        log.error(`Walker Worker 错误: ${error.message}`);
 
         // 【事件驱动】检查是否应该结束
         checkAndComplete();
@@ -625,7 +625,7 @@ export async function startScan(
 
     walkerWorker.on('exit', (code) => {
         if (code !== 0) {
-            log(`Walker Worker 异常退出，代码: ${code}`);
+            log.info(`Walker Worker 异常退出，代码: ${code}`);
         }
     });
 
@@ -665,11 +665,11 @@ export async function startScan(
 
         // 【调试】输出详细状态
         if (allWalkersCompleted && (activeWorkerCount > 0 || taskQueue.length > 0 || hasPendingTasks)) {
-            log(`[checkAndComplete] Walker已完成，但仍在等待: activeWorkers=${activeWorkerCount}, taskQueue=${taskQueue.length}, pendingTasks=${pendingTasks.size}`);
+            log.info(`[checkAndComplete] Walker已完成，但仍在等待: activeWorkers=${activeWorkerCount}, taskQueue=${taskQueue.length}, pendingTasks=${pendingTasks.size}`);
         }
 
         if (allWalkersCompleted && activeWorkerCount === 0 && taskQueue.length === 0 && !hasPendingTasks) {
-            log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
+            log.info(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
             cleanup();
             return;
         }
@@ -714,12 +714,12 @@ export async function startScan(
             // 第一层：短时间停滞警告（30秒）
             if (idleTime > STAGNATION_THRESHOLD &&
                 idleTime <= MAX_IDLE_TIME) {
-                log(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展（活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），但仍在等待可能的恢复...`, LogLevel.WARN);
+                log.warn(`提示: ${STAGNATION_THRESHOLD / 1000}秒内无任何进展（活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），但仍在等待可能的恢复...`);
             }
 
             // 第二层：长时间停滞强制结束（2分钟）
             if (idleTime > MAX_IDLE_TIME) {
-                log(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），强制结束`, LogLevel.ERROR);
+                log.error(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），强制结束`);
                 // 先清理所有 pendingTasks
                 for (const [_taskId, pending] of pendingTasks.entries()) {
                     clearTimeout(pending.timeoutId);
@@ -735,12 +735,12 @@ export async function startScan(
     function cleanup() {
         // 【修复】防止重复调用 - 使用原子检查
         if (isCleaningUp) {
-            log('[cleanup] 警告: cleanup 已被调用，忽略重复调用');
+            log.info('[cleanup] 警告: cleanup 已被调用，忽略重复调用');
             return;
         }
         isCleaningUp = true;
 
-        log('[cleanup] 开始清理资源...');
+        log.info('[cleanup] 开始清理资源...');
 
         try {
             // 【事件驱动】清除超时检测定时器
@@ -757,7 +757,7 @@ export async function startScan(
                 walkerWorker.terminate();
                 (walkerWorker as any) = null;
             } catch (error) {
-                log('终止 Walker Worker 失败: ' + error);
+                log.info(`终止 Walker Worker 失败: ${error}`);
             }
 
             // 【修复】终止所有 Consumer Workers 并清除引用
@@ -768,7 +768,7 @@ export async function startScan(
                     consumer.worker.removeAllListeners();
                     (consumer as any).worker = null;
                 } catch (error) {
-                    log('终止 Consumer Worker 失败: ' + error);
+                    log.info(`终止 Consumer Worker 失败: ${error}`);
                 }
             }
 
@@ -787,16 +787,16 @@ export async function startScan(
             taskQueue.length = 0;
 
             scanState.isScanning = false;
-            log('扫描完成');
+            log.info('扫描完成');
 
             // 【重构】使用辅助函数发送扫描完成信号
             sendToMainWindow(mainWindow, 'scan-finished', null);
 
-            log('[cleanup] 资源清理完成');
+            log.info('[cleanup] 资源清理完成');
 
             // 【新增】强制触发垃圾回收（如果可用）
             if ((global as any).gc) {
-                log('[cleanup] 触发垃圾回收...');
+                log.info('[cleanup] 触发垃圾回收...');
                 (global as any).gc();
             }
         } catch (error) {
@@ -814,7 +814,7 @@ export async function startScan(
         currentPathIndex++;
 
         if (scanState.cancelFlag) {
-            log('扫描已取消');
+            log.info('扫描已取消');
             break;
         }
 
@@ -824,19 +824,19 @@ export async function startScan(
             if (stat.isFile()) {
                 const basename = path.basename(rootPath);
                 if (config.ignoreDirNames.includes(basename)) {
-                    log(`跳过忽略的文件: ${rootPath}`);
+                    log.info(`跳过忽略的文件: ${rootPath}`);
                     continue;
                 }
             }
         } catch (error: any) {
-            log(`无法访问路径: ${rootPath} - ${error.message}`);
+            log.info(`无法访问路径: ${rootPath} - ${error.message}`);
             continue;
         }
 
-        log(`正在扫描: ${rootPath} (${currentPathIndex}/${totalPaths})`);
+        log.info(`正在扫描: ${rootPath} (${currentPathIndex}/${totalPaths})`);
 
         if (!fs.existsSync(rootPath)) {
-            log(`路径不存在: ${rootPath}`);
+            log.info(`路径不存在: ${rootPath}`);
             continue;
         }
 

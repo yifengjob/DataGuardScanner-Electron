@@ -39,27 +39,40 @@ const DEFAULT_LOG_CONFIG: LogConfig = {
 };
 
 /**
- * 创建日志函数（支持分级控制）
+ * 日志记录器接口（提供便捷的日志方法）
+ */
+export interface Logger {
+    (msg: string, level?: LogLevel): void;  // 默认调用方式
+    debug(msg: string): void;                // log.debug()
+    info(msg: string): void;                 // log.info()
+    warn(msg: string): void;                 // log.warn()
+    error(msg: string): void;                // log.error()
+}
+
+/**
+ * 创建日志函数（支持分级控制 + 便捷方法）
  * @param scanState 扫描状态
  * @param mainWindow 主窗口
  * @param config 日志配置（可选）
- * @returns 日志记录函数
+ * @returns 日志记录器（可调用 + 便捷方法）
  */
 export function createLogger(
     scanState: ScanState,
     mainWindow: BrowserWindow | null,
     config: LogConfig = DEFAULT_LOG_CONFIG
-): (msg: string, level?: LogLevel) => void {
+): Logger {
     // 【B1 优化】使用环形缓冲区替代数组 shift()
     const logs = new Array<string>(MAX_LOG_ENTRIES);
     let logIndex = 0;
     let logCount = 0;
     
     // 【性能优化】缓存转换后的数组，避免每次日志都重新创建
+    // 注意：此变量被赋值后通过 scanState.logs 对外提供，供前端读取
     let cachedLogsArray: string[] = [];
     let needsUpdate = false;
 
-    return (msg: string, level: LogLevel = LogLevel.INFO) => {
+    // 【核心】内部日志处理函数
+    const logInternal = (msg: string, level: LogLevel = LogLevel.INFO) => {
         // 【优化】根据级别判断是否需要处理
         const shouldSaveToMemory = level >= config.memoryLevel;
         const shouldSendToFrontend = level >= config.frontendLevel;
@@ -136,6 +149,15 @@ export function createLogger(
             });
         }
     };
+    
+    // 【新增】创建带便捷方法的日志记录器
+    const logger = logInternal as Logger;
+    logger.debug = (msg: string) => logInternal(msg, LogLevel.DEBUG);
+    logger.info = (msg: string) => logInternal(msg, LogLevel.INFO);
+    logger.warn = (msg: string) => logInternal(msg, LogLevel.WARN);
+    logger.error = (msg: string) => logInternal(msg, LogLevel.ERROR);
+    
+    return logger;
 }
 
 /**
