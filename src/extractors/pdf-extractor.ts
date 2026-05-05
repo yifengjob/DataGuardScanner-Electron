@@ -95,12 +95,13 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
   let imageOnlyPages = 0;
   
   try {
-    // 读取文件为 Buffer
+    // 读取文件为 Buffer，然后转换为 Uint8Array
     const buffer = fs.readFileSync(filePath);
+    const uint8Array = new Uint8Array(buffer);
     
     // 加载 PDF 文档
     const loadingTask = pdfjsLib.getDocument({
-      data: buffer,
+      data: uint8Array,  // 【修复】使用 Uint8Array 而非 Buffer
       disableFontFace: true,  // 禁用字体渲染，减少内存
       disableRange: true,     // 禁用范围请求
       disableStream: true,    // 禁用流式传输（我们手动控制）
