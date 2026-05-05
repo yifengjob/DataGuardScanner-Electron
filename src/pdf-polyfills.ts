@@ -26,6 +26,17 @@ export function setupPdfJsPolyfills(context: any = global): void {
     context.window = context;
     console.log('[PDF Polyfill] ✓ window 设置成功');
 
+    // DOMException（pdf.js 需要）
+    if (typeof context.DOMException === 'undefined') {
+      context.DOMException = class DOMException extends Error {
+        constructor(message?: string, name?: string) {
+          super(message);
+          this.name = name || 'DOMException';
+        }
+      };
+      console.log('[PDF Polyfill] ✓ DOMException 设置成功');
+    }
+
     // 模拟 document 对象
     context.document = {
       documentElement: { style: {} },

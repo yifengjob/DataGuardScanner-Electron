@@ -33,6 +33,17 @@ try {
   // 3. 浏览器环境模拟
   if (typeof (global as any).window === 'undefined') {
     (global as any).window = global;
+    
+    // DOMException（pdf.js 需要）
+    if (typeof (global as any).DOMException === 'undefined') {
+      (global as any).DOMException = class DOMException extends Error {
+        constructor(message?: string, name?: string) {
+          super(message);
+          this.name = name || 'DOMException';
+        }
+      };
+    }
+    
     (global as any).document = {
       documentElement: { style: {} },
       createElement: () => ({ style: {}, getContext: () => null }),
