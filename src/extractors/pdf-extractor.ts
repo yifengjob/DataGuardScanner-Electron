@@ -12,7 +12,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as pdfjsLib from 'pdfjs-dist';
+// 【修复】使用 legacy build（CommonJS）以兼容 Worker 线程
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+
+// 【关键】设置 pdf.js worker，必须在使用前设置
+pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
+
 import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_TIMEOUT_MS, PDF_OCR_ENABLED } from '../scan-config';
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
