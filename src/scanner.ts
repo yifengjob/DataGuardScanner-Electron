@@ -105,6 +105,14 @@ export async function startScan(
         PROGRESS_THROTTLE_INTERVAL
     );
 
+    // 【重构】防止重复计数的辅助方法
+    function incrementConsumerCount(taskId: number): void {
+        if (!countedTaskIds.has(taskId)) {
+            countedTaskIds.add(taskId);
+            consumerProcessedCount++;
+        }
+    }
+
     // 【A1 优化】根据系统可用内存和文件大小动态计算每个 Worker 的内存限制
     const freeMemoryMB = os.freemem() / BYTES_TO_MB;
 
@@ -213,12 +221,7 @@ export async function startScan(
                 // 【重构】使用辅助函数标记 Consumer 为空闲
                 markConsumerIdle(consumer);
                 activeWorkerCount--;
-                
-                // 【修复】防止重复计数
-                if (!countedTaskIds.has(taskId)) {
-                    countedTaskIds.add(taskId);
-                    consumerProcessedCount++;
-                }
+                incrementConsumerCount(taskId);
                 
                 tryDispatch();
                 return;
@@ -231,12 +234,7 @@ export async function startScan(
             // 【重构】使用辅助函数标记 Worker 为空闲
             markConsumerIdle(consumer);
             activeWorkerCount--;
-            
-            // 【修复】防止重复计数
-            if (!countedTaskIds.has(taskId)) {
-                countedTaskIds.add(taskId);
-                consumerProcessedCount++;
-            }
+            incrementConsumerCount(taskId);
 
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
@@ -290,13 +288,7 @@ export async function startScan(
                     if (pending) {
                         clearTimeout(pending.timeoutId);
                         pendingTasks.delete(consumer.taskId);
-                        
-                        // 【修复】防止重复计数
-                        if (!countedTaskIds.has(consumer.taskId)) {
-                            countedTaskIds.add(consumer.taskId);
-                            consumerProcessedCount++;
-                        }
-                        
+                        incrementConsumerCount(consumer.taskId);
                         pending.reject(error);
                     }
                 }
@@ -339,12 +331,7 @@ export async function startScan(
                     if (pending) {
                         clearTimeout(pending.timeoutId);
                         pendingTasks.delete(consumerRef.taskId);
-                        
-                        // 【修复】防止重复计数
-                        if (!countedTaskIds.has(consumerRef.taskId)) {
-                            countedTaskIds.add(consumerRef.taskId);
-                            consumerProcessedCount++;
-                        }
+                        incrementConsumerCount(consumerRef.taskId);
 
                         // 【新增】返回友好的 OOM 错误信息
                         const errorMsg = isOOM
@@ -447,12 +434,7 @@ export async function startScan(
                 if (pending) {
                     pendingTasks.delete(taskId);
                     activeWorkerCount--; // 【优化】减少活跃计数
-                    
-                    // 【修复】防止重复计数
-                    if (!countedTaskIds.has(taskId)) {
-                        countedTaskIds.add(taskId);
-                        consumerProcessedCount++; // 超时也要计数
-                    }
+                    incrementConsumerCount(taskId);
 
                     // 【修复】发送进度更新，确保前端数字继续动
                     sendProgressUpdate(task.filePath);
