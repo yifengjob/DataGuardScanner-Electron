@@ -223,16 +223,20 @@ export function calculateActualConcurrency(configuredConcurrency: number): {
     const calculatedMaxConcurrency = Math.min(cpuCount, maxByMemory, CONCURRENCY_ABSOLUTE_MAX);
     const maxAllowedConcurrency = Math.max(calculatedMaxConcurrency, DEFAULT_CONCURRENCY_MIN);
 
-    // 【调试】输出详细的计算过程
-    console.log(`[并发数计算] CPU: ${cpuCount}核, 可用内存: ${freeMemoryGB.toFixed(1)}GB`);
-    console.log(`[并发数计算] 内存限制: ${maxByMemory}, CPU限制: ${cpuCount}, 绝对最大值: ${CONCURRENCY_ABSOLUTE_MAX}`);
-    console.log(`[并发数计算] 计算最大值: ${calculatedMaxConcurrency}, 最大允许值: ${maxAllowedConcurrency}`);
-    console.log(`[并发数计算] 配置值: ${configuredConcurrency}`);
+    // 【调试】输出详细的计算过程（仅开发环境）
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[并发数计算] CPU: ${cpuCount}核, 可用内存: ${freeMemoryGB.toFixed(1)}GB`);
+        console.log(`[并发数计算] 内存限制: ${maxByMemory}, CPU限制: ${cpuCount}, 绝对最大值: ${CONCURRENCY_ABSOLUTE_MAX}`);
+        console.log(`[并发数计算] 计算最大值: ${calculatedMaxConcurrency}, 最大允许值: ${maxAllowedConcurrency}`);
+        console.log(`[并发数计算] 配置值: ${configuredConcurrency}`);
+    }
 
     let actualConcurrency: number;
     if (configuredConcurrency && configuredConcurrency > 0) {
         actualConcurrency = Math.min(configuredConcurrency, maxAllowedConcurrency);
-        console.log(`[并发数计算] 使用配置值: min(${configuredConcurrency}, ${maxAllowedConcurrency}) = ${actualConcurrency}`);
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[并发数计算] 使用配置值: min(${configuredConcurrency}, ${maxAllowedConcurrency}) = ${actualConcurrency}`);
+        }
     } else {
         // 【优化】更保守的默认并发数，避免 CPU 过载
         // Mac M2/M3 等高性能 CPU 也需要限制，避免风扇狂转
@@ -241,10 +245,14 @@ export function calculateActualConcurrency(configuredConcurrency: number): {
             Math.max(Math.floor(cpuCount * DEFAULT_CONCURRENCY_CPU_RATIO), DEFAULT_CONCURRENCY_MIN),
             DEFAULT_CONCURRENCY_MAX
         );
-        console.log(`[并发数计算] 使用自动计算: min(max(floor(${cpuCount} * ${DEFAULT_CONCURRENCY_CPU_RATIO}), ${DEFAULT_CONCURRENCY_MIN}), ${DEFAULT_CONCURRENCY_MAX}) = ${actualConcurrency}`);
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[并发数计算] 使用自动计算: min(max(floor(${cpuCount} * ${DEFAULT_CONCURRENCY_CPU_RATIO}), ${DEFAULT_CONCURRENCY_MIN}), ${DEFAULT_CONCURRENCY_MAX}) = ${actualConcurrency}`);
+        }
     }
 
-    console.log(`[并发数计算] 最终并发数: ${actualConcurrency}`);
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[并发数计算] 最终并发数: ${actualConcurrency}`);
+    }
 
     return {
         actualConcurrency,

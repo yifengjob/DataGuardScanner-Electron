@@ -41,8 +41,11 @@ export async function getDirectoryTree(dirPath: string, showHidden: boolean): Pr
         children: undefined
       });
     }
-  } catch (error) {
-    console.error('读取目录失败:', error);
+  } catch (error: any) {
+    // 【优化】仅在生产环境记录错误
+    if (process.env.NODE_ENV === 'development') {
+      console.error('读取目录失败:', error.message);
+    }
     throw error;
   }
   

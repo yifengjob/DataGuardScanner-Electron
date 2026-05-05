@@ -49,11 +49,15 @@ interface WorkerResult {
 
 // 【新增】添加全局错误处理器，防止 Worker 因未捕获异常而崩溃
 process.on('unhandledRejection', (reason, _promise) => {
-  console.error(`[Worker TID:${threadId}] 未处理的 Promise Rejection:`, reason);
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[Worker TID:${threadId}] 未处理的 Promise Rejection:`, reason);
+  }
 });
 
 process.on('uncaughtException', (error) => {
-  console.error(`[Worker TID:${threadId}] 未捕获的异常:`, error.message);
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[Worker TID:${threadId}] 未捕获的异常:`, error.message);
+  }
   // 【关键】即使发生未捕获异常，也要通知主进程，而不是直接退出
   parentPort?.postMessage({
     taskId: -1,
@@ -76,7 +80,9 @@ parentPort?.on('message', async (task: WorkerTask) => {
     try {
       stat = fs.statSync(filePath);
     } catch (statError: any) {
-      console.error(`[Worker TID:${threadId}] 无法读取文件状态: ${filePath}`, statError.message);
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[Worker TID:${threadId}] 无法读取文件状态: ${filePath}`, statError.message);
+      }
       parentPort?.postMessage({
         taskId,
         filePath,
@@ -213,8 +219,12 @@ parentPort?.on('message', async (task: WorkerTask) => {
     // 清除超时
     if (timeoutId) clearTimeout(timeoutId);
     
+    // 【优化】仅开发环境记录详细错误
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[Worker TID:${threadId}] 任务失败:`, error.message);
+    }
+    
     // 发生错误，返回错误信息
-    console.error(`[Worker TID:${threadId}] 任务失败:`, error.message);
     parentPort?.postMessage({
       taskId,
       filePath,
