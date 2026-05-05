@@ -44,6 +44,8 @@ export async function extractWithSheetJS(filePath: string): Promise<ExtractorRes
           type: 'buffer',
           cellText: true,
           cellDates: true,
+          codepage: 65001,  // 【修复】强制 UTF-8 编码，防止中文乱码
+          raw: false,  // 【修复】启用原始数据处理
         });
         
         // 提取所有工作表的文本
@@ -56,6 +58,7 @@ export async function extractWithSheetJS(filePath: string): Promise<ExtractorRes
           const csv = XLSX.utils.sheet_to_csv(worksheet, {
             FS: '\t', // 字段分隔符：制表符
             RS: '\n', // 记录分隔符：换行符
+            blankrows: false,  // 【修复】跳过空行
           });
           
           if (csv && csv.trim()) {
@@ -80,6 +83,19 @@ export async function extractWithSheetJS(filePath: string): Promise<ExtractorRes
         clearTimeout(timeoutId);
         if (!isResolved) {
           isResolved = true;
+          
+          // 【优化】区分不同类型的错误
+          const errorMsg = error.message || String(error);
+          
+          // 加密相关的错误，返回友好提示
+          if (errorMsg.includes('password') || 
+              errorMsg.includes('encryption') || 
+              errorMsg.includes('Encryption')) {
+            console.warn(`[extractWithSheetJS] 文件可能已加密或损坏: ${path.basename(filePath)}`);
+            resolve({ text: '', unsupportedPreview: true });
+            return;
+          }
+          
           logError('extractWithSheetJS', error);
           resolve({ text: '', unsupportedPreview: true });
         }

@@ -153,7 +153,6 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['xls'],  // Excel 97-2003 旧格式，不支持流式
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,  // ❌ SheetJS 不支持流式
-    maxSizeMB: 20,  // 【限制】防止 OOM，限制为 20MB
     extractor: extractWithSheetJS,
     description: 'Excel 97-2003 表格（使用 SheetJS 解析）'
   },
