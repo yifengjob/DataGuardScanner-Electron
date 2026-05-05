@@ -6,43 +6,11 @@
 // 【关键】首先导入日志抑制工具（必须在任何其他导入之前）
 import './log-utils';
 
+// 【修复】初始化 PDF.js 所需的 polyfill
+import { setupAllPdfPolyfills } from './pdf-polyfills';
+setupAllPdfPolyfills();
+
 import { parentPort, threadId } from 'worker_threads';
-
-// 【修复】添加 Promise.withResolvers polyfill，解决 pdfjs-dist 兼容性问题
-if (typeof (Promise as any).withResolvers === 'undefined') {
-  (Promise as any).withResolvers = function() {
-    let resolve: any, reject: any;
-    const promise = new Promise((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    return { promise, resolve, reject };
-  };
-}
-
-// 【修复】在 Worker 线程中也定义 DOMMatrix，解决 PDF 解析问题
-// Worker 线程有独立的全局作用域，需要单独定义
-try {
-  const { DOMMatrix } = require('@napi-rs/canvas');
-  if (typeof (global as any).DOMMatrix === 'undefined') {
-    (global as any).DOMMatrix = DOMMatrix;
-  }
-} catch (error) {
-  // Worker 中静默失败，由主进程的错误处理捕获
-}
-
-// 【修复】为 pdf.js 3.x legacy build 添加浏览器环境 polyfill
-// Worker 线程有独立的全局作用域，必须在这里设置
-if (typeof (global as any).window === 'undefined') {
-  (global as any).window = global;
-  (global as any).document = {
-    documentElement: { style: {} },
-    createElement: () => ({ style: {}, getContext: () => null }),
-    createTextNode: () => ({}),
-  };
-  (global as any).navigator = { userAgent: 'Node.js' };
-  (global as any).HTMLElement = class HTMLElement {};
-}
 
 import { extractTextFromFile } from './file-parser';
 // 【新增】导入流式处理器

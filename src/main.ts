@@ -25,33 +25,10 @@ if (typeof (Promise as any).withResolvers === 'undefined') {
 // 【新增】启用 V8 垃圾回收 API（用于扫描完成后释放内存）
 app.commandLine.appendSwitch('js-flags', '--expose-gc');
 
-// 【修复】在 Node.js 环境中全局定义 DOMMatrix，解决 pdfjs-dist 的依赖问题
-// pdf.js (pdfjs-dist) 解析 PDF 时需要 DOMMatrix API
-try {
-    const {DOMMatrix} = require('@napi-rs/canvas');
-    if (typeof (global as any).DOMMatrix === 'undefined') {
-        (global as any).DOMMatrix = DOMMatrix;
-        if (process.env.NODE_ENV === 'development') {
-            console.log('[初始化] DOMMatrix 已全局定义（用于 PDF 解析）');
-        }
-    }
-} catch (error) {
-    console.warn('[警告] 无法加载 @napi-rs/canvas，PDF 解析可能失败:', error);
-}
-
-// 【修复】为 pdf.js 3.x legacy build 添加浏览器环境 polyfill
-// 必须在 Worker 创建之前设置，这样 Worker 线程会继承这些全局对象
-if (typeof (global as any).window === 'undefined') {
-    (global as any).window = global;
-    (global as any).document = {
-        documentElement: { style: {} },
-        createElement: () => ({ style: {}, getContext: () => null }),
-        createTextNode: () => ({}),
-    };
-    (global as any).navigator = { userAgent: 'Node.js' };
-    (global as any).HTMLElement = class HTMLElement {};
-    console.log('[初始化] pdf.js 浏览器 polyfill 已设置');
-}
+// 【修复】初始化 PDF.js 所需的 polyfill
+import { setupAllPdfPolyfills } from './pdf-polyfills';
+setupAllPdfPolyfills();
+console.log('[初始化] PDF.js polyfills 已设置');
 
 import {ScanState} from './scan-state';
 import {getDirectoryTree} from './directory-tree';
