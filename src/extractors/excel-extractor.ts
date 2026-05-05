@@ -1,0 +1,89 @@
+/**
+ * Excel 表格提取器 - 使用 SheetJS 解析
+ * 支持: xlsx, xls, et
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import * as XLSX from 'xlsx';
+import { calculateParserTimeout } from '../scan-config';
+import { logError } from '../error-utils';
+import type { ExtractorResult } from './types';
+
+export async function extractWithSheetJS(filePath: string): Promise<ExtractorResult> {
+  // 【关键修复】添加智能超时保护，防止 SheetJS 卡死
+  let isResolved = false;
+  
+  // 先获取文件大小，然后计算智能超时
+  let stat: fs.Stats;
+  try {
+    stat = await fs.promises.stat(filePath);
+  } catch (error: any) {
+    logError('extractWithSheetJS', error);
+    return { text: '', unsupportedPreview: true };
+  }
+  
+  const timeoutMs = calculateParserTimeout(stat.size);
+  
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn(`[extractWithSheetJS] 解析超时 (${timeoutMs/1000}秒)，跳过: ${path.basename(filePath)}`);
+        resolve({ text: '', unsupportedPreview: true });
+      }
+    }, timeoutMs);
+    
+    (async () => {
+      try {
+        // 读取文件
+        const data = await fs.promises.readFile(filePath);
+        
+        // 使用 SheetJS 解析工作簿
+        const workbook = XLSX.read(data, {
+          type: 'buffer',
+          cellText: true,
+          cellDates: true,
+        });
+        
+        // 提取所有工作表的文本
+        let allText = '';
+        
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName];
+          
+          // 将工作表转换为 CSV 格式（保留换行）
+          const csv = XLSX.utils.sheet_to_csv(worksheet, {
+            FS: '\t', // 字段分隔符：制表符
+            RS: '\n', // 记录分隔符：换行符
+          });
+          
+          if (csv && csv.trim()) {
+            allText += `\n=== ${sheetName} ===\n${csv}\n`;
+          }
+        }
+        
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          
+          // 检查是否有实质性内容
+          const hasContent = allText && allText.trim().length > 0;
+          
+          resolve({
+            text: hasContent ? allText : '',
+            unsupportedPreview: !hasContent
+          });
+        }
+        
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          logError('extractWithSheetJS', error);
+          resolve({ text: '', unsupportedPreview: true });
+        }
+      }
+    })();
+  });
+}

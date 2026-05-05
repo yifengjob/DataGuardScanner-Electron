@@ -1,0 +1,87 @@
+/**
+ * Word 文档提取器 - 使用 word-extractor 解析 .doc 和 .docx
+ * 支持: doc, docx, wps
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import WordExtractor from 'word-extractor';
+import { calculateParserTimeout } from '../scan-config';
+import { logError } from '../error-utils';
+import type { ExtractorResult } from './types';
+import { extractTextFromBinary } from './binary-extractor';
+
+export async function extractWithWordExtractor(filePath: string): Promise<ExtractorResult> {
+  // 【关键修复】添加智能超时保护，防止 word-extractor 卡死
+  let isResolved = false;
+  
+  // 先获取文件大小，然后计算智能超时
+  let stat: fs.Stats;
+  try {
+    stat = await fs.promises.stat(filePath);
+  } catch (error: any) {
+    logError('extractWithWordExtractor', error);
+    return { text: '', unsupportedPreview: true };
+  }
+  
+  const timeoutMs = calculateParserTimeout(stat.size);
+  
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn(`[extractWithWordExtractor] 解析超时 (${timeoutMs/1000}秒)，跳过: ${path.basename(filePath)}`);
+        resolve({ text: '', unsupportedPreview: true });
+      }
+    }, timeoutMs);
+    
+    (async () => {
+      try {
+        // 创建 extractor 实例
+        const extractor = new WordExtractor();
+        
+        // 提取文本
+        const extracted = await extractor.extract(filePath);
+        const text = extracted.getBody();
+        
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          
+          const hasContent = text && text.trim().length > 0;
+          
+          // 【优化】只在解析失败时输出日志
+          if (!hasContent) {
+            logError('extractWithWordExtractor', `[word-extractor] 未提取到内容: ${path.basename(filePath)}`, 'warn');
+          }
+          
+          resolve({
+            text: hasContent ? text : '',
+            unsupportedPreview: !hasContent
+          });
+        }
+        
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          logError('extractWithWordExtractor', error);
+          
+          // 降级到二进制提取
+          try {
+            const data = await fs.promises.readFile(filePath);
+            const text = extractTextFromBinary(data);
+            if (text.trim()) {
+              resolve({ text, unsupportedPreview: false });
+              return;
+            }
+          } catch (e: any) {
+            logError('extractWithWordExtractor-fallback', e);
+          }
+          
+          resolve({ text: '', unsupportedPreview: true });
+        }
+      }
+    })();
+  });
+}
