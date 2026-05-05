@@ -2,7 +2,6 @@ import type {
     DirectoryNode,
     ScanConfig,
     ScanResultItem,
-    PreviewResult,
     AppConfig
 } from '../types'
 
@@ -13,8 +12,7 @@ declare global {
             getDirectoryTree: (path: string, showHidden: boolean) => Promise<any>;
             scanStart: (config: any) => Promise<any>;
             scanCancel: () => Promise<any>;
-            previewFile: (filePath: string) => Promise<any>;
-            previewFileStream: (filePath: string) => Promise<any>;  // 【方案 D3】
+            previewFileStream: (filePath: string) => Promise<any>;  // 流式预览
             cancelPreview: (taskId: number) => Promise<any>;
             onPreviewChunk: (callback: (chunk: any) => void) => () => void;  // 【方案 D3】
             openFile: (filePath: string) => Promise<any>;
@@ -64,14 +62,7 @@ export async function cancelScan(): Promise<boolean> {
     return result.success
 }
 
-// 预览文件
-export async function previewFile(filePath: string): Promise<PreviewResult & { taskId?: number }> {
-    const result = await window.electronAPI.previewFile(filePath)
-    if (result.error) throw new Error(result.error)
-    return result
-}
-
-// 【方案 D3】流式预览文件
+// 预览文件（统一使用流式模式）
 export async function previewFileStream(filePath: string): Promise<{ success: boolean; totalChunks?: number }> {
     const result = await window.electronAPI.previewFileStream(filePath)
     if (result.error) throw new Error(result.error)

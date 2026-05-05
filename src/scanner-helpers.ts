@@ -5,7 +5,7 @@
 
 import {BrowserWindow} from 'electron';
 import {ScanState} from './scan-state';
-import {BYTES_TO_MB, MAX_LOG_ENTRIES} from './scan-config';
+import {BYTES_TO_MB, MAX_LOG_ENTRIES, WORKER_BASE_TIMEOUT, WORKER_TIMEOUT_PER_MB, WORKER_MAX_TIMEOUT} from './scan-config';
 
 /**
  * 创建日志函数
@@ -188,31 +188,23 @@ export function sendToMainWindow(
 }
 
 /**
- * 根据文件大小计算超时时间
+ * 【重构】根据文件大小智能计算超时时间
  * @param fileSize 文件大小（字节）
- * @param timeouts 超时配置
  * @returns 超时时间（毫秒）
  */
-export function calculateTimeout(
-    fileSize: number,
-    timeouts: {
-        small: number;
-        medium: number;
-        large: number;
-        huge: number;
-    }
-): number {
-    const sizeMB = fileSize / (BYTES_TO_MB);
-
-    if (sizeMB < 1) {
-        return timeouts.small;
-    } else if (sizeMB < 10) {
-        return timeouts.medium;
-    } else if (sizeMB < 50) {
-        return timeouts.large;
-    } else {
-        return timeouts.huge;
-    }
+export function calculateTimeout(fileSize: number): number {
+    const sizeMB = fileSize / BYTES_TO_MB;
+    
+    // 基础超时 + 按大小增长的超时
+    let timeoutMs = WORKER_BASE_TIMEOUT + (sizeMB * WORKER_TIMEOUT_PER_MB);
+    
+    // 限制在最大超时范围内
+    timeoutMs = Math.min(timeoutMs, WORKER_MAX_TIMEOUT);
+    
+    // 确保至少为基础超时
+    timeoutMs = Math.max(timeoutMs, WORKER_BASE_TIMEOUT);
+    
+    return Math.floor(timeoutMs);
 }
 
 /**

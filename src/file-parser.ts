@@ -2,15 +2,18 @@
 import './log-utils';
 
 import * as fs from 'fs';
+import { createReadStream } from 'fs';
 import * as path from 'path';
 // 【重构】弃用 docstream，使用专门的库解析不同格式
 import WordExtractor from 'word-extractor';  // .doc 和 .docx 统一使用 word-extractor
-// 【修复】PDF 使用专门的 pdf-parse 库，避免 pdfjs-dist 的 Worker 问题
-import pdfParse from 'pdf-parse';
+// 【优化】PDF 使用 pdfreader 流式解析，大幅降低内存占用
+import { PdfReader } from 'pdfreader';
 // 【新增】SheetJS 用于快速解析 Excel 文件
 import * as XLSX from 'xlsx';
 // 【新增】iconv-lite 用于解码 GBK 编码的 RTF 文件
 import * as iconv from 'iconv-lite';
+// 【新增】sax 流式 XML 解析器，避免大 XML 文件 OOM
+import * as sax from 'sax';
 // 【新增】ZIP 解压工具（使用 fflate 替代 adm-zip）
 import { unzipFile, findZipEntries, extractEntriesText } from './zip-utils';
 // 【D3 优化】导入错误处理工具
@@ -18,6 +21,10 @@ import {
   logError,
   convertNodeError
 } from './error-utils';
+// 【内存优化】导入文件大小限制常量
+import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, SLIDING_WINDOW_CHUNK_SIZE_MB, calculateParserTimeout } from './scan-config';
+// 【新增】导入敏感词检测函数
+import { getHighlights } from './sensitive-detector';
 
 // 【新增】文件类型到处理函数的映射（单一数据源，便于维护）
 type ExtractorFunction = (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
@@ -49,7 +56,7 @@ const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
   'bat': extractTextFile,
   'csv': extractTextFile,
   'json': extractTextFile,
-  'xml': extractTextFile,
+  'xml': extractXmlFile,  // 【新增】使用流式 XML 解析器
   'yaml': extractTextFile,
   'yml': extractTextFile,
   'properties': extractTextFile,
@@ -102,175 +109,470 @@ export async function extractTextFromFile(filePath: string): Promise<{ text: str
   }
 }
 
+// 【内存优化】流式读取文本文件，防止超大文件导致 OOM
+// 【优化】使用数组收集代替字符串拼接，减少内存分配
 async function extractTextFile(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
-  try {
-    const content = await fs.promises.readFile(filePath, 'utf-8');
-    return { text: content, unsupportedPreview: false };
-  } catch (error: any) {
-    logError('extractTextFile', error);
-    throw convertNodeError(error, filePath, '读取文本文件失败');
-  }
+  return new Promise((resolve, reject) => {
+    const stream = createReadStream(filePath, { 
+      encoding: 'utf-8',
+      highWaterMark: 64 * 1024 // 64KB 缓冲区
+    });
+    
+    const textChunks: string[] = [];  // 【优化】使用数组收集
+    let totalSize = 0;
+    const maxSizeBytes = MAX_TEXT_CONTENT_SIZE_MB * BYTES_TO_MB;
+    let isResolved = false;
+    
+    stream.on('data', (chunk: string | Buffer) => {
+      const chunkStr = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+      totalSize += Buffer.byteLength(chunkStr, 'utf-8');
+      
+      if (totalSize > maxSizeBytes) {
+        stream.destroy();
+        console.warn(`[extractTextFile] 文件内容过大 (${(totalSize / BYTES_TO_MB).toFixed(1)}MB)，跳过解析: ${filePath}`);
+        if (!isResolved) {
+          isResolved = true;
+          resolve({ text: '', unsupportedPreview: true });
+        }
+        return;
+      }
+      
+      textChunks.push(chunkStr);  // 【优化】推入数组，不拼接
+    });
+    
+    stream.on('end', () => {
+      if (!isResolved) {
+        isResolved = true;
+        // 【优化】一次性 join，减少内存分配
+        const text = textChunks.join('');
+        const hasContent = text.trim().length > 0;
+        resolve({ 
+          text: hasContent ? text : '', 
+          unsupportedPreview: !hasContent 
+        });
+      }
+    });
+    
+    stream.on('error', (error: any) => {
+      if (!isResolved) {
+        isResolved = true;
+        logError('extractTextFile', error);
+        reject(convertNodeError(error, filePath, '读取文本文件失败'));
+      }
+    });
+  });
 }
 
-// 【修复】PDF 使用 pdf-parse 库解析，避免 docstream 的 pdfjs-dist Worker 问题
+// 【新增】流式 XML 解析器，使用 sax 边读边解析，避免大文件 OOM
+// 【优化】使用数组收集代替字符串拼接，减少内存分配
+async function extractXmlFile(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  return new Promise((resolve, reject) => {
+    const stream = createReadStream(filePath, { 
+      highWaterMark: 64 * 1024 // 64KB 缓冲区
+    });
+    
+    // 创建严格模式的 sax 解析器
+    const parser = sax.createStream(true, { trim: true });
+    
+    const textChunks: string[] = [];  // 【优化】使用数组收集
+    let totalTextLength = 0;
+    const maxTextLength = MAX_TEXT_CONTENT_SIZE_MB * BYTES_TO_MB;
+    let isResolved = false;
+    
+    // 监听文本节点事件
+    parser.on('text', (text: string) => {
+      if (isResolved) return;
+      
+      const trimmed = text.trim();
+      if (trimmed) {
+        totalTextLength += trimmed.length + 1;
+        
+        if (totalTextLength > maxTextLength) {
+          stream.destroy();
+          parser.destroy();
+          console.warn(`[extractXmlFile] XML 文本内容过大 (${(totalTextLength / BYTES_TO_MB).toFixed(1)}MB)，跳过解析: ${filePath}`);
+          if (!isResolved) {
+            isResolved = true;
+            resolve({ text: '', unsupportedPreview: true });
+          }
+          return;
+        }
+        
+        textChunks.push(trimmed);  // 【优化】推入数组，不拼接
+      }
+    });
+    
+    parser.on('end', () => {
+      if (!isResolved) {
+        isResolved = true;
+        // 【优化】一次性 join，减少内存分配
+        const textContent = textChunks.join(' ');
+        const hasContent = textContent.trim().length > 0;
+        resolve({ 
+          text: hasContent ? textContent : '', 
+          unsupportedPreview: !hasContent 
+        });
+      }
+    });
+    
+    parser.on('error', (error: any) => {
+      if (!isResolved) {
+        isResolved = true;
+        logError('extractXmlFile', error, 'warn');
+        // XML 解析失败时，降级到普通文本读取
+        extractTextFile(filePath).then(resolve).catch(reject);
+      }
+    });
+    
+    stream.pipe(parser);
+    
+    stream.on('error', (error: any) => {
+      if (!isResolved) {
+        isResolved = true;
+        logError('extractXmlFile-stream', error);
+        reject(convertNodeError(error, filePath, '读取 XML 文件失败'));
+      }
+    });
+  });
+}
+
+// 【优化】使用 pdfreader 流式解析 PDF，大幅降低内存占用
 async function extractPdf(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  // 【关键修复】先获取文件大小，计算智能超时
+  let stat: fs.Stats;
   try {
-    const dataBuffer = await fs.promises.readFile(filePath);
-    const data = await pdfParse(dataBuffer);
-    
-    const hasContent = data.text && data.text.trim().length > 0;
-    
-    return {
-      text: hasContent ? data.text : '',
-      unsupportedPreview: !hasContent
-    };
+    stat = await fs.promises.stat(filePath);
   } catch (error: any) {
-    // PDF 解析失败是正常现象（文件损坏或格式不支持），静默处理
-    logError('extractPdf', error, 'warn');
+    logError('extractPdf', error);
     return { text: '', unsupportedPreview: true };
   }
+  
+  const timeoutMs = calculateParserTimeout(stat.size);
+  let isResolved = false;
+  
+  return new Promise((resolve, reject) => {
+    const textChunks: string[] = [];
+    let totalLength = 0;
+    const maxTextLength = MAX_TEXT_CONTENT_SIZE_MB * BYTES_TO_MB;
+    
+    // 【关键修复】添加智能超时保护，防止 pdfreader 卡死
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn(`[extractPdf] PDF 解析超时 (${timeoutMs/1000}秒)，跳过: ${path.basename(filePath)}`);
+        resolve({ text: '', unsupportedPreview: true });
+      }
+    }, timeoutMs);
+    
+    try {
+      new PdfReader().parseFileItems(filePath, (err, item) => {
+        if (isResolved) return;
+        
+        if (err) {
+          // 解析错误（包括密码保护等）
+          clearTimeout(timeoutId);
+          isResolved = true;
+          
+          // 【关键修复】检测密码保护异常
+          const errorMsg = typeof err === 'string' ? err : ((err as any).message || String(err));
+          if (errorMsg.includes('Password') || errorMsg.includes('password')) {
+            console.warn(`[extractPdf] PDF 有密码保护，跳过: ${path.basename(filePath)}`);
+          } else {
+            logError('extractPdf', err, 'warn');
+          }
+          
+          resolve({ text: '', unsupportedPreview: true });
+        } else if (!item) {
+          // EOF - 解析完成
+          clearTimeout(timeoutId);
+          isResolved = true;
+          const text = textChunks.join('\n');
+          const hasContent = text.trim().length > 0;
+          resolve({
+            text: hasContent ? text : '',
+            unsupportedPreview: !hasContent
+          });
+        } else if (item.text) {
+          // 累积文本
+          totalLength += item.text.length;
+          
+          // 检查文本大小限制，防止 OOM
+          if (totalLength > maxTextLength) {
+            clearTimeout(timeoutId);
+            console.warn(`[extractPdf] PDF 文本内容过大 (${(totalLength / BYTES_TO_MB).toFixed(1)}MB)，跳过解析: ${path.basename(filePath)}`);
+            isResolved = true;
+            resolve({ text: '', unsupportedPreview: true });
+            return;
+          }
+          
+          textChunks.push(item.text);
+        }
+        // 忽略其他类型的 item（如 page、file 等）
+      });
+    } catch (error: any) {
+      // 【关键修复】捕获同步抛出的异常（如 PasswordException）
+      clearTimeout(timeoutId);
+      if (!isResolved) {
+        isResolved = true;
+        const errorMsg = error.message || String(error);
+        if (errorMsg.includes('Password') || errorMsg.includes('password')) {
+          console.warn(`[extractPdf] PDF 有密码保护，跳过: ${path.basename(filePath)}`);
+        } else {
+          logError('extractPdf', error, 'warn');
+        }
+        resolve({ text: '', unsupportedPreview: true });
+      }
+    }
+  });
 }
 
 // 【新增】使用 word-extractor 解析 .doc 和 .docx 文件
 async function extractWithWordExtractor(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  // 【关键修复】添加智能超时保护，防止 word-extractor 卡死
+  let isResolved = false;
+  
+  // 先获取文件大小，然后计算智能超时
+  let stat: fs.Stats;
   try {
-    // 创建 extractor 实例
-    const extractor = new WordExtractor();
-    
-    // 提取文本
-    const extracted = await extractor.extract(filePath);
-    const text = extracted.getBody();
-    
-    const hasContent = text && text.trim().length > 0;
-    
-    // 【优化】只在解析失败时输出日志
-    if (!hasContent) {
-      logError('extractWithWordExtractor', `[word-extractor] 未提取到内容: ${path.basename(filePath)}`, 'warn');
-    }
-    
-    return {
-      text: hasContent ? text : '',
-      unsupportedPreview: !hasContent
-    };
-    
+    stat = await fs.promises.stat(filePath);
   } catch (error: any) {
     logError('extractWithWordExtractor', error);
-    
-    // 降级到二进制提取
-    try {
-      const data = await fs.promises.readFile(filePath);
-      const text = extractTextFromBinary(data);
-      if (text.trim()) {
-        return { text, unsupportedPreview: false };
-      }
-    } catch (e: any) {
-      logError('extractWithWordExtractor-fallback', e);
-    }
-    
     return { text: '', unsupportedPreview: true };
   }
+  
+  const timeoutMs = calculateParserTimeout(stat.size);
+  
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn(`[extractWithWordExtractor] 解析超时 (${timeoutMs/1000}秒)，跳过: ${path.basename(filePath)}`);
+        resolve({ text: '', unsupportedPreview: true });
+      }
+    }, timeoutMs);
+    
+    (async () => {
+      try {
+        // 创建 extractor 实例
+        const extractor = new WordExtractor();
+        
+        // 提取文本
+        const extracted = await extractor.extract(filePath);
+        const text = extracted.getBody();
+        
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          
+          const hasContent = text && text.trim().length > 0;
+          
+          // 【优化】只在解析失败时输出日志
+          if (!hasContent) {
+            logError('extractWithWordExtractor', `[word-extractor] 未提取到内容: ${path.basename(filePath)}`, 'warn');
+          }
+          
+          resolve({
+            text: hasContent ? text : '',
+            unsupportedPreview: !hasContent
+          });
+        }
+        
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          logError('extractWithWordExtractor', error);
+          
+          // 降级到二进制提取
+          try {
+            const data = await fs.promises.readFile(filePath);
+            const text = extractTextFromBinary(data);
+            if (text.trim()) {
+              resolve({ text, unsupportedPreview: false });
+              return;
+            }
+          } catch (e: any) {
+            logError('extractWithWordExtractor-fallback', e);
+          }
+          
+          resolve({ text: '', unsupportedPreview: true });
+        }
+      }
+    })();
+  });
 }
 
 // 【新增】使用自定义方案解析 .pptx 文件（使用 fflate）
 async function extractPptx(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  // 【关键修复】添加智能超时保护，防止 ZIP 解压卡死
+  let isResolved = false;
+  
+  // 先获取文件大小，然后计算智能超时
+  let stat: fs.Stats;
   try {
-    // 使用 fflate 解压
-    const entries = await unzipFile(filePath);
-    
-    // 查找所有幻灯片 XML 文件
-    const slideEntries = findZipEntries(entries, 'ppt/slides/slide');
-    
-    let allText = '';
-    
-    for (const entry of slideEntries) {
-      try {
-        const xmlContent = extractEntriesText([entry])[0];
-        if (!xmlContent) continue;
-        
-        // 简单提取 <a:t> 标签中的文本（PowerPoint 的文本格式）
-        const textMatches = xmlContent.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
-        if (textMatches) {
-          const texts = textMatches.map((match: string) => {
-            const content = match.match(/<a:t[^>]*>([^<]*)<\/a:t>/);
-            return content ? content[1] : '';
-          }).filter((t: string) => t.trim());
-          
-          if (texts.length > 0) {
-            allText += '\n' + texts.join(' ');
-          }
-        }
-      } catch (e) {
-        // 忽略单个幻灯片的解析错误
-      }
-    }
-    
-    const hasContent = allText && allText.trim().length > 0;
-    
-    return {
-      text: hasContent ? allText : '',
-      unsupportedPreview: !hasContent
-    };
-    
+    stat = await fs.promises.stat(filePath);
   } catch (error: any) {
     logError('extractPptx', error);
-    
-    // 降级到二进制提取
-    try {
-      const data = await fs.promises.readFile(filePath);
-      const text = extractTextFromBinary(data);
-      if (text.trim()) {
-        return { text, unsupportedPreview: false };
-      }
-    } catch (e: any) {
-      logError('extractPptx-fallback', e);
-    }
-    
     return { text: '', unsupportedPreview: true };
   }
+  
+  const timeoutMs = calculateParserTimeout(stat.size);
+  
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn(`[extractPptx] 解析超时 (${timeoutMs/1000}秒)，跳过: ${path.basename(filePath)}`);
+        resolve({ text: '', unsupportedPreview: true });
+      }
+    }, timeoutMs);
+    
+    (async () => {
+      try {
+        // 使用 fflate 解压
+        const entries = await unzipFile(filePath);
+        
+        // 查找所有幻灯片 XML 文件
+        const slideEntries = findZipEntries(entries, 'ppt/slides/slide');
+        
+        let allText = '';
+        
+        for (const entry of slideEntries) {
+          try {
+            const xmlContent = extractEntriesText([entry])[0];
+            if (!xmlContent) continue;
+            
+            // 简单提取 <a:t> 标签中的文本（PowerPoint 的文本格式）
+            const textMatches = xmlContent.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+            if (textMatches) {
+              const texts = textMatches.map((match: string) => {
+                const content = match.match(/<a:t[^>]*>([^<]*)<\/a:t>/);
+                return content ? content[1] : '';
+              }).filter((t: string) => t.trim());
+              
+              if (texts.length > 0) {
+                allText += '\n' + texts.join(' ');
+              }
+            }
+          } catch (e) {
+            // 忽略单个幻灯片的解析错误
+          }
+        }
+        
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          
+          const hasContent = allText && allText.trim().length > 0;
+          
+          resolve({
+            text: hasContent ? allText : '',
+            unsupportedPreview: !hasContent
+          });
+        }
+        
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          logError('extractPptx', error);
+          
+          // 降级到二进制提取
+          try {
+            const data = await fs.promises.readFile(filePath);
+            const text = extractTextFromBinary(data);
+            if (text.trim()) {
+              resolve({ text, unsupportedPreview: false });
+              return;
+            }
+          } catch (e: any) {
+            logError('extractPptx-fallback', e);
+          }
+          
+          resolve({ text: '', unsupportedPreview: true });
+        }
+      }
+    })();
+  });
 }
 
 // 【新增】使用 SheetJS 快速解析 Excel 文件
 async function extractWithSheetJS(filePath: string): Promise<{ text: string; unsupportedPreview: boolean }> {
+  // 【关键修复】添加智能超时保护，防止 SheetJS 卡死
+  let isResolved = false;
+  
+  // 先获取文件大小，然后计算智能超时
+  let stat: fs.Stats;
   try {
-    // 读取文件
-    const data = await fs.promises.readFile(filePath);
-    
-    // 使用 SheetJS 解析工作簿
-    const workbook = XLSX.read(data, {
-      type: 'buffer',
-      cellText: true,
-      cellDates: true,
-    });
-    
-    // 提取所有工作表的文本
-    let allText = '';
-    
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      
-      // 将工作表转换为 CSV 格式（保留换行）
-      const csv = XLSX.utils.sheet_to_csv(worksheet, {
-        FS: '\t', // 字段分隔符：制表符
-        RS: '\n', // 记录分隔符：换行符
-      });
-      
-      if (csv && csv.trim()) {
-        allText += `\n=== ${sheetName} ===\n${csv}\n`;
-      }
-    }
-    
-    // 检查是否有实质性内容
-    const hasContent = allText && allText.trim().length > 0;
-    
-    return {
-      text: hasContent ? allText : '',
-      unsupportedPreview: !hasContent
-    };
-    
+    stat = await fs.promises.stat(filePath);
   } catch (error: any) {
     logError('extractWithSheetJS', error);
     return { text: '', unsupportedPreview: true };
   }
+  
+  const timeoutMs = calculateParserTimeout(stat.size);
+  
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn(`[extractWithSheetJS] 解析超时 (${timeoutMs/1000}秒)，跳过: ${path.basename(filePath)}`);
+        resolve({ text: '', unsupportedPreview: true });
+      }
+    }, timeoutMs);
+    
+    (async () => {
+      try {
+        // 读取文件
+        const data = await fs.promises.readFile(filePath);
+        
+        // 使用 SheetJS 解析工作簿
+        const workbook = XLSX.read(data, {
+          type: 'buffer',
+          cellText: true,
+          cellDates: true,
+        });
+        
+        // 提取所有工作表的文本
+        let allText = '';
+        
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName];
+          
+          // 将工作表转换为 CSV 格式（保留换行）
+          const csv = XLSX.utils.sheet_to_csv(worksheet, {
+            FS: '\t', // 字段分隔符：制表符
+            RS: '\n', // 记录分隔符：换行符
+          });
+          
+          if (csv && csv.trim()) {
+            allText += `\n=== ${sheetName} ===\n${csv}\n`;
+          }
+        }
+        
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          
+          // 检查是否有实质性内容
+          const hasContent = allText && allText.trim().length > 0;
+          
+          resolve({
+            text: hasContent ? allText : '',
+            unsupportedPreview: !hasContent
+          });
+        }
+        
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (!isResolved) {
+          isResolved = true;
+          logError('extractWithSheetJS', error);
+          resolve({ text: '', unsupportedPreview: true });
+        }
+      }
+    })();
+  });
 }
 
 // 【新增】二进制提取（用于 .doc、.ppt 等旧格式）
@@ -292,7 +594,7 @@ async function extractWithBinary(filePath: string): Promise<{ text: string; unsu
 }
 
 // 从二进制数据中提取可打印文本
-function extractTextFromBinary(data: Buffer): string {
+export function extractTextFromBinary(data: Buffer): string {
   let result = '';
   let currentText = '';
   const minTextLength = 4; // 最少连续字符数

@@ -255,3 +255,31 @@ export function getHighlights(text: string, enabledTypes: string[]): HighlightRa
   
   return highlights;
 }
+
+// 【新增】扫描模式专用：只统计数量，不保存结果（防止 OOM）
+export function countSensitiveMatches(text: string, enabledTypes: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  
+  for (const rule of sensitiveRules) {
+    if (!enabledTypes.includes(rule.id)) continue;
+    
+    // 为每次检测创建新的正则表达式实例，避免lastIndex污染
+    const pattern = new RegExp(rule.pattern.source, rule.pattern.flags);
+    
+    const matches = Array.from(text.matchAll(pattern));
+    
+    let validCount = 0;
+    for (const match of matches) {
+      if (rule.validate && !rule.validate(match[0], text, match.index!)) {
+        continue;
+      }
+      validCount++;
+    }
+    
+    if (validCount > 0) {
+      counts[rule.id] = validCount;
+    }
+  }
+  
+  return counts;
+}

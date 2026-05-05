@@ -51,8 +51,9 @@ import {
     CANCEL_SCAN_CHECK_INTERVAL,
     WORKER_MAX_OLD_GENERATION_MB,
     WORKER_MAX_YOUNG_GENERATION_MB,
-    PREVIEW_TIMEOUT,
     PREVIEW_CHUNK_SIZE,  // 【方案 D3】预览流式传输块大小
+    calculatePreviewTimeout,  // 【重构】智能预览超时计算
+    PREVIEW_BASE_TIMEOUT,  // 【重构】预览基础超时
     WINDOW_MIN_WIDTH,
     WINDOW_MIN_HEIGHT,
     WINDOW_DEFAULT_WIDTH,
@@ -447,14 +448,28 @@ function setupIpcHandlers() {
             
             return new Promise((resolve) => {
                 let messageReceived = false;
+                let timeout: NodeJS.Timeout | null = null; // 【重构】提升 timeout 到外层作用域
                 
-                const timeout = setTimeout(() => {
-                    if (!messageReceived) {
-                        worker.terminate();
-                        previewWorkers.delete(taskId);
-                        resolve({ error: '预览超时，文件可能太大或太复杂' });
+                // 【重构】根据文件大小智能计算预览超时
+                const getTimeout = async () => {
+                    try {
+                        const stat = await fs.promises.stat(filePath);
+                        return calculatePreviewTimeout(stat.size);
+                    } catch (error) {
+                        console.warn('[预览] 无法获取文件大小，使用默认超时');
+                        return PREVIEW_BASE_TIMEOUT; // 使用基础超时
                     }
-                }, PREVIEW_TIMEOUT);
+                };
+                
+                getTimeout().then((timeoutMs) => {
+                    timeout = setTimeout(() => {
+                        if (!messageReceived) {
+                            worker.terminate();
+                            previewWorkers.delete(taskId);
+                            resolve({ error: '预览超时，文件可能太大或太复杂' });
+                        }
+                    }, timeoutMs);
+                });
                 
                 worker.on('message', (result: any) => {
                     // 跳过 ready 消息
@@ -478,7 +493,7 @@ function setupIpcHandlers() {
                     // 处理完成消息
                     if (result.type === 'complete') {
                         messageReceived = true;
-                        clearTimeout(timeout);
+                        if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         worker.terminate();
                         resolve({ success: true, totalChunks: result.totalChunks });
@@ -488,7 +503,7 @@ function setupIpcHandlers() {
                     // 处理错误
                     if (result.error) {
                         messageReceived = true;
-                        clearTimeout(timeout);
+                        if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         worker.terminate();
                         resolve({ error: result.error });
@@ -497,14 +512,14 @@ function setupIpcHandlers() {
                 });
                 
                 worker.on('error', (error: any) => {
-                    clearTimeout(timeout);
+                    if (timeout) clearTimeout(timeout);
                     previewWorkers.delete(taskId);
                     resolve({ error: '预览失败：' + error.message });
                 });
                 
                 worker.on('exit', (code: number) => {
                     if (code !== 0 && !messageReceived) {
-                        clearTimeout(timeout);
+                        if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         resolve({ error: `预览异常退出 (代码: ${code})` });
                     }
@@ -519,7 +534,9 @@ function setupIpcHandlers() {
                     streamMode: true,  // 【方案 D3】启用流式模式
                     chunkSize: PREVIEW_CHUNK_SIZE,   // 每块行数（配置常量）
                     config: {
-                        enabledSensitiveTypes: enabledTypes
+                        enabledSensitiveTypes: enabledTypes,
+                        maxFileSizeMb: config.maxFileSizeMb,  // 【修复】传递用户配置
+                        maxPdfSizeMb: config.maxPdfSizeMb      // 【修复】传递用户配置
                     }
                 });
             });
@@ -528,112 +545,11 @@ function setupIpcHandlers() {
         }
     });
 
-    // 预览文件（非流式，兼容旧代码）（使用 Worker 线程，避免阻塞主进程）
-    ipcMain.handle('preview-file', async (_, filePath: string) => {
-        try {
-            const fs = require('fs');
-            
-            // 【方案 C】提前检查文件大小，避免传输过大数据阻塞 IPC
-            let stat;
-            try {
-                stat = await fs.promises.stat(filePath);
-            } catch (err: any) {
-                return { error: `无法访问文件：${err.message}` };
-            }
-            
-            const sizeMB = stat.size / BYTES_TO_MB;
-            if (sizeMB > DEFAULT_MAX_FILE_SIZE_MB) {
-                return { 
-                    error: `文件过大（${sizeMB.toFixed(1)}MB），无法预览。\n\n建议使用“打开文件”功能在外部应用中查看。`,
-                    fileSize: stat.size
-                };
-            }
-            
-            const { Worker } = require('worker_threads');
-            const pathModule = require('path');
-            
-            // 【方案 B】获取配置（在创建 Worker 之前，避免在 message 回调中执行异步操作）
-            const config = await loadConfig();
-            const enabledTypes = config.enabledSensitiveTypes || [];
-            
-            // 创建单个 Worker 来处理预览
-            const workerPath = pathModule.join(__dirname, 'file-worker.js');
-            const taskId = Date.now();
-            const worker = new Worker(workerPath, {
-                resourceLimits: {
-                    maxOldGenerationSizeMb: WORKER_MAX_OLD_GENERATION_MB,
-                    maxYoungGenerationSizeMb: WORKER_MAX_YOUNG_GENERATION_MB,
-                }
-            });
-            
-            // 【方案 B】注册 Worker，支持取消
-            previewWorkers.set(taskId, worker);
-            
-            return new Promise((resolve) => {
-                let messageReceived = false;
-                
-                const timeout = setTimeout(() => {
-                    if (!messageReceived) {
-                        worker.terminate();
-                        previewWorkers.delete(taskId);  // 清理
-                        resolve({ error: '预览超时，文件可能太大或太复杂' });
-                    }
-                }, PREVIEW_TIMEOUT);
-                
-                worker.on('message', (result: any) => {
-                    // 跳过 ready 消息
-                    if (result.type === 'ready') {
-                        return;
-                    }
-                    
-                    messageReceived = true;
-                    clearTimeout(timeout);
-                    previewWorkers.delete(taskId);  // 清理
-                    
-                    if (result.error) {
-                        worker.terminate();
-                        resolve({ error: result.error });
-                        return;
-                    }
-                    
-                    // 【方案 B】Worker 已经计算好高亮，直接返回
-                    worker.terminate();
-                    resolve({
-                        content: result.text || '',
-                        highlights: result.highlights || [],  // ✅ 直接使用 Worker 返回的高亮
-                        unsupportedPreview: result.unsupportedPreview || false
-                    });
-                });
-                
-                worker.on('error', (error: any) => {
-                    clearTimeout(timeout);
-                    previewWorkers.delete(taskId);  // 清理
-                    resolve({ error: '预览失败：' + error.message });
-                });
-                
-                worker.on('exit', (code: number) => {
-                    if (code !== 0 && !messageReceived) {
-                        clearTimeout(timeout);
-                        previewWorkers.delete(taskId);  // 清理
-                        resolve({ error: `预览异常退出 (代码: ${code})` });
-                    }
-                });
-                
-                // 发送任务到 Worker（包含配置）
-                worker.postMessage({
-                    taskId: taskId,
-                    filePath: filePath,
-                    enabledSensitiveTypes: [],
-                    previewMode: true, // 预览模式：只提取文本
-                    config: {  // 【方案 B】传入配置，让 Worker 计算高亮
-                        enabledSensitiveTypes: enabledTypes
-                    }
-                });
-            });
-        } catch (error: any) {
-            return { error: error.message };
-        }
-    });
+    // 【已删除】非流式预览处理器 - 所有预览统一使用流式模式（preview-file-stream）
+    // 旧的 preview-file 已被移除，因为：
+    // 1. 前端已完全迁移到 previewFileStream
+    // 2. 流式模式内存更可控，支持超大文件
+    // 3. 减少代码复杂度
 
     // 【方案 B】取消预览（真正终止 Worker）
     ipcMain.handle('cancel-preview', (_, taskId: number) => {

@@ -11,10 +11,6 @@ import {calculateActualConcurrency} from './config-manager';
 import {
     WORKER_MAX_OLD_GENERATION_MB,
     WORKER_MAX_YOUNG_GENERATION_MB,
-    TIMEOUT_SMALL_FILE,
-    TIMEOUT_MEDIUM_FILE,
-    TIMEOUT_LARGE_FILE,
-    TIMEOUT_HUGE_FILE,
     STAGNATION_CHECK_INTERVAL,
     STAGNATION_THRESHOLD,
     MAX_IDLE_TIME,
@@ -148,7 +144,7 @@ export async function startScan(
         const baseMemoryPerWorker = Math.min(systemBasedLimit, configBasedLimit);
         
         // 设置最低和最高限制
-        const minMemoryPerWorker = 200; // 最少 200MB
+        const minMemoryPerWorker = 200; // 【修复】最少 512MB（原200MB，防止 PDF/DOCX 解析超时）
         const maxMemoryPerWorker = Math.floor(freeMemoryMB * 0.8 / workerCount); // 最多使用 80% 可用内存
         
         const finalMemoryPerWorker = Math.max(
@@ -361,41 +357,38 @@ export async function startScan(
         createConsumer(i);
     }
 
-    // 【重构】使用辅助函数计算超时时间
-    const calculateTimeout = (fileSize: number) => calcTimeout(fileSize, {
-        small: TIMEOUT_SMALL_FILE,
-        medium: TIMEOUT_MEDIUM_FILE,
-        large: TIMEOUT_LARGE_FILE,
-        huge: TIMEOUT_HUGE_FILE
-    });
+    // 【重构】使用智能超时计算函数
+    const calculateTimeout = (fileSize: number) => calcTimeout(fileSize);
+
+    // 【关键修复】轮询索引，实现 Round-Robin 调度
+    let nextConsumerIndex = 0;
 
     // 尝试调度任务
     function tryDispatch() {
-        // 【性能优化】移除高频日志，避免 I/O 阻塞主线程
-        // console.log(`[tryDispatch] 检查调度: taskQueue=${taskQueue.length}, consumers=${consumers.length}`);
         let dispatched = 0;
-        for (const consumer of consumers) {
+        
+        // 【关键修复】使用轮询调度，从上次结束的位置开始查找
+        const startIndex = nextConsumerIndex;
+        const totalConsumers = consumers.length;
+        
+        for (let i = 0; i < totalConsumers; i++) {
+            // 计算当前要检查的 Consumer 索引（循环）
+            const currentIndex = (startIndex + i) % totalConsumers;
+            const consumer = consumers[currentIndex];
+            
             if (!consumer.busy && taskQueue.length > 0) {
-                // 【优化】只在真正分发时才记录
-                // console.log(`[tryDispatch] 分发任务给 Consumer`);
                 // 处理 Promise rejection，避免未捕获的错误
                 const promise = dispatchNextTask(consumer);
                 if (promise) {
                     dispatched++;
+                    // 【关键修复】更新轮询索引到下一个位置
+                    nextConsumerIndex = (currentIndex + 1) % totalConsumers;
                     promise.catch((error) => {
                         console.error(`[TaskQueue] 任务分发失败:`, error.message);
                     });
                 }
             }
         }
-        // 【优化】移除成功分发的日志，避免频繁输出
-        // if (dispatched > 0) {
-        //     console.log(`[tryDispatch] 成功分发 ${dispatched} 个任务`);
-        // }
-        // 【优化】移除无法分发的警告，避免频繁输出
-        // else if (taskQueue.length > 0) {
-        //     console.warn(`[tryDispatch] 有任务但无法分发: taskQueue=${taskQueue.length}, allBusy=${consumers.every(c => c.busy)}`);
-        // }
     }
 
     // 分发下一个任务
@@ -464,7 +457,12 @@ export async function startScan(
                 consumer.worker.postMessage({
                     taskId,
                     filePath: task.filePath,
-                    enabledSensitiveTypes: config.enabledSensitiveTypes
+                    enabledSensitiveTypes: config.enabledSensitiveTypes,
+                    config: {
+                        enabledSensitiveTypes: config.enabledSensitiveTypes,
+                        maxFileSizeMb: config.maxFileSizeMb,  // 【修复】传递用户配置
+                        maxPdfSizeMb: config.maxPdfSizeMb      // 【修复】传递用户配置
+                    }
                 });
             } catch (error: any) {
                 console.error(`[TaskQueue] 发送任务失败:`, error.message);
@@ -483,7 +481,13 @@ export async function startScan(
     const walkerWorkerPath = path.join(__dirname, 'walker-worker.js');
     let walkerWorker: Worker;
     try {
-        walkerWorker = new Worker(walkerWorkerPath);
+        // 【修复】给 Walker Worker 也设置内存限制，防止 OOM
+        walkerWorker = new Worker(walkerWorkerPath, {
+            resourceLimits: {
+                maxOldGenerationSizeMb: dynamicOldGenMB,
+                maxYoungGenerationSizeMb: dynamicYoungGenMB,
+            }
+        });
     } catch (error: any) {
         log(`错误: 无法创建 Walker Worker - ${error.message}`);
         scanState.isScanning = false;

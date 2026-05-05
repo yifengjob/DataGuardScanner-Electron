@@ -4,6 +4,8 @@
  */
 
 import * as path from 'path';
+// 【修复】导入 UI 显示配置常量
+import { FILE_SIZE_DECIMAL_PLACES } from './scan-config';
 
 /**
  * 应用错误类
@@ -72,8 +74,9 @@ export function createPermissionError(filePath: string, originalError?: any): Ap
 
 /**
  * 文件大小显示精度（MB）
+ * 【已迁移】此常量已移至 scan-config.ts，此处仅保留注释说明
  */
-const FILE_SIZE_DECIMAL_PLACES = 1;
+// const FILE_SIZE_DECIMAL_PLACES = 1; // 已删除，使用导入的常量
 
 export function createFileTooLargeError(filePath: string, sizeMB: number, limitMB: number): AppError {
   return new AppError(

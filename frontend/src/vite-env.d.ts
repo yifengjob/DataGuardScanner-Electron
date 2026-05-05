@@ -16,9 +16,8 @@ interface ElectronAPI {
   onScanFinished: (callback: () => void) => Promise<() => void>
   onScanError: (callback: (error: string) => void) => Promise<() => void>
   
-  // 文件操作
-  previewFile: (filePath: string) => Promise<any>
-  previewFileStream: (filePath: string) => Promise<any>  // 【方案 D3】流式预览
+  // 文件操作（统一使用流式预览）
+  previewFileStream: (filePath: string) => Promise<any>
   cancelPreview: (taskId: number) => Promise<any>
   onPreviewChunk: (callback: (chunk: any) => void) => Promise<() => void>  // 【方案 D3】
   openFile: (filePath: string) => Promise<any>

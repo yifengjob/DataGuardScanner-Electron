@@ -11,11 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   scanCancel: () =>
     ipcRenderer.invoke('scan-cancel'),
   
-  // 预览
-  previewFile: (filePath: string) =>
-    ipcRenderer.invoke('preview-file', filePath),
+  // 预览（统一使用流式模式）
   previewFileStream: (filePath: string) =>
-    ipcRenderer.invoke('preview-file-stream', filePath),  // 【方案 D3】流式预览
+    ipcRenderer.invoke('preview-file-stream', filePath),
   cancelPreview: (taskId: number) =>
     ipcRenderer.invoke('cancel-preview', taskId),
   
@@ -119,8 +117,7 @@ declare global {
       getDirectoryTree: (path: string, showHidden: boolean) => Promise<any>;
       scanStart: (config: any) => Promise<any>;
       scanCancel: () => Promise<any>;
-      previewFile: (filePath: string) => Promise<any>;
-      previewFileStream: (filePath: string) => Promise<any>;  // 【方案 D3】
+      previewFileStream: (filePath: string) => Promise<any>;  // 流式预览
       cancelPreview: (taskId: number) => Promise<any>;
       openFile: (filePath: string) => Promise<any>;
       openFileLocation: (filePath: string) => Promise<any>;
