@@ -112,7 +112,14 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
       setTimeout(() => reject(new Error(`PDF 解析总超时 (${PDF_TOTAL_TIMEOUT_MS/1000}秒)`)), PDF_TOTAL_TIMEOUT_MS);
     });
     
-    pdf = await Promise.race([loadingTask, timeoutPromise]);
+    pdf = await Promise.race([loadingTask.promise, timeoutPromise]);
+    
+    // 【修复】检查文档是否有效
+    if (!pdf || !pdf.numPages) {
+      console.warn(`[PDF] 文档加载失败或无效: ${path.basename(filePath)}`);
+      return { text: '', unsupportedPreview: true };
+    }
+    
     totalPages = pdf.numPages;
     
     console.log(`[PDF] 文档加载完成，共 ${totalPages} 页`);
