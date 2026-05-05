@@ -16,22 +16,11 @@ import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_T
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
-// 【修复】动态导入 pdf.js (ES Module)，兼容 Worker 线程
-// 使用 eval 绕过 TypeScript 的模块转换
-let pdfjsLib: any = null;
+// 【修复】使用 pdf.js 3.x legacy build（CommonJS），兼容 Node.js Worker
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 
-async function loadPdfJs() {
-  if (!pdfjsLib) {
-    // 【关键】使用 Function 构造器创建真正的动态 import，避免 TypeScript 编译为 require()
-    const dynamicImport = new Function('modulePath', 'return import(modulePath)');
-    const pdfjsModule = await dynamicImport('pdfjs-dist');
-    pdfjsLib = pdfjsModule.default || pdfjsModule;
-    
-    // pdf.js 4.x 在 Node.js 环境中自动处理 worker
-    // 不需要手动设置 workerSrc
-  }
-  return pdfjsLib;
-}
+// 设置 worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
 
 // 【配置】PDF 文件大小限制（MB）- 从 scan-config.ts 导入
 const MAX_PDF_SIZE_MB = 50;
@@ -68,9 +57,6 @@ async function isImageOnlyPage(page: any): Promise<boolean> {
  * @returns 提取的文本和是否不支持预览的标志
  */
 export async function extractPdf(filePath: string): Promise<ExtractorResult> {
-  // 【关键】先加载 pdf.js
-  const pdfjsLib = await loadPdfJs();
-  
   let stat: fs.Stats;
   try {
     stat = await fs.promises.stat(filePath);
