@@ -124,10 +124,10 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
   {
     extensions: ['pdf'],
     processor: FileProcessorType.PARSER_REQUIRED,
-    maxSizeMB: FILE_SIZE_LIMITS.pdfMaxSizeMB,  // 【限制】pdfreader 仍有内存问题，限制为 10MB
+    maxSizeMB: FILE_SIZE_LIMITS.pdfMaxSizeMB,  // 【限制】pdf.js 性能更好，限制为 50MB
     supportsStreaming: false,
     extractor: extractPdf,
-    description: 'PDF 文件（使用 pdfreader 解析，>10MB 跳过）'
+    description: 'PDF 文件（使用 pdf.js 逐页解析，支持纯图检测）'
   },
   
   // ==================== Word 文档（需要先解析为文本）====================

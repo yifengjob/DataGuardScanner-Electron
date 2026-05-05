@@ -126,8 +126,8 @@ export function calculatePreviewTimeout(fileSizeBytes: number): number {
 /** 默认最大文件大小（MB） */
 export const DEFAULT_MAX_FILE_SIZE_MB = 25;
 
-/** 默认最大 PDF 文件大小（MB）- pdfreader 仍有内存问题，需严格限制 */
-export const DEFAULT_MAX_PDF_SIZE_MB = 25;
+/** 默认最大 PDF 文件大小（MB）- pdf.js 性能更好，但仍需限制 */
+export const DEFAULT_MAX_PDF_SIZE_MB = 50;
 
 /** 文本文件最大内容大小（MB）- 防止超大文本文件导致 OOM */
 export const MAX_TEXT_CONTENT_SIZE_MB = 25;

@@ -38,9 +38,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
-      pdfreader:
-        specifier: ^3.0.8
-        version: 3.0.8
+      pdfjs-dist:
+        specifier: 4.10.38
+        version: 4.10.38
       process:
         specifier: ^0.11.10
         version: 0.11.10
@@ -1267,20 +1267,13 @@ packages:
     resolution: {integrity: sha512-T2ZUsdZFHgA3u4e5PfPbjd7HDDpxPnQb5jN0SrDsjNSuVXHJqtwTnWqG0B1jZrgmJ/7lj1EmVIByWt1gxGkWvg==}
     engines: {node: '>=4'}
 
-  pdf2json@3.1.4:
-    resolution: {integrity: sha512-rS+VapXpXZr+5lUpHmRh3ugXdFXp24p1RyG24yP1DMpqP4t0mrYNGpLtpSbWD42PnQ59GIXofxF+yWb7M+3THg==}
-    engines: {node: '>=18.12.1', npm: '>=8.19.2'}
-    hasBin: true
-    bundledDependencies:
-      - '@xmldom/xmldom'
+  pdfjs-dist@4.10.38:
+    resolution: {integrity: sha512-/Y3fcFrXEAsMjJXeL9J8+ZG9U01LbuWaYypvDW2ycW1jL269L3js3DVBjDJ0Up9Np1uqDXsDrRihHANhZOlwdQ==}
+    engines: {node: '>=20'}
 
   pdfjs-dist@5.4.530:
     resolution: {integrity: sha512-r1hWsSIGGmyYUAHR26zSXkxYWLXLMd6AwqcaFYG9YUZ0GBf5GvcjJSeo512tabM4GYFhxhl5pMCmPr7Q72Rq2Q==}
     engines: {node: '>=20.16.0 || >=22.3.0'}
-
-  pdfreader@3.0.8:
-    resolution: {integrity: sha512-95X/7bIYfetvu2J12i1MwPIqMo6niWn2fcZU64UJh7agV7/tKNOhp01z7WVAcblpY+bosvwIZG18Pku9VpMulQ==}
-    engines: {node: '>=14'}
 
   peek-readable@4.1.0:
     resolution: {integrity: sha512-ZI3LnwUv5nOGbQzD9c2iDG6toheuXSZP5esSHBjopsXH4dg19soufvpUGA3uohi5anFtGb2lhAVdHzH6R/Evvg==}
@@ -3012,15 +3005,13 @@ snapshots:
     dependencies:
       pify: 3.0.0
 
-  pdf2json@3.1.4: {}
+  pdfjs-dist@4.10.38:
+    optionalDependencies:
+      '@napi-rs/canvas': 0.1.100
 
   pdfjs-dist@5.4.530:
     optionalDependencies:
       '@napi-rs/canvas': 0.1.100
-
-  pdfreader@3.0.8:
-    dependencies:
-      pdf2json: 3.1.4
 
   peek-readable@4.1.0: {}
 

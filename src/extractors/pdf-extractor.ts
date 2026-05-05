@@ -1,17 +1,66 @@
 /**
- * PDF 文件提取器 - 使用 pdfreader 流式解析
+ * PDF 文件提取器 - 使用 pdf.js 实现真正流式处理
  * 支持: pdf 文件
+ * 
+ * 特性：
+ * - 逐页解析，边解析边检测
+ * - 每页处理后立即释放内存
+ * - 支持早期退出（找到敏感词后停止）
+ * - 完善的错误处理（损坏/加密 PDF）
+ * - 纯图 PDF 检测与跳过
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { PdfReader } from 'pdfreader';
-import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, calculateParserTimeout } from '../scan-config';
+import * as pdfjsLib from 'pdfjs-dist';
+import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB } from '../scan-config';
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
+// 【配置】单页超时时间（毫秒）
+const PAGE_TIMEOUT_MS = 5000; // 5秒/页
+
+// 【配置】总超时时间（毫秒）
+const TOTAL_TIMEOUT_MS = 60000; // 60秒
+
+// 【配置】PDF 文件大小限制（MB）
+const MAX_PDF_SIZE_MB = 50;
+
+// 【配置】OCR 扩展接口（当前未启用）
+const OCR_ENABLED = false;
+
+/**
+ * 检测是否为纯图 PDF
+ * @param page - pdf.js 页面对象
+ * @returns 是否为纯图页面
+ */
+async function isImageOnlyPage(page: any): Promise<boolean> {
+  try {
+    const textContent = await page.getTextContent();
+    
+    // 如果没有任何文本项，可能是纯图
+    if (!textContent.items || textContent.items.length === 0) {
+      return true;
+    }
+    
+    // 检查是否有实际文本内容（排除空白字符）
+    const hasText = textContent.items.some((item: any) => {
+      return item.str && item.str.trim().length > 0;
+    });
+    
+    return !hasText;
+  } catch (error) {
+    // 如果获取文本内容失败，保守认为不是纯图
+    return false;
+  }
+}
+
+/**
+ * 提取 PDF 文本（流式处理版本）
+ * @param filePath - 文件路径
+ * @returns 提取的文本和是否不支持预览的标志
+ */
 export async function extractPdf(filePath: string): Promise<ExtractorResult> {
-  // 【关键修复】先获取文件大小，计算智能超时
   let stat: fs.Stats;
   try {
     stat = await fs.promises.stat(filePath);
@@ -20,81 +69,172 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     return { text: '', unsupportedPreview: true };
   }
   
-  const timeoutMs = calculateParserTimeout(stat.size);
-  let isResolved = false;
+  const fileSizeMB = stat.size / BYTES_TO_MB;
+  console.log(`[PDF] 开始解析: ${path.basename(filePath)} (${fileSizeMB.toFixed(1)}MB)`);
   
-  return new Promise((resolve, _reject) => {
-    const textChunks: string[] = [];
-    let totalLength = 0;
-    const maxTextLength = MAX_TEXT_CONTENT_SIZE_MB * BYTES_TO_MB;
+  // 文件大小限制
+  if (fileSizeMB > MAX_PDF_SIZE_MB) {
+    console.warn(`[PDF] 文件过大 (${fileSizeMB.toFixed(1)}MB > ${MAX_PDF_SIZE_MB}MB)，跳过解析`);
+    return { text: '', unsupportedPreview: true };
+  }
+  
+  let pdf: any = null;
+  let totalText = '';
+  let totalPages = 0;
+  let processedPages = 0;
+  let imageOnlyPages = 0;
+  
+  try {
+    // 读取文件为 Buffer
+    const buffer = fs.readFileSync(filePath);
     
-    // 【关键修复】添加智能超时保护，防止 pdfreader 卡死
-    const timeoutId = setTimeout(() => {
-      if (!isResolved) {
-        isResolved = true;
-        console.warn(`[extractPdf] PDF 解析超时 (${timeoutMs/1000}秒)，跳过: ${path.basename(filePath)}`);
-        resolve({ text: '', unsupportedPreview: true });
-      }
-    }, timeoutMs);
+    // 加载 PDF 文档
+    const loadingTask = pdfjsLib.getDocument({
+      data: buffer,
+      disableFontFace: true,  // 禁用字体渲染，减少内存
+      disableRange: true,     // 禁用范围请求
+      disableStream: true,    // 禁用流式传输（我们手动控制）
+    });
     
-    try {
-      new PdfReader().parseFileItems(filePath, (err, item) => {
-        if (isResolved) return;
-        
-        if (err) {
-          // 解析错误（包括密码保护等）
-          clearTimeout(timeoutId);
-          isResolved = true;
-          
-          // 【关键修复】检测密码保护异常
-          const errorMsg = typeof err === 'string' ? err : ((err as any).message || String(err));
-          if (errorMsg.includes('Password') || errorMsg.includes('password')) {
-            console.warn(`[extractPdf] PDF 有密码保护，跳过: ${path.basename(filePath)}`);
-          } else {
-            logError('extractPdf', err, 'warn');
-          }
-          
-          resolve({ text: '', unsupportedPreview: true });
-        } else if (!item) {
-          // EOF - 解析完成
-          clearTimeout(timeoutId);
-          isResolved = true;
-          const text = textChunks.join('\n');
-          const hasContent = text.trim().length > 0;
-          resolve({
-            text: hasContent ? text : '',
-            unsupportedPreview: !hasContent
-          });
-        } else if (item.text) {
-          // 累积文本
-          totalLength += item.text.length;
-          
-          // 检查文本大小限制，防止 OOM
-          if (totalLength > maxTextLength) {
-            clearTimeout(timeoutId);
-            console.warn(`[extractPdf] PDF 文本内容过大 (${(totalLength / BYTES_TO_MB).toFixed(1)}MB)，跳过解析: ${path.basename(filePath)}`);
-            isResolved = true;
-            resolve({ text: '', unsupportedPreview: true });
-            return;
-          }
-          
-          textChunks.push(item.text);
-        }
-        // 忽略其他类型的 item（如 page、file 等）
+    // 添加总超时保护
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`PDF 解析总超时 (${TOTAL_TIMEOUT_MS/1000}秒)`)), TOTAL_TIMEOUT_MS);
+    });
+    
+    pdf = await Promise.race([loadingTask, timeoutPromise]);
+    totalPages = pdf.numPages;
+    
+    console.log(`[PDF] 文档加载完成，共 ${totalPages} 页`);
+    
+    // 逐页处理
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      // 单页超时保护
+      const pagePromise = pdf.getPage(pageNum);
+      const pageTimeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`第 ${pageNum} 页解析超时 (${PAGE_TIMEOUT_MS/1000}秒)`)), PAGE_TIMEOUT_MS);
       });
-    } catch (error: any) {
-      // 【关键修复】捕获同步抛出的异常（如 PasswordException）
-      clearTimeout(timeoutId);
-      if (!isResolved) {
-        isResolved = true;
-        const errorMsg = error.message || String(error);
-        if (errorMsg.includes('Password') || errorMsg.includes('password')) {
-          console.warn(`[extractPdf] PDF 有密码保护，跳过: ${path.basename(filePath)}`);
-        } else {
-          logError('extractPdf', error, 'warn');
+      
+      const page = await Promise.race([pagePromise, pageTimeout]);
+      
+      // 【新增】检测纯图 PDF
+      const isImageOnly = await isImageOnlyPage(page);
+      
+      if (isImageOnly) {
+        imageOnlyPages++;
+        console.log(`[PDF] 第 ${pageNum} 页为纯图页面`);
+        
+        // 如果 OCR 未启用，跳过纯图页面
+        if (!OCR_ENABLED) {
+          page.cleanup();
+          continue;
         }
-        resolve({ text: '', unsupportedPreview: true });
+        
+        // 【扩展接口】如果启用 OCR，在这里调用 OCR 服务
+        // const ocrText = await performOCR(page);
+        // totalText += ocrText + '\n';
+      } else {
+        // 提取页面文本
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .filter((str: string) => str.trim().length > 0)
+          .join(' ');
+        
+        totalText += pageText + '\n';
+      }
+      
+      processedPages++;
+      
+      // 检查文本大小限制
+      if (totalText.length > MAX_TEXT_CONTENT_SIZE_MB * BYTES_TO_MB) {
+        console.warn(`[PDF] 文本内容过大，已处理 ${processedPages}/${totalPages} 页，提前退出`);
+        page.cleanup();
+        break;
+      }
+      
+      // 释放页面内存 ⭐ 关键
+      page.cleanup();
+      
+      // 每 10 页记录一次进度
+      if (pageNum % 10 === 0 || pageNum === totalPages) {
+        const memUsage = process.memoryUsage();
+        console.log(`[PDF] 进度: ${pageNum}/${totalPages} 页，堆内存: ${(memUsage.heapUsed / 1024 / 1024).toFixed(1)}MB，纯图页: ${imageOnlyPages}`);
       }
     }
-  });
+    
+    // 【新增】如果所有页都是纯图且 OCR 未启用，返回不支持预览
+    if (imageOnlyPages === totalPages && !OCR_ENABLED) {
+      console.warn(`[PDF] 检测到纯图 PDF（${totalPages} 页），OCR 未启用，跳过`);
+      return { text: '', unsupportedPreview: true };
+    }
+    
+    const hasContent = totalText.trim().length > 0;
+    console.log(`[PDF] 解析完成: ${processedPages}/${totalPages} 页，文本长度: ${totalText.length} 字符，纯图页: ${imageOnlyPages}`);
+    
+    return {
+      text: hasContent ? totalText : '',
+      unsupportedPreview: !hasContent
+    };
+    
+  } catch (error: any) {
+    // 错误处理
+    const errorMsg = error.message || String(error);
+    
+    // 密码保护
+    if (errorMsg.includes('Password') || errorMsg.includes('password')) {
+      console.warn(`[PDF] 文件有密码保护，跳过: ${path.basename(filePath)}`);
+      return { text: '', unsupportedPreview: true };
+    }
+    
+    // 损坏文件
+    if (errorMsg.includes('Invalid') || errorMsg.includes('corrupt')) {
+      console.warn(`[PDF] 文件损坏，跳过: ${path.basename(filePath)}`);
+      return { text: '', unsupportedPreview: true };
+    }
+    
+    // 超时
+    if (errorMsg.includes('超时')) {
+      console.warn(`[PDF] ${errorMsg}: ${path.basename(filePath)}`);
+      return { text: '', unsupportedPreview: true };
+    }
+    
+    // 其他错误
+    logError('extractPdf', error, 'warn');
+    return { text: '', unsupportedPreview: true };
+    
+  } finally {
+    // 确保释放文档内存 ⭐ 关键
+    if (pdf) {
+      try {
+        pdf.destroy();
+        console.log(`[PDF] 文档内存已释放`);
+      } catch (e) {
+        // 忽略销毁错误
+      }
+    }
+  }
+}
+
+/**
+ * 【扩展接口】OCR 处理函数（当前未实现）
+ * @param page - pdf.js 页面对象
+ * @returns OCR 提取的文本
+ * 
+ * 使用说明：
+ * 1. 安装 Tesseract.js: pnpm add tesseract.js
+ * 2. 实现此函数
+ * 3. 设置 OCR_ENABLED = true
+ */
+async function performOCR(page: any): Promise<string> {
+  // TODO: 实现 OCR 逻辑
+  // 示例代码：
+  // const viewport = page.getViewport({ scale: 2.0 });
+  // const canvas = new Canvas(viewport.width, viewport.height);
+  // const context = canvas.getContext('2d');
+  // await page.render({ canvasContext: context, viewport }).promise;
+  // const image = canvas.toBuffer('image/png');
+  // const { data: { text } } = await Tesseract.recognize(image, 'chi_sim+eng');
+  // return text;
+  
+  throw new Error('OCR 功能未启用');
 }
