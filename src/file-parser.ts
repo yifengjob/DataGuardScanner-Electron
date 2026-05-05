@@ -2,81 +2,13 @@
 import './log-utils';
 
 import * as path from 'path';
-// 【重构】从 extractors 模块导入所有提取器
-import {
-  extractTextFile,
-  extractXmlFile,
-  extractPdf,
-  extractWithWordExtractor,
-  extractWithSheetJS,
-  extractPptx,
-  extractWithBinary,
-  extractOdt,
-  extractOds,
-  extractOdp,
-  extractRtf,
-  type ExtractorFunction
-} from './extractors';
+// 【重构】从 file-types.ts 导入配置和辅助函数
+import { getFileExtractor, SUPPORTED_EXTENSIONS } from './file-types';
 // 【D3 优化】导入错误处理工具
 import { logError } from './error-utils';
 
-// 【重构】文件类型到处理函数的映射（单一数据源）
-const EXTRACTOR_MAP: Record<string, ExtractorFunction> = {
-  // 文本文件
-  'txt': extractTextFile,
-  'log': extractTextFile,
-  'md': extractTextFile,
-  'ini': extractTextFile,
-  'conf': extractTextFile,
-  'cfg': extractTextFile,
-  'env': extractTextFile,
-  'js': extractTextFile,
-  'ts': extractTextFile,
-  'py': extractTextFile,
-  'java': extractTextFile,
-  'c': extractTextFile,
-  'cpp': extractTextFile,
-  'go': extractTextFile,
-  'rs': extractTextFile,
-  'php': extractTextFile,
-  'rb': extractTextFile,
-  'swift': extractTextFile,
-  'html': extractTextFile,
-  'htm': extractTextFile,
-  'sh': extractTextFile,
-  'cmd': extractTextFile,
-  'bat': extractTextFile,
-  'csv': extractTextFile,
-  'json': extractTextFile,
-  'xml': extractXmlFile,
-  'yaml': extractTextFile,
-  'yml': extractTextFile,
-  'properties': extractTextFile,
-  'toml': extractTextFile,
-  // PDF
-  'pdf': extractPdf,
-  // Word 文档
-  'docx': extractWithWordExtractor,
-  'doc': extractWithWordExtractor,
-  'wps': extractWithWordExtractor,
-  'dps': extractWithBinary,
-  // Excel 表格
-  'xlsx': extractWithSheetJS,
-  'xls': extractWithSheetJS,
-  'et': extractWithSheetJS,
-  // PowerPoint
-  'pptx': extractPptx,
-  'ppt': extractWithBinary,
-  // OpenDocument
-  'odt': extractOdt,
-  'ods': extractOds,
-  'odp': extractOdp,
-  // RTF
-  'rtf': extractRtf,
-};
-
-// 从 EXTRACTOR_MAP 自动生成支持的文件类型列表
-export const SUPPORTED_EXTENSIONS = Object.keys(EXTRACTOR_MAP);
+// 【重构】导出 SUPPORTED_EXTENSIONS (保持向后兼容)
+export { SUPPORTED_EXTENSIONS };
 
 /**
  * 从文件中提取文本的主入口函数
@@ -92,8 +24,8 @@ export async function extractTextFromFile(filePath: string): Promise<{ text: str
       return { text: '', unsupportedPreview: true };
     }
     
-    // 使用映射表查找处理函数
-    const extractor = EXTRACTOR_MAP[ext];
+    // 【重构】从 file-types.ts 获取解析器函数
+    const extractor = getFileExtractor(filePath);
     if (extractor) {
       return await extractor(filePath);
     }

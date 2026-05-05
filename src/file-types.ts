@@ -6,6 +6,20 @@
 import * as path from 'path';
 // 【修复】导入文件大小限制常量
 import { FILE_SIZE_LIMITS } from './scan-config';
+// 【重构】导入所有提取器函数
+import {
+  extractTextFile,
+  extractXmlFile,
+  extractPdf,
+  extractWithWordExtractor,
+  extractWithSheetJS,
+  extractPptx,
+  extractWithBinary,
+  extractOdt,
+  extractOds,
+  extractOdp,
+  extractRtf
+} from './extractors';
 
 /**
  * 处理器类型枚举
@@ -39,6 +53,9 @@ export interface FileTypeConfig {
   
   /** 描述信息（用于日志和调试） */
   description?: string;
+  
+  /** 【新增】解析器函数引用（直接从 extractors 模块导入） */
+  extractor?: (filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>;
 }
 
 /**
@@ -76,18 +93,21 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['txt', 'log', 'md', 'ini', 'conf', 'cfg', 'env'],
     processor: FileProcessorType.STREAMING_TEXT,
     supportsStreaming: true,
+    extractor: extractTextFile,
     description: '纯文本文件'
   },
   {
     extensions: ['js', 'ts', 'py', 'java', 'c', 'cpp', 'go', 'rs', 'php', 'rb', 'swift'],
     processor: FileProcessorType.STREAMING_TEXT,
     supportsStreaming: true,
+    extractor: extractTextFile,
     description: '源代码文件'
   },
   {
     extensions: ['html', 'htm', 'sh', 'cmd', 'bat', 'csv', 'json', 'yaml', 'yml', 'properties', 'toml'],
     processor: FileProcessorType.STREAMING_TEXT,
     supportsStreaming: true,
+    extractor: extractTextFile,
     description: '标记语言和配置文件'
   },
   
@@ -96,6 +116,7 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['xml'],
     processor: FileProcessorType.STREAMING_TEXT,
     supportsStreaming: true,
+    extractor: extractXmlFile,
     description: 'XML 文件（使用 sax 流式解析）'
   },
   
@@ -105,6 +126,7 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     processor: FileProcessorType.PARSER_REQUIRED,
     maxSizeMB: FILE_SIZE_LIMITS.pdfMaxSizeMB,  // 【限制】pdfreader 仍有内存问题，限制为 10MB
     supportsStreaming: false,
+    extractor: extractPdf,
     description: 'PDF 文件（使用 pdfreader 解析，>10MB 跳过）'
   },
   
@@ -113,6 +135,7 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['doc', 'docx', 'wps'],
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,
+    extractor: extractWithWordExtractor,
     description: 'Word 文档（使用 word-extractor 解析）'
   },
   
@@ -121,6 +144,7 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['xlsx', 'xls', 'et'],
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,
+    extractor: extractWithSheetJS,
     description: 'Excel 表格（使用 SheetJS 解析）'
   },
   
@@ -129,12 +153,14 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['pptx', 'dps'],
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,
+    extractor: extractPptx,
     description: 'PowerPoint 演示文稿（解压 + XML 解析）'
   },
   {
     extensions: ['ppt'],
     processor: FileProcessorType.BINARY_SCAN,
     supportsStreaming: false,
+    extractor: extractWithBinary,
     description: '旧版 PowerPoint（仅二进制扫描）'
   },
   
@@ -143,18 +169,21 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['odt'],
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,
+    extractor: extractOdt,
     description: 'OpenDocument 文本（解压 + XML 解析）'
   },
   {
     extensions: ['ods'],
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,
+    extractor: extractOds,
     description: 'OpenDocument 表格（解压 + XML 解析）'
   },
   {
     extensions: ['odp'],
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,
+    extractor: extractOdp,
     description: 'OpenDocument 演示文稿（解压 + XML 解析）'
   },
   
@@ -163,6 +192,7 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['rtf'],
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,
+    extractor: extractRtf,
     description: 'RTF 富文本（编码转换 + 正则提取）'
   },
   
@@ -171,6 +201,7 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     extensions: ['zip', 'rar', '7z', 'tar', 'gz'],
     processor: FileProcessorType.BINARY_SCAN,
     supportsStreaming: false,
+    extractor: extractWithBinary,
     description: '压缩文件（不支持预览）'
   }
 ];
@@ -238,3 +269,18 @@ export function supportsTrueStreaming(filePath: string): boolean {
   const config = getFileTypeConfig(filePath);
   return config?.supportsStreaming || false;
 }
+
+/**
+ * 【新增】根据文件路径获取解析器函数
+ */
+export function getFileExtractor(filePath: string): ((filePath: string) => Promise<{ text: string; unsupportedPreview: boolean }>) | null {
+  const config = getFileTypeConfig(filePath);
+  return config?.extractor || null;
+}
+
+/**
+ * 【新增】从 FILE_TYPE_REGISTRY 自动生成支持的文件扩展名列表
+ */
+export const SUPPORTED_EXTENSIONS = FILE_TYPE_REGISTRY.flatMap(
+  config => config.extensions
+);
