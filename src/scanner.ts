@@ -640,7 +640,10 @@ export async function startScan(
         total: walkerTotalCount,
         skipped: walkerSkippedCount,
         results: resultCount,
-        sensitiveItems: totalSensitiveItems  // 【新增】敏感信息总条数
+        sensitiveItems: totalSensitiveItems,  // 【新增】敏感信息总条数
+        taskQueueLength: taskQueue.length,     // 【新增】任务队列长度
+        pendingTasksSize: pendingTasks.size,   // 【新增】待处理任务数
+        activeWorkers: activeWorkerCount       // 【新增】活跃 Worker 数
     };
     let lastStagnationCheckTime = Date.now();
 
@@ -684,7 +687,10 @@ export async function startScan(
             walkerTotalCount !== lastStagnationCheckState.total ||
             walkerSkippedCount !== lastStagnationCheckState.skipped ||
             resultCount !== lastStagnationCheckState.results ||
-            totalSensitiveItems !== lastStagnationCheckState.sensitiveItems;  // 【新增】敏感信息条数变化
+            totalSensitiveItems !== lastStagnationCheckState.sensitiveItems ||  // 敏感信息条数变化
+            taskQueue.length !== lastStagnationCheckState.taskQueueLength ||    // 任务队列变化
+            pendingTasks.size !== lastStagnationCheckState.pendingTasksSize ||  // 待处理任务变化
+            activeWorkerCount !== lastStagnationCheckState.activeWorkers;       // 活跃 Worker 变化
 
         if (hasRealProgress) {
             // 有进展，更新状态快照和时间
@@ -693,7 +699,10 @@ export async function startScan(
                 total: walkerTotalCount,
                 skipped: walkerSkippedCount,
                 results: resultCount,
-                sensitiveItems: totalSensitiveItems  // 【新增】敏感信息总条数
+                sensitiveItems: totalSensitiveItems,
+                taskQueueLength: taskQueue.length,
+                pendingTasksSize: pendingTasks.size,
+                activeWorkers: activeWorkerCount
             };
             lastStagnationCheckTime = now;
         } else {

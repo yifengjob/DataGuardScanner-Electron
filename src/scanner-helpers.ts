@@ -77,6 +77,11 @@ export function createLogger(
                 mainWindow.webContents.send('scan-log', logWithTime);
             }
         });
+        
+        // 【新增】同时写入日志文件
+        setImmediate(() => {
+            console.log(logWithTime);  // 通过 console.log 写入日志文件
+        });
     };
 }
 
