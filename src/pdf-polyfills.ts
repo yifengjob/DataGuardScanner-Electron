@@ -14,17 +14,12 @@
 export function setupPdfJsPolyfills(context: any = global): void {
   // 如果已经设置过，跳过
   if (typeof context.window !== 'undefined') {
-    console.log('[PDF Polyfill] window 已存在，跳过设置');
     return;
   }
 
   try {
-    console.log('[PDF Polyfill] 正在设置浏览器环境模拟...');
-    console.log('[PDF Polyfill] context 类型:', typeof context);
-    
     // 模拟 window 对象
     context.window = context;
-    console.log('[PDF Polyfill] ✓ window 设置成功');
 
     // DOMException（pdf.js 需要）
     if (typeof context.DOMException === 'undefined') {
@@ -34,7 +29,6 @@ export function setupPdfJsPolyfills(context: any = global): void {
           this.name = name || 'DOMException';
         }
       };
-      console.log('[PDF Polyfill] ✓ DOMException 设置成功');
     }
 
     // ReadableStream（pdf.js 需要）
@@ -42,9 +36,8 @@ export function setupPdfJsPolyfills(context: any = global): void {
       try {
         const { ReadableStream } = require('stream/web');
         context.ReadableStream = ReadableStream;
-        console.log('[PDF Polyfill] ✓ ReadableStream 设置成功');
       } catch (e) {
-        console.warn('[PDF Polyfill] ⚠ ReadableStream 不可用:', e);
+        // 静默失败
       }
     }
 
@@ -54,19 +47,14 @@ export function setupPdfJsPolyfills(context: any = global): void {
       createElement: () => ({ style: {}, getContext: () => null }),
       createTextNode: () => ({}),
     };
-    console.log('[PDF Polyfill] ✓ document 设置成功');
 
     // 模拟 navigator 对象
     context.navigator = { userAgent: 'Node.js' };
-    console.log('[PDF Polyfill] ✓ navigator 设置成功');
 
     // 模拟 HTMLElement 类
     context.HTMLElement = class HTMLElement {};
-    console.log('[PDF Polyfill] ✓ HTMLElement 设置成功');
-    
-    console.log('[PDF Polyfill] ✅ 浏览器环境模拟设置完成');
   } catch (error) {
-    console.error('[PDF Polyfill] ❌ 设置失败:', error);
+    console.error('[PDF Polyfill] 设置失败:', error);
     throw error;
   }
 }
@@ -78,18 +66,14 @@ export function setupPdfJsPolyfills(context: any = global): void {
  */
 export function setupDomMatrix(context: any = global): void {
   if (typeof context.DOMMatrix !== 'undefined') {
-    console.log('[PDF Polyfill] DOMMatrix 已存在，跳过');
     return; // 已存在，跳过
   }
 
   try {
-    console.log('[PDF Polyfill] 正在加载 @napi-rs/canvas...');
     const { DOMMatrix } = require('@napi-rs/canvas');
     context.DOMMatrix = DOMMatrix;
-    console.log('[PDF Polyfill] ✓ DOMMatrix 设置成功');
   } catch (error) {
-    console.error('[PDF Polyfill] ❌ 无法加载 @napi-rs/canvas:', error);
-    // 不抛出错误，让 pdf.js 自己处理
+    // 静默失败，让 pdf.js 自己处理
   }
 }
 
@@ -122,15 +106,11 @@ export function setupPromiseWithResolvers(context: any = global): void {
  */
 export function setupAllPdfPolyfills(context: any = global): void {
   try {
-    console.log('[PDF Polyfill] ========== 开始设置所有 polyfill ==========');
-    
     setupPromiseWithResolvers(context);
     setupDomMatrix(context);
     setupPdfJsPolyfills(context);
-    
-    console.log('[PDF Polyfill] ========== 所有 polyfill 设置完成 ==========');
   } catch (error) {
-    console.error('[PDF Polyfill] ❌❌❌ 设置过程中发生严重错误:', error);
+    console.error('[PDF Polyfill] 设置失败:', error);
     throw error;
   }
 }

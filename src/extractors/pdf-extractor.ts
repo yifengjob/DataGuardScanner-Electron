@@ -22,23 +22,17 @@ let pdfjsInitialized = false;
 
 function getPdfJsLib() {
   if (!pdfjsInitialized) {
-    console.log('[PDF Extractor] 正在加载 pdf.js...');
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-      console.log('[PDF Extractor] ✓ pdf.js 模块加载成功');
       
       // 设置 worker
       const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
-      console.log('[PDF Extractor] Worker 路径:', workerPath);
-      
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath;
-      console.log('[PDF Extractor] ✓ Worker 路径设置成功');
       
       pdfjsInitialized = true;
-      console.log('[PDF Extractor] ✅ pdf.js 完全初始化成功');
     } catch (error) {
-      console.error('[PDF Extractor] ❌❌❌ pdf.js 初始化失败:', error);
+      console.error('[PDF Extractor] pdf.js 初始化失败:', error);
       throw error;
     }
   }
