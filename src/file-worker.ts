@@ -44,6 +44,12 @@ try {
       };
     }
     
+    // ReadableStream（pdf.js 需要）
+    if (typeof (global as any).ReadableStream === 'undefined') {
+      const { ReadableStream } = require('stream/web');
+      (global as any).ReadableStream = ReadableStream;
+    }
+    
     (global as any).document = {
       documentElement: { style: {} },
       createElement: () => ({ style: {}, getContext: () => null }),

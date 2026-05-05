@@ -37,6 +37,17 @@ export function setupPdfJsPolyfills(context: any = global): void {
       console.log('[PDF Polyfill] ✓ DOMException 设置成功');
     }
 
+    // ReadableStream（pdf.js 需要）
+    if (typeof context.ReadableStream === 'undefined') {
+      try {
+        const { ReadableStream } = require('stream/web');
+        context.ReadableStream = ReadableStream;
+        console.log('[PDF Polyfill] ✓ ReadableStream 设置成功');
+      } catch (e) {
+        console.warn('[PDF Polyfill] ⚠ ReadableStream 不可用:', e);
+      }
+    }
+
     // 模拟 document 对象
     context.document = {
       documentElement: { style: {} },
