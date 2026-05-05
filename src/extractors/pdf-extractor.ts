@@ -13,21 +13,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as pdfjsLib from 'pdfjs-dist';
-import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB } from '../scan-config';
+import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_TIMEOUT_MS, PDF_OCR_ENABLED } from '../scan-config';
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
-// 【配置】单页超时时间（毫秒）
-const PAGE_TIMEOUT_MS = 5000; // 5秒/页
-
-// 【配置】总超时时间（毫秒）
-const TOTAL_TIMEOUT_MS = 60000; // 60秒
-
-// 【配置】PDF 文件大小限制（MB）
+// 【配置】PDF 文件大小限制（MB）- 从 scan-config.ts 导入
 const MAX_PDF_SIZE_MB = 50;
-
-// 【配置】OCR 扩展接口（当前未启用）
-const OCR_ENABLED = false;
 
 /**
  * 检测是否为纯图 PDF
@@ -98,7 +89,7 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     
     // 添加总超时保护
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`PDF 解析总超时 (${TOTAL_TIMEOUT_MS/1000}秒)`)), TOTAL_TIMEOUT_MS);
+      setTimeout(() => reject(new Error(`PDF 解析总超时 (${PDF_TOTAL_TIMEOUT_MS/1000}秒)`)), PDF_TOTAL_TIMEOUT_MS);
     });
     
     pdf = await Promise.race([loadingTask, timeoutPromise]);
@@ -111,7 +102,7 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
       // 单页超时保护
       const pagePromise = pdf.getPage(pageNum);
       const pageTimeout = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`第 ${pageNum} 页解析超时 (${PAGE_TIMEOUT_MS/1000}秒)`)), PAGE_TIMEOUT_MS);
+        setTimeout(() => reject(new Error(`第 ${pageNum} 页解析超时 (${PDF_PAGE_TIMEOUT_MS/1000}秒)`)), PDF_PAGE_TIMEOUT_MS);
       });
       
       const page = await Promise.race([pagePromise, pageTimeout]);
@@ -124,7 +115,7 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
         console.log(`[PDF] 第 ${pageNum} 页为纯图页面`);
         
         // 如果 OCR 未启用，跳过纯图页面
-        if (!OCR_ENABLED) {
+        if (!PDF_OCR_ENABLED) {
           page.cleanup();
           continue;
         }
@@ -163,7 +154,7 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     }
     
     // 【新增】如果所有页都是纯图且 OCR 未启用，返回不支持预览
-    if (imageOnlyPages === totalPages && !OCR_ENABLED) {
+    if (imageOnlyPages === totalPages && !PDF_OCR_ENABLED) {
       console.warn(`[PDF] 检测到纯图 PDF（${totalPages} 页），OCR 未启用，跳过`);
       return { text: '', unsupportedPreview: true };
     }
@@ -223,7 +214,7 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
  * 使用说明：
  * 1. 安装 Tesseract.js: pnpm add tesseract.js
  * 2. 实现此函数
- * 3. 设置 OCR_ENABLED = true
+ * 3. 设置 PDF_OCR_ENABLED = true
  */
 async function performOCR(page: any): Promise<string> {
   // TODO: 实现 OCR 逻辑

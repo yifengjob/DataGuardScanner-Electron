@@ -139,6 +139,24 @@ export const FILE_SIZE_LIMITS = {
   maxTextContentSizeMB: MAX_TEXT_CONTENT_SIZE_MB
 };
 
+// ==================== PDF 解析配置 ====================
+
+/** PDF 单页解析超时时间（毫秒）- 防止某一页卡死 */
+export const PDF_PAGE_TIMEOUT_MS = 5000; // 5秒/页
+
+/** PDF 文档总解析超时时间（毫秒）- 防止整个文档解析过久 */
+export const PDF_TOTAL_TIMEOUT_MS = 60000; // 60秒
+
+/** PDF OCR 功能开关 - 当前未启用，预留扩展接口 */
+export const PDF_OCR_ENABLED = false;
+
+/** 
+ * PDF 纯图页面检测策略
+ * - 如果页面没有任何文本项，判定为纯图
+ * - OCR 未启用时跳过纯图页面
+ * - 如果全部为纯图，返回 unsupportedPreview
+ */
+
 // ==================== 流式处理配置 ====================
 
 /** 滑动窗口分块大小（MB）- 每块处理的文本大小 */
