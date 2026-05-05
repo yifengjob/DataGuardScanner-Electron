@@ -12,30 +12,24 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-
-// 【修复】pdf.js 3.x legacy build 需要的完整 polyfill
-// 确保在 require pdf.js 之前设置
-if (typeof (global as any).window === 'undefined') {
-  // Node.js 环境模拟浏览器全局对象
-  (global as any).window = global;
-  (global as any).document = {
-    documentElement: { style: {} },
-    createElement: () => ({ style: {}, getContext: () => null }),
-    createTextNode: () => ({}),
-  };
-  (global as any).navigator = { userAgent: 'Node.js' };
-  (global as any).HTMLElement = class HTMLElement {};
-}
-
-// 【修复】使用 legacy build（CommonJS）以兼容 Worker 线程
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-
-// 【关键】设置 pdf.js worker，必须在使用前设置
-pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
-
 import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_TIMEOUT_MS, PDF_OCR_ENABLED } from '../scan-config';
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
+
+// 【修复】动态导入 pdf.js (ES Module)，兼容 Worker 线程
+let pdfjsLib: any = null;
+
+async function loadPdfJs() {
+  if (!pdfjsLib) {
+    // 使用动态 import 加载 ES Module
+    const pdfjsModule = await import('pdfjs-dist');
+    pdfjsLib = pdfjsModule.default || pdfjsModule;
+    
+    // pdf.js 4.x 在 Node.js 环境中自动处理 worker
+    // 不需要手动设置 workerSrc
+  }
+  return pdfjsLib;
+}
 
 // 【配置】PDF 文件大小限制（MB）- 从 scan-config.ts 导入
 const MAX_PDF_SIZE_MB = 50;
@@ -72,6 +66,9 @@ async function isImageOnlyPage(page: any): Promise<boolean> {
  * @returns 提取的文本和是否不支持预览的标志
  */
 export async function extractPdf(filePath: string): Promise<ExtractorResult> {
+  // 【关键】先加载 pdf.js
+  const pdfjsLib = await loadPdfJs();
+  
   let stat: fs.Stats;
   try {
     stat = await fs.promises.stat(filePath);
