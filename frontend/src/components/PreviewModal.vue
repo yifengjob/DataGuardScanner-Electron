@@ -155,6 +155,12 @@ async function performBatchRender() {
     
     if (chunksToRender.length === 0) return
     
+    // 【优化】检查是否已取消，避免不必要的处理
+    if (!props.visible) {
+      streamState.value.isRendering = false
+      return
+    }
+    
     // 按块索引排序
     chunksToRender.sort((a, b) => a.chunkIndex - b.chunkIndex)
     
@@ -174,6 +180,12 @@ async function performBatchRender() {
       loading.value = false
     }
     
+    // 【优化】再次检查是否已取消
+    if (!props.visible) {
+      streamState.value.isRendering = false
+      return
+    }
+    
     // 重新渲染可见区域
     await nextTick()
     renderVisibleContent()
@@ -182,7 +194,7 @@ async function performBatchRender() {
     streamState.value.isRendering = false
     
     // 如果还有新数据，继续渲染
-    if (streamState.value.receivedChunks.length > 0) {
+    if (streamState.value.receivedChunks.length > 0 && props.visible) {
       scheduleRender()
     }
   }
@@ -309,25 +321,10 @@ watch([() => props.visible, () => props.filePath], async ([isVisible, newPath]) 
       currentTaskId.value = null
     }
     
-    // 【资源清理】清理流式状态，防止内存泄漏
-    streamState.value.receivedChunks = []
-    streamState.value.renderedLines = []
-    streamState.value.renderedHighlights = []
-    streamState.value.isRendering = false
-    streamState.value.totalChunks = 0
-    streamState.value.receivedChunksCount = 0
-    
-    // 【资源清理】清理虚拟滚动器
-    scroller.reset()
-    
-    // 【资源清理】清理可见内容
-    visibleContent.value = ''
-    
-    // 清空旧状态
+    // 【优化】如果 handleClose 已经异步清空了数据，这里不需要再清空
+    // 只重置 loading 和 error 状态即可
     loading.value = false
     error.value = ''
-    content.value = ''
-    highlights.value = []
   }
 }, { immediate: true })
 
@@ -438,7 +435,27 @@ const handleClose = () => {
     // 不等待取消完成，避免阻塞 UI
     cancelPreview(currentTaskId.value).catch(() => {})
   } else {
-    // 正常关闭
+    // 【优化】正常关闭前，先停止渲染调度，防止竞态条件
+    renderScheduled = false
+    
+    // 【优化】异步清空大数据，避免阻塞 UI 关闭动画
+    setTimeout(() => {
+      // 清空流式状态
+      streamState.value.receivedChunks = []
+      streamState.value.renderedLines = []
+      streamState.value.renderedHighlights = []
+      streamState.value.isRendering = false
+      streamState.value.totalChunks = 0
+      streamState.value.receivedChunksCount = 0
+      
+      // 清空虚拟滚动器
+      scroller.reset()
+      
+      // 清空可见内容
+      visibleContent.value = ''
+    }, 0)
+    
+    // 立即关闭，让 UI 先响应
     emit('close')
   }
 }
