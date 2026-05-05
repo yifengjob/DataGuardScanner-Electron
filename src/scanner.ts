@@ -523,6 +523,11 @@ export async function startScan(
         if (message.type === 'file-found') {
             walkerTotalCount++;
 
+            // 【调试】检测异常计数
+            if (walkerTotalCount % 100 === 0) {
+                console.log(`[进度] walkerTotalCount=${walkerTotalCount}, consumerProcessedCount=${consumerProcessedCount}, taskQueue=${taskQueue.length}, pendingTasks=${pendingTasks.size}, activeWorkers=${activeWorkerCount}`);
+            }
+
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
 
@@ -660,6 +665,11 @@ export async function startScan(
         // 4. 没有待处理的任务
         const hasPendingTasks = pendingTasks.size > 0;
         const allWalkersCompleted = walkerCompletedCount >= totalWalkerTasks;
+
+        // 【调试】输出详细状态
+        if (allWalkersCompleted && (activeWorkerCount > 0 || taskQueue.length > 0 || hasPendingTasks)) {
+            console.log(`[checkAndComplete] Walker已完成，但仍在等待: activeWorkers=${activeWorkerCount}, taskQueue=${taskQueue.length}, pendingTasks=${pendingTasks.size}`);
+        }
 
         if (allWalkersCompleted && activeWorkerCount === 0 && taskQueue.length === 0 && !hasPendingTasks) {
             log(`扫描完成: 遍历 ${walkerTotalCount} 个文件, 处理 ${consumerProcessedCount} 个, 跳过 ${walkerSkippedCount} 个, 发现 ${resultCount} 个敏感文件`);
