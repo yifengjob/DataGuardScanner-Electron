@@ -6,11 +6,10 @@
 import * as path from 'path';
 // 【修复】导入文件大小限制常量
 import { FILE_SIZE_LIMITS } from './scan-config';
-// 【重构】导入所有提取器函数
+// 【重构】导入所有提取器函数（除了 pdf-extractor，它需要动态导入）
 import {
   extractTextFile,
   extractXmlFile,
-  extractPdf,
   extractWithWordExtractor,
   extractWithSheetJS,
   extractPptx,
@@ -126,7 +125,11 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
     processor: FileProcessorType.PARSER_REQUIRED,
     maxSizeMB: FILE_SIZE_LIMITS.pdfMaxSizeMB,  // 【限制】pdf.js 性能更好，限制为 50MB
     supportsStreaming: false,
-    extractor: extractPdf,
+    // 【关键】PDF extractor 需要动态导入，因为 pdf.js 4.x 是 ES Module
+    extractor: async (filePath: string) => {
+      const { extractPdf } = await import('./extractors/pdf-extractor');
+      return extractPdf(filePath);
+    },
     description: 'PDF 文件（使用 pdf.js 逐页解析，支持纯图检测）'
   },
   
