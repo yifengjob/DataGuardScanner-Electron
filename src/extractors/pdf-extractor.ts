@@ -11,10 +11,16 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
-import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_TIMEOUT_MS, PDF_OCR_ENABLED, DEFAULT_MAX_PDF_SIZE_MB } from '../scan-config';
-import { logError } from '../error-utils';
-import type { ExtractorResult } from './types';
+import {
+  BYTES_TO_MB,
+  DEFAULT_MAX_PDF_SIZE_MB,
+  MAX_TEXT_CONTENT_SIZE_MB,
+  PDF_OCR_ENABLED,
+  PDF_PAGE_TIMEOUT_MS,
+  PDF_TOTAL_TIMEOUT_MS
+} from '../scan-config';
+import {logError} from '../error-utils';
+import type {ExtractorResult} from './types';
 
 // 【修复】延迟加载 pdf.js，避免模块级别 require 导致的问题
 let pdfjsLib: any = null;
@@ -27,8 +33,7 @@ function getPdfJsLib() {
       pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
       
       // 设置 worker
-      const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath;
+      pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
       
       pdfjsInitialized = true;
     } catch (error) {
