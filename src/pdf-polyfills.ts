@@ -37,7 +37,10 @@ export function setupPdfJsPolyfills(context: any = global): void {
         const { ReadableStream } = require('stream/web');
         context.ReadableStream = ReadableStream;
       } catch (e) {
-        // 静默失败
+        // 在开发环境下输出警告，帮助诊断问题
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[PDF Polyfill] ReadableStream 不可用，pdf.js 可能无法正常工作');
+        }
       }
     }
 

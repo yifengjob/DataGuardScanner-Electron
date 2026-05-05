@@ -12,7 +12,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_TIMEOUT_MS, PDF_OCR_ENABLED } from '../scan-config';
+import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_TIMEOUT_MS, PDF_OCR_ENABLED, DEFAULT_MAX_PDF_SIZE_MB } from '../scan-config';
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
@@ -32,7 +32,7 @@ function getPdfJsLib() {
       
       pdfjsInitialized = true;
     } catch (error) {
-      console.error('[PDF Extractor] pdf.js 初始化失败:', error);
+      logError('getPdfJsLib', error as Error);
       throw error;
     }
   }
@@ -40,7 +40,10 @@ function getPdfJsLib() {
 }
 
 // 【配置】PDF 文件大小限制（MB）- 从 scan-config.ts 导入
-const MAX_PDF_SIZE_MB = 50;
+const MAX_PDF_SIZE_MB = DEFAULT_MAX_PDF_SIZE_MB;
+
+/** PDF 进度日志记录间隔（每 N 页记录一次） */
+const PDF_PROGRESS_LOG_INTERVAL = 10;
 
 /**
  * 检测是否为纯图 PDF
@@ -91,7 +94,7 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     return { text: '', unsupportedPreview: true };
   }
   
-  let pdf: any = null;
+  let pdfDocument: any = null;
   let totalText = '';
   let totalPages = 0;
   let processedPages = 0;
@@ -118,22 +121,22 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
       setTimeout(() => reject(new Error(`PDF 解析总超时 (${PDF_TOTAL_TIMEOUT_MS/1000}秒)`)), PDF_TOTAL_TIMEOUT_MS);
     });
     
-    pdf = await Promise.race([loadingTask.promise, timeoutPromise]);
+    pdfDocument = await Promise.race([loadingTask.promise, timeoutPromise]);
     
     // 【修复】检查文档是否有效
-    if (!pdf || !pdf.numPages) {
+    if (!pdfDocument || !pdfDocument.numPages) {
       console.warn(`[PDF] 文档加载失败或无效: ${path.basename(filePath)}`);
       return { text: '', unsupportedPreview: true };
     }
     
-    totalPages = pdf.numPages;
+    totalPages = pdfDocument.numPages;
     
     console.log(`[PDF] 文档加载完成，共 ${totalPages} 页`);
     
     // 逐页处理
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       // 单页超时保护
-      const pagePromise = pdf.getPage(pageNum);
+      const pagePromise = pdfDocument.getPage(pageNum);
       const pageTimeout = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error(`第 ${pageNum} 页解析超时 (${PDF_PAGE_TIMEOUT_MS/1000}秒)`)), PDF_PAGE_TIMEOUT_MS);
       });
@@ -179,8 +182,8 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
       // 释放页面内存 ⭐ 关键
       page.cleanup();
       
-      // 每 10 页记录一次进度
-      if (pageNum % 10 === 0 || pageNum === totalPages) {
+      // 定期记录进度
+      if (pageNum % PDF_PROGRESS_LOG_INTERVAL === 0 || pageNum === totalPages) {
         const memUsage = process.memoryUsage();
         console.log(`[PDF] 进度: ${pageNum}/${totalPages} 页，堆内存: ${(memUsage.heapUsed / 1024 / 1024).toFixed(1)}MB，纯图页: ${imageOnlyPages}`);
       }
@@ -228,37 +231,12 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     
   } finally {
     // 确保释放文档内存 ⭐ 关键
-    if (pdf) {
+    if (pdfDocument) {
       try {
-        pdf.destroy();
-        console.log(`[PDF] 文档内存已释放`);
+        pdfDocument.destroy();
       } catch (e) {
         // 忽略销毁错误
       }
     }
   }
-}
-
-/**
- * 【扩展接口】OCR 处理函数（当前未实现）
- * @param page - pdf.js 页面对象
- * @returns OCR 提取的文本
- * 
- * 使用说明：
- * 1. 安装 Tesseract.js: pnpm add tesseract.js
- * 2. 实现此函数
- * 3. 设置 PDF_OCR_ENABLED = true
- */
-async function performOCR(page: any): Promise<string> {
-  // TODO: 实现 OCR 逻辑
-  // 示例代码：
-  // const viewport = page.getViewport({ scale: 2.0 });
-  // const canvas = new Canvas(viewport.width, viewport.height);
-  // const context = canvas.getContext('2d');
-  // await page.render({ canvasContext: context, viewport }).promise;
-  // const image = canvas.toBuffer('image/png');
-  // const { data: { text } } = await Tesseract.recognize(image, 'chi_sim+eng');
-  // return text;
-  
-  throw new Error('OCR 功能未启用');
 }
