@@ -169,11 +169,12 @@ export const useAppStore = defineStore('app', () => {
   }
   
   function clearScanResults() {
-    scanResults.value = []
+    // 【修复】使用 splice 清空数组，保持响应式
+    scanResults.value.splice(0, scanResults.value.length)
     scannedCount.value = 0
     totalCount.value = 0      // ← 重置总数
     errorCount.value = 0  // ← 重置跳过文件数
-    logs.value = []
+    logs.value.splice(0, logs.value.length)
     scanStartTime.value = null  // 【UI优化】重置扫描开始时间
     stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
     scanElapsedTime.value = '00:00:00'  // 【UI优化】重置耗时显示

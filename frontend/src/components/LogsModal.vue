@@ -54,11 +54,16 @@ const scrollToBottom = async () => {
 }
 
 // 监听日志变化，自动滚动到底部
+// 【修复】使用 deep watch 确保能检测到数组内容变化
 watch(
-  () => logs.value.length,
-  () => {
-    scrollToBottom()
-  }
+  () => logs.value,
+  (newLogs, oldLogs) => {
+    // 只有当日志数量增加时才滚动
+    if (newLogs.length > (oldLogs?.length || 0)) {
+      scrollToBottom()
+    }
+  },
+  { deep: true }  // 深度监听
 )
 
 // 组件挂载时从后端获取日志
@@ -66,7 +71,8 @@ onMounted(async () => {
   try {
     const backendLogs = await getLogs()
     if (backendLogs.length > 0) {
-      logs.value = backendLogs
+      // 【修复】使用 push 而不是直接赋值，保持响应式
+      logs.value.push(...backendLogs)
       // 初始加载后滚动到底部
       await scrollToBottom()
     }
@@ -76,7 +82,8 @@ onMounted(async () => {
 })
 
 const handleClearLogs = () => {
-  logs.value = []
+  // 【修复】使用 splice 清空数组，保持响应式
+  logs.value.splice(0, logs.value.length)
 }
 </script>
 
