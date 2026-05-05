@@ -19,11 +19,13 @@
               包括身份证号、手机号、邮箱地址、银行卡号、地址、IP地址和密码等。
             </p>
             <p>
-              采用 Worker Threads 多线程技术和流式传输方案，将 CPU 密集型的文件解析任务放到后台线程执行，
-              大文件预览首屏加载 < 500ms，确保主界面始终保持流畅响应。
+              采用 Worker Threads 多线程技术和真正的流式处理架构，将 CPU 密集型的文件解析任务放到后台线程执行。
+              文本文件使用滑动窗口重叠策略（5MB 分块 + 200 字符重叠），确保跨边界敏感词不漏检；
+              文档文件（PDF/Word/Excel）先提取文本再流式发送，大文件预览首屏加载 < 500ms。
             </p>
             <p>
               智能并发控制根据 CPU 核心数和可用内存动态调整，在性能和稳定性之间取得最佳平衡。
+              PDF 解析使用 Mozilla 官方 pdf.js 引擎，逐页处理并即时释放内存，支持纯图检测。
               支持 Windows 7/10/11、macOS 和 Linux 平台。
             </p>
             <p class="win7-compatible">
@@ -52,6 +54,8 @@
               <li><img src="../assets/checked.svg" alt="check" class="check-icon" />便携免安装设计</li>
               <li><img src="../assets/checked.svg" alt="check" class="check-icon" />智能并发控制（根据硬件配置自动调整）</li>
               <li><img src="../assets/checked.svg" alt="check" class="check-icon" />多线程架构（CPU 密集型任务隔离）</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />真正流式处理（滑动窗口重叠策略，无漏检）</li>
+              <li><img src="../assets/checked.svg" alt="check" class="check-icon" />PDF 逐页解析（Mozilla pdf.js，内存优化）</li>
             </ul>
           </div>
           

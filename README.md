@@ -58,7 +58,7 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 - 配置文件：`.csv`, `.json`, `.xml`, `.yaml`, `.yml`, `.properties`, `.toml`
 
 #### 文档文件
-- **PDF 文档**（使用 `pdfreader` 流式解析，内存效率高）
+- **PDF 文档**（使用 `pdf.js` 逐页解析，支持纯图检测，内存效率高）
 - **Excel 表格**（`.xlsx`, `.xls`, `.et`，使用 `exceljs` + `SheetJS` 双引擎）
 - **Word 文档**（`.docx`, `.doc`, `.wps`，使用 `word-extractor` 库）
 - **PowerPoint 演示文稿**（`.pptx`，自定义解压方案；`.ppt`, `.dps` 二进制扫描）
@@ -107,7 +107,7 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 | `pinia` | 2.x | 状态管理 |
 | `vite` | 6.x | 构建工具 |
 | `typescript` | 5.x | 类型系统 |
-| `pdfreader` | 3.x | PDF 流式解析（内存效率高） |
+| `pdfjs-dist` | 3.11.174 | PDF 逐页解析（Mozilla 官方引擎） |
 | `exceljs` | 4.x | Excel 文件读写 |
 | `xlsx` | 0.20.3 | SheetJS，快速解析 Excel |
 | `word-extractor` | 1.x | Word/PPT 文档解析 |
@@ -117,6 +117,7 @@ DataGuard Scanner 是一款基于 Electron 和 Vue 3 构建的跨平台桌面应
 | `vue-virtual-scroller` | 2.x | 虚拟滚动组件 |
 | `fflate` | 0.8.x | ZIP 解压（替代 adm-zip） |
 | `iconv-lite` | 0.7.x | 编码转换（GBK/UTF-8） |
+| `@napi-rs/canvas` | - | DOMMatrix polyfill（PDF.js 需要） |
 
 ### 包管理器
 - **前端**：pnpm（推荐）或 npm
