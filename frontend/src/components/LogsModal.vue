@@ -32,9 +32,9 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch, nextTick } from 'vue'
-import { useAppStore } from '../stores/app'
+import { useAppStore } from '@/stores/app'
 import { storeToRefs } from 'pinia'
-import { getLogs } from '../utils/electron-api'
+import { getLogs } from '@/utils/electron-api'
 
 const appStore = useAppStore()
 const { logs } = storeToRefs(appStore)

@@ -107,7 +107,7 @@
 
 <script setup lang="ts">
 import {onMounted, ref} from 'vue'
-import { checkSystemEnvironment } from '../utils/electron-api'
+import { checkSystemEnvironment } from '@/utils/electron-api'
 
 interface EnvironmentIssue {
   severity: 'Critical' | 'Warning' | 'Info'

@@ -95,8 +95,8 @@
 
 <script setup lang="ts">
 import {ref, computed} from 'vue'
-import {exportReport, showMessage, showSaveDialog} from '../utils/electron-api'
-import type {ScanResultItem} from '../types'
+import {exportReport, showMessage, showSaveDialog} from '@/utils/electron-api'
+import type {ScanResultItem} from '@/types'
 
 const props = defineProps<{
   results: ScanResultItem[]

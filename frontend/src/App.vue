@@ -181,7 +181,7 @@
 
 <script setup lang="ts">
 import {onMounted, ref} from 'vue'
-import {useAppStore} from './stores/app'
+import {useAppStore} from '@/stores/app'
 import {storeToRefs} from 'pinia'
 import {
   cancelScan,

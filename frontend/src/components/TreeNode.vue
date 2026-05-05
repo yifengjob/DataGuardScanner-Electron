@@ -40,9 +40,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useAppStore } from '../stores/app'
-import type { DirectoryNode } from '../types'
-import { getDirectoryTree } from '../utils/electron-api'
+import { useAppStore } from '@/stores/app'
+import type { DirectoryNode } from '@/types'
+import { getDirectoryTree } from '@/utils/electron-api'
 
 const props = defineProps<{
   node: DirectoryNode

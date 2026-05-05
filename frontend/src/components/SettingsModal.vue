@@ -147,13 +147,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useAppStore } from '../stores/app'
-import { storeToRefs } from 'pinia'
-import { saveConfig, getSensitiveRules, clearCache, getRecommendedConcurrency } from '../utils/electron-api'
-import { applyTheme } from '../utils/theme'
+import {computed, onMounted, ref} from 'vue'
+import {useAppStore} from '@/stores/app'
+import {storeToRefs} from 'pinia'
+import {clearCache, getRecommendedConcurrency, getSensitiveRules, saveConfig} from '@/utils/electron-api'
+import {applyTheme} from '@/utils/theme'
 // 【C2 优化】导入错误处理工具
-import { getFriendlyErrorMessage } from '../utils/error-handler'
+import {getFriendlyErrorMessage} from '@/utils/error-handler'
 
 const emit = defineEmits<{
   close: []
@@ -179,8 +179,7 @@ onMounted(async () => {
     
     // 如果配置中的并发数为 0，则使用系统推荐的值
     if (config.value.scanConcurrency === 0) {
-      const recommended = await getRecommendedConcurrency()
-      config.value.scanConcurrency = recommended
+      config.value.scanConcurrency = await getRecommendedConcurrency()
     }
   } catch (error) {
     console.error('获取敏感规则失败:', error)

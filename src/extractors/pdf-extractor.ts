@@ -42,9 +42,6 @@ function getPdfJsLib() {
 // 【配置】PDF 文件大小限制（MB）- 从 scan-config.ts 导入
 const MAX_PDF_SIZE_MB = DEFAULT_MAX_PDF_SIZE_MB;
 
-/** PDF 进度日志记录间隔（每 N 页记录一次） */
-const PDF_PROGRESS_LOG_INTERVAL = 10;
-
 /**
  * 检测是否为纯图 PDF
  * @param page - pdf.js 页面对象
@@ -86,11 +83,9 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
   }
   
   const fileSizeMB = stat.size / BYTES_TO_MB;
-  console.log(`[PDF] 开始解析: ${path.basename(filePath)} (${fileSizeMB.toFixed(1)}MB)`);
   
   // 文件大小限制
   if (fileSizeMB > MAX_PDF_SIZE_MB) {
-    console.warn(`[PDF] 文件过大 (${fileSizeMB.toFixed(1)}MB > ${MAX_PDF_SIZE_MB}MB)，跳过解析`);
     return { text: '', unsupportedPreview: true };
   }
   
@@ -125,13 +120,10 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     
     // 【修复】检查文档是否有效
     if (!pdfDocument || !pdfDocument.numPages) {
-      console.warn(`[PDF] 文档加载失败或无效: ${path.basename(filePath)}`);
       return { text: '', unsupportedPreview: true };
     }
     
     totalPages = pdfDocument.numPages;
-    
-    console.log(`[PDF] 文档加载完成，共 ${totalPages} 页`);
     
     // 逐页处理
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
@@ -148,7 +140,6 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
       
       if (isImageOnly) {
         imageOnlyPages++;
-        console.log(`[PDF] 第 ${pageNum} 页为纯图页面`);
         
         // 如果 OCR 未启用，跳过纯图页面
         if (!PDF_OCR_ENABLED) {
@@ -174,29 +165,20 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
       
       // 检查文本大小限制
       if (totalText.length > MAX_TEXT_CONTENT_SIZE_MB * BYTES_TO_MB) {
-        console.warn(`[PDF] 文本内容过大，已处理 ${processedPages}/${totalPages} 页，提前退出`);
         page.cleanup();
         break;
       }
       
       // 释放页面内存 ⭐ 关键
       page.cleanup();
-      
-      // 定期记录进度
-      if (pageNum % PDF_PROGRESS_LOG_INTERVAL === 0 || pageNum === totalPages) {
-        const memUsage = process.memoryUsage();
-        console.log(`[PDF] 进度: ${pageNum}/${totalPages} 页，堆内存: ${(memUsage.heapUsed / 1024 / 1024).toFixed(1)}MB，纯图页: ${imageOnlyPages}`);
-      }
     }
     
     // 【新增】如果所有页都是纯图且 OCR 未启用，返回不支持预览
     if (imageOnlyPages === totalPages && !PDF_OCR_ENABLED) {
-      console.warn(`[PDF] 检测到纯图 PDF（${totalPages} 页），OCR 未启用，跳过`);
       return { text: '', unsupportedPreview: true };
     }
     
     const hasContent = totalText.trim().length > 0;
-    console.log(`[PDF] 解析完成: ${processedPages}/${totalPages} 页，文本长度: ${totalText.length} 字符，纯图页: ${imageOnlyPages}`);
     
     return {
       text: hasContent ? totalText : '',
@@ -209,23 +191,20 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     
     // 密码保护
     if (errorMsg.includes('Password') || errorMsg.includes('password')) {
-      console.warn(`[PDF] 文件有密码保护，跳过: ${path.basename(filePath)}`);
       return { text: '', unsupportedPreview: true };
     }
     
     // 损坏文件
     if (errorMsg.includes('Invalid') || errorMsg.includes('corrupt')) {
-      console.warn(`[PDF] 文件损坏，跳过: ${path.basename(filePath)}`);
       return { text: '', unsupportedPreview: true };
     }
     
     // 超时
     if (errorMsg.includes('超时')) {
-      console.warn(`[PDF] ${errorMsg}: ${path.basename(filePath)}`);
       return { text: '', unsupportedPreview: true };
     }
     
-    // 其他错误
+    // 其他错误 - 记录日志用于调试
     logError('extractPdf', error, 'warn');
     return { text: '', unsupportedPreview: true };
     

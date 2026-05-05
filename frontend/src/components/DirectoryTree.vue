@@ -55,10 +55,10 @@
 
 <script setup lang="ts">
 import {onMounted, ref, watch} from 'vue'
-import {useAppStore} from '../stores/app'
-import TreeNode from './TreeNode.vue'
-import type {DirectoryNode} from '../types'
-import {getDirectoryTree} from '../utils/electron-api'
+import {useAppStore} from '@/stores/app'
+import TreeNode from '@/components/TreeNode.vue'
+import type {DirectoryNode} from '@/types'
+import {getDirectoryTree} from '@/utils/electron-api'
 
 const appStore = useAppStore()
 const rootNodes = ref<DirectoryNode[]>([])

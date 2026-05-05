@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type {ScanResultItem, AppConfig, DirectoryNode} from '../types'
+import type {ScanResultItem, AppConfig, DirectoryNode} from '@/types'
 // 【D2 优化】导入 UI 配置常量
-import { UI_BATCH_UPDATE_INTERVAL, UI_LOG_BATCH_INTERVAL } from '../config/ui-config'
+import { UI_BATCH_UPDATE_INTERVAL, UI_LOG_BATCH_INTERVAL } from '@/config/ui-config'
 
 export const useAppStore = defineStore('app', () => {
   // 扫描结果

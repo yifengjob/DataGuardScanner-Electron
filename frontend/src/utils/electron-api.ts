@@ -3,7 +3,7 @@ import type {
     ScanConfig,
     ScanResultItem,
     AppConfig
-} from '../types'
+} from '@/types'
 
 // 声明全局Window接口
 declare global {

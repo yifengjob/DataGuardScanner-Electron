@@ -50,10 +50,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { previewFileStream, openFile, cancelPreview, showMessage, onPreviewChunk } from '../utils/electron-api'
-import { getFriendlyErrorMessage, getErrorSeverity } from '../utils/error-handler'
-import { PreviewVirtualScroller, GlobalHighlight, LineHighlight } from '../utils/preview-virtual-scroller'
-import { useEventListener } from '../composables/useEventListener'
+import { previewFileStream, openFile, cancelPreview, showMessage, onPreviewChunk } from '@/utils/electron-api'
+import { getFriendlyErrorMessage, getErrorSeverity } from '@/utils/error-handler'
+import { PreviewVirtualScroller, GlobalHighlight, LineHighlight } from '@/utils/preview-virtual-scroller'
+import { useEventListener } from '@/composables/useEventListener'
 
 // 【配置常量】UI 渲染参数（与后端独立管理）
 const PREVIEW_CONFIG = {

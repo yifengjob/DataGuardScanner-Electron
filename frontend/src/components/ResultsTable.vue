@@ -174,17 +174,17 @@
 
 <script setup lang="ts">
 import {ref, computed, onMounted, onUnmounted, watch, nextTick} from 'vue'
-import {useAppStore} from '../stores/app'
+import {useAppStore} from '@/stores/app'
 import {storeToRefs} from 'pinia'
-import {formatFileSize, formatTime, debounce, promisePool} from '../utils/format'
-import {openFile, openFileLocation, deleteFile, getSensitiveRules, showMessage, askDialog} from '../utils/electron-api'
+import {formatFileSize, formatTime, debounce, promisePool} from '@/utils/format'
+import {openFile, openFileLocation, deleteFile, getSensitiveRules, showMessage, askDialog} from '@/utils/electron-api'
 // 【虚拟滚动优化】导入 vue-virtual-scroller（支持动态行高）
 import {DynamicScroller, DynamicScrollerItem} from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 // 【C2 优化】导入错误处理工具
-import {getFriendlyErrorMessage} from '../utils/error-handler'
+import {getFriendlyErrorMessage} from '@/utils/error-handler'
 // 【D2 优化】导入 UI 配置常量
-import {UI_SEARCH_DEBOUNCE_DELAY} from '../config/ui-config'
+import {UI_SEARCH_DEBOUNCE_DELAY} from '@/config/ui-config'
 
 const appStore = useAppStore()
 const {scanResults, config} = storeToRefs(appStore)
