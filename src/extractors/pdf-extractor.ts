@@ -13,12 +13,18 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-// 【修复】pdf.js 3.x legacy build 需要的 polyfill
+// 【修复】pdf.js 3.x legacy build 需要的完整 polyfill
 // 确保在 require pdf.js 之前设置
 if (typeof (global as any).window === 'undefined') {
-  // Node.js 环境
+  // Node.js 环境模拟浏览器全局对象
   (global as any).window = global;
-  (global as any).document = { documentElement: { style: {} } };
+  (global as any).document = {
+    documentElement: { style: {} },
+    createElement: () => ({ style: {}, getContext: () => null }),
+    createTextNode: () => ({}),
+  };
+  (global as any).navigator = { userAgent: 'Node.js' };
+  (global as any).HTMLElement = class HTMLElement {};
 }
 
 // 【修复】使用 legacy build（CommonJS）以兼容 Worker 线程
