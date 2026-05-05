@@ -137,12 +137,18 @@ async function startWalking(config: WalkerConfig) {
       let fileCount = 0;
       let skippedCount = 0;
       
+      // 【新增】去重集合，防止同一文件被多次报告
+      const seenFiles = new Set<string>();
+      
       // 【调试】输出 walker 配置
       console.log(`[Walker] 创建 walker: rootPath=${rootPath}, follow_symlinks=false`);
       
       // 【新增】超时保护 - 如果 30 秒内没有完成，强制 resolve（调试用）
       const timeoutId = setTimeout(() => {
-        console.warn(`[Walker] 遍历超时 (${rootPath})，强制结束`);
+        parentPort?.postMessage({
+          type: 'walker-log',
+          message: `[Walker] 遍历超时 (${rootPath})，强制结束`
+        });
         parentPort?.postMessage({
           type: 'walking-complete',
           fileCount,
@@ -159,7 +165,10 @@ async function startWalking(config: WalkerConfig) {
 
         // 【调试】输出过滤日志
         if (shouldIgnoreDirectory(dirName, directory, config)) {
-          console.log(`[Walker Filter] 跳过忽略目录: ${directory}`);
+          parentPort?.postMessage({
+            type: 'walker-log',
+            message: `[Walker Filter] 跳过忽略目录: ${directory}`
+          });
           return [];
         }
 
@@ -167,7 +176,10 @@ async function startWalking(config: WalkerConfig) {
         const normalizedDir = path.normalize(directory).toLowerCase();
         for (const sysDir of ignoredDirsNormalized) {
           if (normalizedDir.startsWith(sysDir + path.sep) || normalizedDir === sysDir) {
-            console.log(`[Walker Filter] 跳过系统目录: ${directory} (匹配: ${sysDir})`);
+            parentPort?.postMessage({
+              type: 'walker-log',
+              message: `[Walker Filter] 跳过系统目录: ${directory} (匹配: ${sysDir})`
+            });
             return [];
           }
         }
@@ -231,6 +243,15 @@ async function startWalking(config: WalkerConfig) {
 
       // 发送文件信息到主线程
       fileCount++;
+      
+      // 【新增】去重检查（使用 realpath 标准化路径）
+      const realPath = path.resolve(filePath);
+      if (seenFiles.has(realPath)) {
+        // 已处理过，跳过
+        return;
+      }
+      seenFiles.add(realPath);
+      
       parentPort?.postMessage({
         type: 'file-found',
         filePath,
@@ -243,20 +264,32 @@ async function startWalking(config: WalkerConfig) {
 
     walker.on('end', () => {
       clearTimeout(timeoutId); // 【新增】清除超时定时器
-      console.log(`[Walker] walker 'end' 事件触发: ${rootPath}, fileCount=${fileCount}, skippedCount=${skippedCount}`);
+      parentPort?.postMessage({
+        type: 'walker-log',
+        message: `[Walker] walker 'end' 事件触发: ${rootPath}, fileCount=${fileCount}, skippedCount=${skippedCount}`
+      });
       parentPort?.postMessage({
         type: 'walking-complete',
         fileCount,
         skippedCount
       });
-      console.log(`[Walker] 即将 resolve Promise: ${rootPath}`);
+      parentPort?.postMessage({
+        type: 'walker-log',
+        message: `[Walker] 即将 resolve Promise: ${rootPath}`
+      });
       resolve(); // 【修复】Promise resolve
-      console.log(`[Walker] Promise 已 resolve: ${rootPath}`);
+      parentPort?.postMessage({
+        type: 'walker-log',
+        message: `[Walker] Promise 已 resolve: ${rootPath}`
+      });
     });
 
     walker.on('error', (err: any) => {
       clearTimeout(timeoutId); // 【新增】清除超时定时器
-      console.error(`[Walker Error] 遍历错误 (${rootPath}):`, err.message);
+      parentPort?.postMessage({
+        type: 'walker-log',
+        message: `[Walker Error] 遍历错误 (${rootPath}): ${err.message}`
+      });
       parentPort?.postMessage({
         type: 'walking-error',
         error: err.message
