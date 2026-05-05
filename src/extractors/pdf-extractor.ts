@@ -16,13 +16,24 @@ import { MAX_TEXT_CONTENT_SIZE_MB, BYTES_TO_MB, PDF_PAGE_TIMEOUT_MS, PDF_TOTAL_T
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 
-// 【修复】使用 pdf.js 3.x legacy build（CommonJS），兼容 Node.js Worker
-// 注意：浏览器环境 polyfill 已在 file-worker.ts 中设置
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+// 【修复】延迟加载 pdf.js，避免模块级别 require 导致的问题
+let pdfjsLib: any = null;
+let pdfjsInitialized = false;
 
-// 设置 worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
+function getPdfJsLib() {
+  if (!pdfjsInitialized) {
+    console.log('[PDF Extractor] 正在加载 pdf.js...');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+    
+    // 设置 worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
+    
+    pdfjsInitialized = true;
+    console.log('[PDF Extractor] ✓ pdf.js 加载成功');
+  }
+  return pdfjsLib;
+}
 
 // 【配置】PDF 文件大小限制（MB）- 从 scan-config.ts 导入
 const MAX_PDF_SIZE_MB = 50;
@@ -83,6 +94,9 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
   let imageOnlyPages = 0;
   
   try {
+    // 【修复】延迟加载 pdf.js
+    const pdfjsLib = getPdfJsLib();
+    
     // 读取文件为 Buffer，然后转换为 Uint8Array
     const buffer = fs.readFileSync(filePath);
     const uint8Array = new Uint8Array(buffer);
