@@ -17,10 +17,12 @@ import {
   MAX_TEXT_CONTENT_SIZE_MB,
   PDF_OCR_ENABLED,
   PDF_PAGE_TIMEOUT_MS,
-  PDF_TOTAL_TIMEOUT_MS
+  PDF_TOTAL_TIMEOUT_MS,
+  FILE_READ_TIMEOUT_STANDARD_MS  // 【新增】导入文件读取超时配置
 } from '../scan-config';
 import {logError} from '../error-utils';
 import type {ExtractorResult} from './types';
+import { readFileWithTimeout } from '../file-utils';  // 【新增】导入超时保护工具
 
 // 【修复】延迟加载 pdf.js，避免模块级别 require 导致的问题
 let pdfjsLib: any = null;
@@ -105,7 +107,8 @@ export async function extractPdf(filePath: string): Promise<ExtractorResult> {
     const pdfjsLib = getPdfJsLib();
     
     // 读取文件为 Buffer，然后转换为 Uint8Array
-    const buffer = fs.readFileSync(filePath);
+    // 【新增】使用带超时的文件读取，防止 Windows 锁屏时阻塞
+    const buffer = await readFileWithTimeout(filePath, FILE_READ_TIMEOUT_STANDARD_MS);
     const uint8Array = new Uint8Array(buffer);
     
     // 加载 PDF 文档

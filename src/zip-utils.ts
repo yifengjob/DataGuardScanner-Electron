@@ -10,7 +10,8 @@
  */
 
 import { unzipSync, strFromU8 } from 'fflate';
-import { readFile } from 'fs/promises';
+import { FILE_READ_TIMEOUT_STANDARD_MS } from './scan-config';  // 【新增】导入超时配置
+import { readFileWithTimeout } from './file-utils';
 
 /**
  * ZIP 文件条目
@@ -26,7 +27,8 @@ export interface ZipEntry {
  * @returns ZIP 条目数组
  */
 export async function unzipFile(filePath: string): Promise<ZipEntry[]> {
-  const buffer = await readFile(filePath);
+  // 【新增】使用带超时的文件读取，防止 Windows 锁屏时阻塞
+  const buffer = await readFileWithTimeout(filePath, FILE_READ_TIMEOUT_STANDARD_MS);
   const u8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   
   // 同步解压 ZIP 文件（fflate 的优势：速度快，零拷贝）

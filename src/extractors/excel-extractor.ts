@@ -6,9 +6,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
-import { calculateParserTimeout } from '../scan-config';
+import { calculateParserTimeout, FILE_READ_TIMEOUT_STANDARD_MS } from '../scan-config';  // 【新增】导入超时配置
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
+import { readFileWithTimeout } from '../file-utils';
 
 export async function extractWithSheetJS(filePath: string): Promise<ExtractorResult> {
   // 【关键修复】添加智能超时保护，防止 SheetJS 卡死
@@ -37,7 +38,8 @@ export async function extractWithSheetJS(filePath: string): Promise<ExtractorRes
     (async () => {
       try {
         // 读取文件
-        const data = await fs.promises.readFile(filePath);
+        // 【新增】使用带超时的文件读取，防止 Windows 锁屏时阻塞
+        const data = await readFileWithTimeout(filePath, FILE_READ_TIMEOUT_STANDARD_MS);
         
         // 使用 SheetJS 解析工作簿
         const workbook = XLSX.read(data, {

@@ -392,30 +392,42 @@ function setupIpcHandlers() {
 
         cancelScan(scanState);
 
-        // 【修复】等待扫描状态真正重置，避免竞态条件
-        // 最多等待一定时间，定期检查状态
-        let waitedTime = 0;
-
-        while (scanState.isScanning && waitedTime < CANCEL_SCAN_MAX_WAIT) {
-            await new Promise(resolve => setTimeout(resolve, CANCEL_SCAN_CHECK_INTERVAL));
-            waitedTime += CANCEL_SCAN_CHECK_INTERVAL;
-        }
-
-        if (scanState.isScanning) {
-            console.warn(`[scan-cancel] 警告: 等待 ${CANCEL_SCAN_MAX_WAIT / 1000} 秒后扫描仍未结束，强制重置状态`);
-            scanState.isScanning = false;
-        } else {
-            console.log('[scan-cancel] 扫描已安全取消');
-        }
-
-        // 【新增】停止电源阻止器
-        if (powerSaveBlockerId !== null) {
-            powerSaveBlocker.stop(powerSaveBlockerId);
-            console.log(`[电源管理] 已停止电源阻止器 (ID: ${powerSaveBlockerId})`);
-            powerSaveBlockerId = null;
-        }
-
-        return {success: true};
+        // 【优化】改为异步通知机制，不阻塞 IPC
+        return new Promise((resolve) => {
+            const checkInterval = setInterval(() => {
+                if (!scanState.isScanning) {
+                    clearInterval(checkInterval);
+                    console.log('[scan-cancel] 扫描已安全取消');
+                    
+                    // 【新增】停止电源阻止器
+                    if (powerSaveBlockerId !== null) {
+                        powerSaveBlocker.stop(powerSaveBlockerId);
+                        console.log(`[电源管理] 已停止电源阻止器 (ID: ${powerSaveBlockerId})`);
+                        powerSaveBlockerId = null;
+                    }
+                    
+                    resolve({success: true});
+                }
+            }, CANCEL_SCAN_CHECK_INTERVAL);
+            
+            // 超时强制 resolve
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                if (scanState.isScanning) {
+                    console.warn(`[scan-cancel] 警告: 等待 ${CANCEL_SCAN_MAX_WAIT / 1000} 秒后扫描仍未结束，强制重置状态`);
+                    scanState.isScanning = false;
+                }
+                
+                // 【新增】停止电源阻止器
+                if (powerSaveBlockerId !== null) {
+                    powerSaveBlocker.stop(powerSaveBlockerId);
+                    console.log(`[电源管理] 已停止电源阻止器 (ID: ${powerSaveBlockerId})`);
+                    powerSaveBlockerId = null;
+                }
+                
+                resolve({success: true, warning: '强制重置扫描状态'});
+            }, CANCEL_SCAN_MAX_WAIT);
+        });
     });
 
     // 【方案 D3】预览文件（流式模式）

@@ -5,12 +5,16 @@
 
 import * as fs from 'fs';
 import * as iconv from 'iconv-lite';
+import { FILE_READ_TIMEOUT_STANDARD_MS } from '../scan-config';  // 【新增】导入超时配置
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
+import { readFileWithTimeout } from '../file-utils';
 
 export async function extractRtf(filePath: string): Promise<ExtractorResult> {
   try {
-    const content = await fs.promises.readFile(filePath, 'utf-8');
+    // 【新增】使用带超时的文件读取，防止 Windows 锁屏时阻塞
+    const buffer = await readFileWithTimeout(filePath, FILE_READ_TIMEOUT_STANDARD_MS);
+    const content = buffer.toString('utf-8');  // 转换为字符串
     
     // 第一步：检测 RTF 文件的编码（从 \ansicpgN 中提取代码页）
     const codePageMatch = content.match(/\\ansicpg(\d+)/i);

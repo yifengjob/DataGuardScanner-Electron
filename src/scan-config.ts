@@ -251,3 +251,22 @@ export const WINDOW_TARGET_RATIO = 0.85;
 
 /** 文件大小显示精度（小数位数） */
 export const FILE_SIZE_DECIMAL_PLACES = 1;
+
+// ==================== 文件 I/O 超时配置 ====================
+// 注意：这些超时仅针对文件 I/O 操作（读取/打开/统计/关闭），不包含解析时间
+// 解析超时请使用 PARSER_* 系列常量，Worker 监控超时请使用 WORKER_* 系列常量
+
+/** 标准文件读取超时时间（毫秒）- 用于 PDF/Excel/Binary/RTF/ZIP 等复杂解析 */
+export const FILE_READ_TIMEOUT_STANDARD_MS = 15000;  // 15秒（适应 Windows 锁屏场景）
+
+/** 快速失败文件读取超时时间（毫秒）- 用于降级逻辑或简单操作 */
+export const FILE_READ_TIMEOUT_FAST_MS = 5000;  // 5秒
+
+/** 文件打开超时时间（毫秒） */
+export const FILE_OPEN_TIMEOUT_MS = 3000;  // 3秒
+
+/** 文件统计超时时间（毫秒） */
+export const FILE_STAT_TIMEOUT_MS = 3000;  // 3秒
+
+/** 文件关闭超时时间（毫秒） */
+export const FILE_CLOSE_TIMEOUT_MS = 1000;  // 1秒

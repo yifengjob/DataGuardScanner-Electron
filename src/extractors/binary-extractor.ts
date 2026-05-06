@@ -4,8 +4,10 @@
  */
 
 import * as fs from 'fs';
+import { FILE_READ_TIMEOUT_STANDARD_MS } from '../scan-config';  // 【新增】导入超时配置
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
+import { readFileWithTimeout } from '../file-utils';
 
 // 从二进制数据中提取可打印文本
 export function extractTextFromBinary(data: Buffer): string {
@@ -47,7 +49,8 @@ export function extractTextFromBinary(data: Buffer): string {
 
 export async function extractWithBinary(filePath: string): Promise<ExtractorResult> {
   try {
-    const data = await fs.promises.readFile(filePath);
+    // 【新增】使用带超时的文件读取，防止 Windows 锁屏时阻塞
+    const data = await readFileWithTimeout(filePath, FILE_READ_TIMEOUT_STANDARD_MS);
     const text = extractTextFromBinary(data);
     
     const hasContent = text && text.trim().length > 0;

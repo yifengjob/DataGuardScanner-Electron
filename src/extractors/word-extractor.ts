@@ -6,10 +6,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import WordExtractor from 'word-extractor';
-import { calculateParserTimeout } from '../scan-config';
+import { calculateParserTimeout, FILE_READ_TIMEOUT_FAST_MS } from '../scan-config';  // 【新增】导入超时配置
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';
 import { extractTextFromBinary } from './binary-extractor';
+import { readFileWithTimeout } from '../file-utils';
 
 export async function extractWithWordExtractor(filePath: string): Promise<ExtractorResult> {
   // 【关键修复】添加智能超时保护，防止 word-extractor 卡死
@@ -69,7 +70,8 @@ export async function extractWithWordExtractor(filePath: string): Promise<Extrac
           
           // 降级到二进制提取
           try {
-            const data = await fs.promises.readFile(filePath);
+            // 【新增】使用带超时的文件读取（快速失败）
+            const data = await readFileWithTimeout(filePath, FILE_READ_TIMEOUT_FAST_MS);
             const text = extractTextFromBinary(data);
             if (text.trim()) {
               resolve({ text, unsupportedPreview: false });
