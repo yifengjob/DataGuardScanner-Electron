@@ -92,15 +92,21 @@ watch(
 // 组件挂载时从后端获取日志
 onMounted(async () => {
   try {
-    const backendLogs = await getLogs()
-    if (backendLogs.length > 0) {
-      // 【修复】使用 push 而不是直接赋值，保持响应式
-      logs.value.push(...backendLogs)
-      // 【新增】初始化 previousLength
-      previousLength.value = logs.value.length
-      // 初始加载后滚动到底部
-      await scrollToBottom()
+    // 【优化】只在 logs 为空时才从后端加载
+    // 如果窗口在扫描中途打开，store 中已经有实时更新的日志
+    if (logs.value.length === 0) {
+      const backendLogs = await getLogs()
+      if (backendLogs.length > 0) {
+        // 【修复】使用 push 而不是直接赋值，保持响应式
+        logs.value.push(...backendLogs)
+      }
     }
+    
+    // 【新增】无论是否加载了新日志，都初始化 previousLength
+    previousLength.value = logs.value.length
+    
+    // 初始加载后滚动到底部
+    await scrollToBottom()
   } catch (error) {
     console.error('获取日志失败:', error)
   }
