@@ -18,7 +18,6 @@ export { extractWithWordExtractor } from './word-extractor';
 
 // Excel 表格提取器
 export { extractWithSheetJS } from './excel-extractor';
-export { extractWithExcelJS } from './excel-streaming-extractor';  // 【新增】exceljs 流式解析器
 
 // PowerPoint 提取器
 export { extractPptx } from './ppt-extractor';

@@ -62,7 +62,10 @@
         {
           "from": "node_modules/electron/dist/",
           "to": ".",
-          "filter": ["ffmpeg.dll", "d3dcompiler_47.dll"]
+          "filter": [
+            "ffmpeg.dll",
+            "d3dcompiler_47.dll"
+          ]
         }
       ]
     },
@@ -131,7 +134,6 @@
     "buffer": "^6.0.3",
     "chrono-node": "^2.9.1",
     "events": "^3.3.0",
-    "exceljs": "^4.4.0",
     "fflate": "^0.8.2",
     "iconv-lite": "^0.7.2",
     "pdfjs-dist": "3.11.174",

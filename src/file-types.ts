@@ -13,7 +13,6 @@ import {
   extractPdf,
   extractWithWordExtractor,
   extractWithSheetJS,
-  extractWithExcelJS,  // 【新增】exceljs 流式解析器
   extractPptx,
   extractWithBinary,
   extractOdt,
@@ -141,20 +140,12 @@ export const FILE_TYPE_REGISTRY: FileTypeConfig[] = [
   },
   
   // ==================== Excel 表格（需要先解析为文本）====================
-  // 【优化】拆分为两个注册项，分别处理现代格式和旧格式
   {
-    extensions: ['xlsx', 'et'],  // 现代 Excel 格式
-    processor: FileProcessorType.PARSER_REQUIRED,
-    supportsStreaming: false,  // ❌ 仍需先解析，不能直接流式读取原始文件
-    extractor: extractWithExcelJS,  // 使用 exceljs 流式解析器
-    description: 'Excel 表格（使用 exceljs 流式解析，内存效率高）'
-  },
-  {
-    extensions: ['xls'],  // Excel 97-2003 旧格式，不支持流式
+    extensions: ['xlsx', 'xls', 'et'],  // 所有 Excel 格式统一使用 SheetJS
     processor: FileProcessorType.PARSER_REQUIRED,
     supportsStreaming: false,  // ❌ SheetJS 不支持流式
     extractor: extractWithSheetJS,
-    description: 'Excel 97-2003 表格（使用 SheetJS 解析）'
+    description: 'Excel 表格（使用 SheetJS 解析，稳定可靠）'
   },
   
   // ==================== PowerPoint 演示文稿（需要先解析为文本）====================
