@@ -1,6 +1,6 @@
 {
   "name": "DataGuardScanner",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "个人敏感信息扫描工具",
   "main": "dist/main.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "build:renderer": "cd frontend && pnpm build",
     "generate-icons": "node scripts/generate-icons.js",
     "postinstall": "node scripts/fix-readable-stream.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "version:update": "node scripts/update-version.js"
   },
   "keywords": [
     "security",
