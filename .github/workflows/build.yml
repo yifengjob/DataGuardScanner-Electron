@@ -103,6 +103,7 @@ jobs:
           else
             pnpm install
           fi
+        shell: bash
 
       - name: Install frontend dependencies
         run: cd frontend && pnpm install
