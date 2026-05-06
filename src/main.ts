@@ -1,4 +1,4 @@
-import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu, screen} from 'electron';
+import {app, BrowserWindow, dialog, ipcMain, nativeImage, Menu, screen, powerSaveBlocker} from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -141,6 +141,9 @@ process.on('exit', (code) => {
 let mainWindow: BrowserWindow | null = null;
 const scanState = new ScanState();
 
+// 【新增】电源阻止器 ID（用于防止锁屏时扫描中断）
+let powerSaveBlockerId: number | null = null;
+
 // 【方案 B】预览 Worker 管理（支持取消）
 const previewWorkers = new Map<number, any>(); // taskId -> Worker
 
@@ -280,8 +283,19 @@ function createWindow() {
             cancelScan(scanState);
             scanState.isScanning = false;
         }
+        
+        // 【新增】窗口关闭时停止电源阻止器
+        if (powerSaveBlockerId !== null) {
+            powerSaveBlocker.stop(powerSaveBlockerId);
+            console.log(`[电源管理] 窗口关闭，已停止电源阻止器 (ID: ${powerSaveBlockerId})`);
+            powerSaveBlockerId = null;
+        }
+        
         mainWindow = null;
     });
+    
+    // 【新增】设置扫描完成监听器
+    setupScanFinishedListener();
 }
 
 app.whenReady().then(() => {
@@ -351,6 +365,12 @@ function setupIpcHandlers() {
         if (!mainWindow) return {error: '窗口未初始化'};
 
         try {
+            // 【新增】启动电源阻止器，防止锁屏/休眠导致扫描中断
+            if (powerSaveBlockerId === null && !powerSaveBlocker.isStarted(0)) {
+                powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+                console.log(`[电源管理] 已启动电源阻止器 (ID: ${powerSaveBlockerId})，防止系统休眠`);
+            }
+            
             // 不 await，让扫描在后台进行
             startScan(config, mainWindow, scanState).catch(error => {
                 console.error('扫描异常:', error);
@@ -386,6 +406,13 @@ function setupIpcHandlers() {
             scanState.isScanning = false;
         } else {
             console.log('[scan-cancel] 扫描已安全取消');
+        }
+
+        // 【新增】停止电源阻止器
+        if (powerSaveBlockerId !== null) {
+            powerSaveBlocker.stop(powerSaveBlockerId);
+            console.log(`[电源管理] 已停止电源阻止器 (ID: ${powerSaveBlockerId})`);
+            powerSaveBlockerId = null;
         }
 
         return {success: true};
@@ -742,4 +769,26 @@ function setupIpcHandlers() {
         }
         return {error: '窗口未初始化'};
     });
+}
+
+// 【新增】监听扫描完成事件，停止电源阻止器
+// 注意：scanner.ts 会通过 mainWindow.webContents.send 发送 scan-finished
+// 我们需要在 BrowserWindow 层面监听这个事件
+let originalSend: any = null;
+
+function setupScanFinishedListener() {
+    if (!originalSend && mainWindow) {
+        originalSend = mainWindow.webContents.send.bind(mainWindow.webContents);
+        mainWindow.webContents.send = function(channel: string, ...args: any[]) {
+            if (channel === 'scan-finished') {
+                // 扫描完成时停止电源阻止器
+                if (powerSaveBlockerId !== null) {
+                    powerSaveBlocker.stop(powerSaveBlockerId);
+                    console.log(`[电源管理] 扫描完成，已停止电源阻止器 (ID: ${powerSaveBlockerId})`);
+                    powerSaveBlockerId = null;
+                }
+            }
+            return originalSend(channel, ...args);
+        };
+    }
 }

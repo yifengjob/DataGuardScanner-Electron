@@ -154,6 +154,12 @@
         <span class="status-label">耗时：</span>
         <span class="status-value mono-font">{{ scanElapsedTime }}</span>
       </div>
+      <!-- 【新增】电源管理状态提示 -->
+      <div v-if="isScanning" class="status-divider"></div>
+      <div v-if="isScanning" class="status-item power-save-indicator" title="扫描进行中，系统已阻止休眠">
+        <span class="power-icon">⚡</span>
+        <span class="power-text">防休眠</span>
+      </div>
     </div>
 
     <!-- 预览弹窗 -->
@@ -700,6 +706,37 @@ const getThemeTooltip = () => {
 /* 【UI优化】扫描耗时项靠右显示 */
 .status-elapsed {
   margin-left: auto; /* 推到最右边 */
+}
+
+/* 【新增】电源管理状态指示器样式 */
+.power-save-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background-color: rgba(255, 193, 7, 0.1);
+  border-radius: 4px;
+  animation: power-pulse 2s ease-in-out infinite;
+}
+
+.power-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.power-text {
+  color: var(--warning-color);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+@keyframes power-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* 模态框过渡动画 */

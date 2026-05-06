@@ -213,7 +213,7 @@ export const LOG_RETENTION_DAYS = 30;
 // ==================== 并发数配置 ====================
 
 /** 每个 Worker 预估内存占用（GB） */
-export const MEMORY_PER_WORKER_GB = 0.20;
+export const MEMORY_PER_WORKER_GB = 0.25;
 
 /** 并发数绝对最大值 */
 export const CONCURRENCY_ABSOLUTE_MAX = 6;
@@ -224,8 +224,8 @@ export const CONCURRENCY_MEMORY_RATIO = 0.7;
 /** 默认并发数的 CPU 核心数比例 */
 export const DEFAULT_CONCURRENCY_CPU_RATIO = 0.5;
 
-/** 默认并发数最大值 - 优化为 6，充分利用多核性能 */
-export const DEFAULT_CONCURRENCY_MAX = 6;
+/** 默认并发数最大值 */
+export const DEFAULT_CONCURRENCY_MAX = 4;
 
 /** 默认并发数最小值 */
 export const DEFAULT_CONCURRENCY_MIN = 2;
