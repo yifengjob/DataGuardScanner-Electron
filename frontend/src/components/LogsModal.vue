@@ -62,16 +62,19 @@ const scrollToBottom = async () => {
 }
 
 // 监听日志变化，自动滚动到底部
-// 【新增】使用 logVersion 触发 watch，确保即使删除旧日志也能检测到新日志
+// 【修复】同时监听 logs 数组长度和 logVersion，确保可靠触发
 watch(
-  () => logVersion.value,
-  (newVersion, oldVersion) => {
-    console.log('[LogsModal] logVersion changed:', oldVersion, '->', newVersion, 'logs count:', logs.value.length)
-    // 每次版本号变化（有新日志添加）时滚动到底部
-    // 【优化】延迟一点执行，确保 DOM 完全渲染
-    setTimeout(() => {
-      scrollToBottom()
-    }, 50)
+  [() => logs.value.length, () => logVersion.value],
+  ([newLength, newVersion], [oldLength, oldVersion]) => {
+    console.log('[LogsModal] Watch triggered - length:', oldLength, '->', newLength, ', version:', oldVersion, '->', newVersion)
+    
+    // 只有当日志数量增加或版本号变化时才滚动
+    if (newLength > (oldLength || 0) || newVersion !== oldVersion) {
+      // 延迟一点执行，确保 DOM 完全渲染
+      setTimeout(() => {
+        scrollToBottom()
+      }, 50)
+    }
   },
   { flush: 'post' }  // 在 DOM 更新后执行
 )
