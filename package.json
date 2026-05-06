@@ -122,7 +122,7 @@
   },
   "dependencies": {
     "buffer": "^6.0.3",
-    "chrono-node": "^2.9.0",
+    "chrono-node": "^2.9.1",
     "events": "^3.3.0",
     "exceljs": "^4.4.0",
     "fflate": "^0.8.2",
