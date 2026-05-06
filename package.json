@@ -125,10 +125,8 @@
     "chrono-node": "^2.9.0",
     "events": "^3.3.0",
     "exceljs": "^4.4.0",
-    "extract-zip": "^2.0.1",
     "fflate": "^0.8.2",
     "iconv-lite": "^0.7.2",
-    "jszip": "^3.10.1",
     "pdfjs-dist": "3.11.174",
     "process": "^0.11.10",
     "readable-stream": "^3.6.2",
@@ -140,7 +138,6 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.19.39",
     "@types/sax": "^1.2.7",
     "concurrently": "^8.2.2",
