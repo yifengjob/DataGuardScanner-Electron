@@ -54,16 +54,15 @@ const scrollToBottom = async () => {
 }
 
 // 监听日志变化，自动滚动到底部
-// 【修复】使用 deep watch 确保能检测到数组内容变化
+// 【修复】监听数组长度变化，push 操作会触发 length 变化
 watch(
-  () => logs.value,
-  (newLogs, oldLogs) => {
+  () => logs.value.length,
+  (newLength, oldLength) => {
     // 只有当日志数量增加时才滚动
-    if (newLogs.length > (oldLogs?.length || 0)) {
+    if (newLength > (oldLength || 0)) {
       scrollToBottom()
     }
-  },
-  { deep: true }  // 深度监听
+  }
 )
 
 // 组件挂载时从后端获取日志

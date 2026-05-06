@@ -15,6 +15,13 @@ const SUPPRESS_PATTERNS = [
     'Warning: TT: undefined subroutine',
     'Warning: TT: invalid glyph index',
     'Warning: Required "glyf" table is not found -- trying to recover.',
+    'Warning: fetchStandardFontData: failed to fetch file',
+    'Warning: loadFont - translateFont failed:',
+    
+    // 【新增】canvas 模块缺失警告（不影响文本提取功能）
+    'Cannot polyfill `Path2D`',
+    'Cannot find module',
+    'canvas.node',
 ];
 
 /**
