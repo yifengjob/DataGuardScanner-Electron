@@ -67,7 +67,7 @@ export function createLogger(
     let logCount = 0;
     
     // 【性能优化】缓存转换后的数组，避免每次日志都重新创建
-    // 注意：此变量被赋值后通过 scanState.logs 对外提供，供前端读取
+    // 注意：此变量通过 scanState.logs 对外提供，供前端读取
     let cachedLogsArray: string[] = [];
     let needsUpdate = false;
 
