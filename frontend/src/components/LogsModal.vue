@@ -41,6 +41,9 @@ const { logs } = storeToRefs(appStore)
 
 const logsContainer = ref<HTMLDivElement | null>(null)
 
+// 【修复】保存上一次的日志长度，用于比较
+const previousLength = ref(0)
+
 defineEmits<{
   close: []
 }>()
@@ -62,19 +65,23 @@ const scrollToBottom = async () => {
 }
 
 // 监听日志变化，自动滚动到底部
-// 【修复】直接监听 logs 数组，使用 deep 和 flush: 'post'
+// 【修复】使用 previousLength 跟踪变化，因为 deep watch 的 old/new 指向同一引用
 watch(
   () => logs.value,
-  (newLogs, oldLogs) => {
-    console.log('[LogsModal] Watch triggered - length:', oldLogs?.length, '->', newLogs.length)
+  (newLogs) => {
+    const currentLength = newLogs.length
+    console.log('[LogsModal] Watch triggered - previous:', previousLength.value, '-> current:', currentLength)
     
     // 只要有新日志就滚动
-    if (newLogs.length > (oldLogs?.length || 0)) {
+    if (currentLength > previousLength.value) {
       // 延迟一点执行，确保 DOM 完全渲染
       setTimeout(() => {
         scrollToBottom()
       }, 50)
     }
+    
+    // 更新上一次的长度
+    previousLength.value = currentLength
   },
   { 
     deep: true,  // 深度监听数组变化
@@ -89,6 +96,8 @@ onMounted(async () => {
     if (backendLogs.length > 0) {
       // 【修复】使用 push 而不是直接赋值，保持响应式
       logs.value.push(...backendLogs)
+      // 【新增】初始化 previousLength
+      previousLength.value = logs.value.length
       // 初始加载后滚动到底部
       await scrollToBottom()
     }
