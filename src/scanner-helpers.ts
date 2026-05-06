@@ -254,6 +254,7 @@ export function cleanupPendingTask(
 export function markConsumerIdle(consumer: any): void {
     consumer.busy = false;
     consumer.taskId = undefined;
+    consumer.counted = false;  // 【P0修复】重置计数标志，允许下次任务重新计数
 }
 
 /**

@@ -76,13 +76,15 @@ export async function startScan(
     let activeWorkerCount = 0;      // 【优化】跟踪活跃的 Worker 数量
     const countedTaskIds = new Set<number>(); // 【修复】防止重复计数
 
-    // 创建 Consumer Workers 池
-    const consumers: Array<{
+    // 【Map优化】创建 Consumer Workers 池（使用 Map 提升查找/删除效率）
+    const consumers = new Map<number, {
+        id: number;              // Worker ID
         worker: Worker;
         busy: boolean;
         taskId?: number;
-        isTerminating?: boolean; // 【新增】标记是否正在被主动终止
-    }> = [];
+        counted?: boolean;         // 【P0修复】防止重复计数
+        isTerminating?: boolean;   // 【新增】标记是否正在被主动终止
+    }>();
 
     const pendingTasks = new Map<number, {
         filePath: string;
@@ -197,10 +199,16 @@ export async function startScan(
         }
 
         const consumer = {
+            id,                    // 【Map优化】保存 ID
             worker,
             busy: false,
-            taskId: undefined
+            taskId: undefined,
+            counted: false,       // 【P0修复】防止重复计数
+            isTerminating: false  // 【新增】标记主动终止
         };
+
+        // 【Map优化】使用 Map.set() 存储，O(1) 复杂度
+        consumers.set(id, consumer);
 
         worker.on('message', (result) => {
             if (result.type === 'ready') {
@@ -270,9 +278,9 @@ export async function startScan(
         worker.on('error', (error: any) => {
             log.error(`[Consumer ${id}] Worker 错误: ${error.message}`);
 
-            // 【修复】只有当 consumer 处于 busy 状态时才减少计数
-            if (consumer.busy) {
-                consumer.busy = false;
+            // 【P0修复】只有当 consumer 处于 busy 状态且未处理过才减少计数
+            if (consumer.busy && !consumer.counted) {
+                consumer.counted = true;  // 标记已计数
                 activeWorkerCount--;
 
                 if (consumer.taskId !== undefined) {
@@ -289,7 +297,7 @@ export async function startScan(
 
         worker.on('exit', (code: number, signal: string | null) => {
             // 【修复】区分主动终止和异常退出
-            const consumerRef = consumer as typeof consumers[0];
+            const consumerRef = consumer as ReturnType<typeof consumers.get> & { id: number };
 
             // 【新增】记录详细的退出信息
             if (signal) {
@@ -313,9 +321,9 @@ export async function startScan(
                     log.error(`[Consumer ${id}] ⚠️ 检测到 Worker OOM！将重启 Worker 并跳过当前文件`);
                 }
 
-                // 【修复】只有当 consumer 处于 busy 状态时才更新计数
-                if (consumerRef.busy && consumerRef.taskId !== undefined) {
-                    consumerRef.busy = false;
+                // 【P0修复】只有当 consumer 处于 busy 状态且未处理过才更新计数
+                if (consumerRef.busy && consumerRef.taskId !== undefined && !consumerRef.counted) {
+                    consumerRef.counted = true;  // 标记已计数
                     activeWorkerCount--;
 
                     const pending = pendingTasks.get(consumerRef.taskId);
@@ -338,28 +346,27 @@ export async function startScan(
                 // 【关键】延迟重启 Worker，避免频繁创建销毁
                 setTimeout(() => {
                     if (!scanState.cancelFlag) {
-                        const index = consumers.findIndex(c => c.worker === worker);
-                        if (index > -1) {
-                            log.info(`[Consumer ${id}] 正在重启 Worker...`);
-                            consumers.splice(index, 1);
-                            createConsumer(id);
+                        log.info(`[Consumer ${id}] 正在重启 Worker...`);
+                        
+                        // 【Map优化】使用 Map.delete() 删除，O(1) 复杂度
+                        consumers.delete(id);
+                        
+                        // 【Map优化】复用相同的 ID 创建新 Worker
+                        createConsumer(id);
 
-                            // 【新增】Worker 重启后强制 GC，释放内存
-                            if ((global as any).gc) {
-                                log.info(`[Consumer ${id}] 执行强制垃圾回收...`);
-                                (global as any).gc();
-                            }
-                            // 【关键】重启后立即尝试调度任务，防止停滞
-                            setTimeout(() => tryDispatch(), 100);
+                        // 【新增】Worker 重启后强制 GC，释放内存
+                        if ((global as any).gc) {
+                            log.info(`[Consumer ${id}] 执行强制垃圾回收...`);
+                            (global as any).gc();
                         }
+                        // 【关键】重启后立即尝试调度任务，防止停滞
+                        setTimeout(() => tryDispatch(), 100);
                     }
                 }, WORKER_RESTART_DELAY);
             } else {
                 consumerRef.busy = false;
             }
         });
-
-        consumers.push(consumer);
     }
 
     // 创建所有 Consumer Workers
@@ -377,16 +384,22 @@ export async function startScan(
     function tryDispatch() {
         let dispatched = 0;
 
+        // 【Map优化】获取所有 Consumer IDs
+        const consumerIds = Array.from(consumers.keys());
+        const totalConsumers = consumerIds.length;
+
+        if (totalConsumers === 0) return;
+
         // 【关键修复】使用轮询调度，从上次结束的位置开始查找
         const startIndex = nextConsumerIndex;
-        const totalConsumers = consumers.length;
 
         for (let i = 0; i < totalConsumers; i++) {
             // 计算当前要检查的 Consumer 索引（循环）
             const currentIndex = (startIndex + i) % totalConsumers;
-            const consumer = consumers[currentIndex];
+            const consumerId = consumerIds[currentIndex];
+            const consumer = consumers.get(consumerId);
 
-            if (!consumer.busy && taskQueue.length > 0) {
+            if (consumer && !consumer.busy && taskQueue.length > 0) {
                 // 处理 Promise rejection，避免未捕获的错误
                 const promise = dispatchNextTask(consumer);
                 if (promise) {
@@ -402,13 +415,16 @@ export async function startScan(
     }
 
     // 分发下一个任务
-    function dispatchNextTask(consumer: typeof consumers[0]) {
+    function dispatchNextTask(consumer: ReturnType<typeof consumers.get>) {
+        if (!consumer) return;  // 【Map优化】安全检查
+        
         const task = taskQueue.shift();
         if (!task) {
             return;
         }
 
         consumer.busy = true;
+        consumer.counted = false;  // 【P0修复】重置计数标志
         activeWorkerCount++; // 【优化】增加活跃计数
         const taskId = nextTaskId++;
         consumer.taskId = taskId;
@@ -438,25 +454,22 @@ export async function startScan(
                 // 【重构】使用辅助函数安全终止 Worker
                 safelyTerminateWorker(consumer.worker, consumer, log);
 
-                const index = consumers.indexOf(consumer);
-                if (index > -1) {
-                    // 【性能优化】移除高频日志
-                    // console.log(`[超时处理] 正在创建新 Worker 替换 Consumer ${index}...`);
-                    consumers.splice(index, 1);
-                    createConsumer(index);
-                    // console.log(`[超时处理] 新 Worker 已创建，当前 Consumers 数量: ${consumers.length}`);
+                // 【Map优化】使用 Map.delete() 删除，O(1) 复杂度
+                const consumerId = consumer.id;
+                consumers.delete(consumerId);
+                
+                // 【Map优化】复用相同的 ID 创建新 Worker
+                createConsumer(consumerId);
 
-                    // 【新增】Worker 重启后强制 GC，释放内存
-                    if ((global as any).gc) {
-                        log.info(`[超时处理] 执行强制垃圾回收...`);
-                        (global as any).gc();
-                    }
-                    // 【关键】立即尝试调度任务
-                    setTimeout(() => {
-                        // console.log(`[超时处理] 尝试调度任务，队列长度: ${taskQueue.length}, Consumers: ${consumers.length}`);
-                        tryDispatch();
-                    }, 50);
+                // 【新增】Worker 重启后强制 GC，释放内存
+                if ((global as any).gc) {
+                    log.info(`[超时处理] 执行强制垃圾回收...`);
+                    (global as any).gc();
                 }
+                // 【关键】立即尝试调度任务
+                setTimeout(() => {
+                    tryDispatch();
+                }, 50);
 
                 resolve(); // 超时处理后继续
             }, timeout);
@@ -576,8 +589,9 @@ export async function startScan(
                 // 【修复】延迟 100ms 确保所有 Worker 的状态已同步
                 setTimeout(() => {
                     let restartedCount = 0;
-                    for (let i = 0; i < consumers.length; i++) {
-                        const consumer = consumers[i];
+                    
+                    // 【Map优化】遍历 Map 中的所有 Consumer
+                    for (const [consumerId, consumer] of consumers) {
                         if (!consumer.busy) {
                             // 终止旧的 Worker
                             try {
@@ -587,8 +601,9 @@ export async function startScan(
                                 // 忽略终止错误
                             }
 
-                            // 创建新的 Worker（使用新内存限制）
-                            createConsumer(i, dynamicOldGenMB, dynamicYoungGenMB);
+                            // 【Map优化】删除旧 Consumer，创建新的 Worker（使用新内存限制）
+                            consumers.delete(consumerId);
+                            createConsumer(consumerId, dynamicOldGenMB, dynamicYoungGenMB);
                             restartedCount++;
                         }
                     }
@@ -775,7 +790,8 @@ export async function startScan(
             }
 
             // 【修复】终止所有 Consumer Workers 并清除引用
-            for (const consumer of consumers) {
+            // 【Map优化】遍历 Map 中的所有 Consumer
+            for (const [, consumer] of consumers) {
                 try {
                     consumer.worker.terminate();
                     // 【关键】清除引用，帮助垃圾回收
@@ -786,8 +802,8 @@ export async function startScan(
                 }
             }
 
-            // 【关键】清空 consumers 数组，释放内存
-            consumers.length = 0;
+            // 【Map优化】清空 Map，释放内存
+            consumers.clear();
 
             // 清除所有超时定时器（如果还没有被清理）
             if (pendingTasks.size > 0) {
