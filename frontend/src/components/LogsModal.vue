@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch, nextTick } from 'vue'
+import { onMounted, ref, watch, nextTick } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { storeToRefs } from 'pinia'
 import { getLogs } from '@/utils/electron-api'
@@ -41,11 +41,8 @@ const { logs } = storeToRefs(appStore)
 
 const logsContainer = ref<HTMLDivElement | null>(null)
 
-// 【修复】保存上一次的日志长度，用于比较
+// 保存上一次的日志长度，用于比较
 const previousLength = ref(0)
-
-// 【调试】定期检查 logs 数组长度，确认是否有新数据
-let debugInterval: number | null = null
 
 defineEmits<{
   close: []
@@ -55,25 +52,15 @@ defineEmits<{
 const scrollToBottom = async () => {
   await nextTick()
   if (logsContainer.value) {
-    // 【调试】输出滚动信息
-    console.log('[LogsModal] Scrolling to bottom, scrollHeight:', logsContainer.value.scrollHeight, 'scrollTop:', logsContainer.value.scrollTop)
     logsContainer.value.scrollTop = logsContainer.value.scrollHeight
-    // 【验证】确认滚动成功
-    setTimeout(() => {
-      console.log('[LogsModal] After scroll, scrollTop:', logsContainer.value?.scrollTop)
-    }, 50)
-  } else {
-    console.warn('[LogsModal] logsContainer is null')
   }
 }
 
 // 监听日志变化，自动滚动到底部
-// 【修复】使用 previousLength 跟踪变化，因为 deep watch 的 old/new 指向同一引用
 watch(
   () => logs.value,
   (newLogs) => {
     const currentLength = newLogs.length
-    console.log('[LogsModal] Watch triggered - previous:', previousLength.value, '-> current:', currentLength)
     
     // 只要有新日志就滚动
     if (currentLength > previousLength.value) {
@@ -87,30 +74,23 @@ watch(
     previousLength.value = currentLength
   },
   { 
-    deep: true,  // 深度监听数组变化
-    flush: 'post'  // 在 DOM 更新后执行
+    deep: true,
+    flush: 'post'
   }
 )
 
 // 组件挂载时从后端获取日志
 onMounted(async () => {
-  // 【调试】启动定期检查
-  debugInterval = window.setInterval(() => {
-    console.log('[LogsModal DEBUG] Current logs.length:', logs.value.length, ', previousLength:', previousLength.value)
-  }, 2000)  // 每 2 秒输出一次
-  
   try {
-    // 【优化】只在 logs 为空时才从后端加载
-    // 如果窗口在扫描中途打开，store 中已经有实时更新的日志
+    // 只在 logs 为空时才从后端加载
     if (logs.value.length === 0) {
       const backendLogs = await getLogs()
       if (backendLogs.length > 0) {
-        // 【修复】使用 push 而不是直接赋值，保持响应式
         logs.value.push(...backendLogs)
       }
     }
     
-    // 【新增】无论是否加载了新日志，都初始化 previousLength
+    // 初始化 previousLength
     previousLength.value = logs.value.length
     
     // 初始加载后滚动到底部
@@ -120,16 +100,7 @@ onMounted(async () => {
   }
 })
 
-// 组件卸载时清理定时器
-onUnmounted(() => {
-  if (debugInterval) {
-    clearInterval(debugInterval)
-    debugInterval = null
-  }
-})
-
 const handleClearLogs = () => {
-  // 【修复】使用 splice 清空数组，保持响应式
   logs.value.splice(0, logs.value.length)
 }
 </script>

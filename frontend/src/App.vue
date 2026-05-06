@@ -308,8 +308,7 @@ onMounted(async () => {
 
   // 监听日志事件
   await onScanLog((log) => {
-    console.log('[App.vue] Received log event:', log.substring(0, 50))
-    appStore.addLog(log)  // 【优化】使用批量添加
+    appStore.addLog(log)
   })
 })
 

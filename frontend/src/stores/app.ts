@@ -160,38 +160,27 @@ export const useAppStore = defineStore('app', () => {
   }
   
   function addLog(log: string) {
-    console.log('[Store.addLog] Called with:', log.substring(0, 50))
     pendingLogs.push(log)
-    console.log('[Store.addLog] pendingLogs length:', pendingLogs.length)
     
-    // 如果还没有定时器，设置一个批处理定时器（日志可以更慢）
+    // 如果还没有定时器，设置一个批处理定时器
     if (logBatchTimer === null) {
-      console.log('[Store.addLog] Setting up batch timer')
       logBatchTimer = window.setTimeout(() => {
-        console.log('[Store.addLog] Batch timer fired, pendingLogs:', pendingLogs.length)
         if (pendingLogs.length > 0) {
-          console.log('[Store] Adding', pendingLogs.length, 'logs, current count:', logs.value.length)
-          
           logs.value.push(...pendingLogs)
-          console.log('[Store] After push, logs.length:', logs.value.length)
           
-          // 【新增】限制前端日志长度，防止内存泄漏
+          // 限制前端日志长度，防止内存泄漏
           if (logs.value.length > MAX_FRONTEND_LOGS) {
-            // 删除最旧的 100 条日志
             const removeCount = logs.value.length - MAX_FRONTEND_LOGS + 100
-            console.log('[Store] Trimming logs, removing', removeCount, 'old entries')
             logs.value.splice(0, removeCount)
-            console.log('[Store] After trim, logs.length:', logs.value.length)
           }
           
           pendingLogs.length = 0
           
-          // 【新增】递增版本号，触发 watch
+          // 递增版本号，触发 watch
           logVersion.value++
-          console.log('[Store] logVersion incremented to:', logVersion.value)
         }
         logBatchTimer = null
-      }, UI_LOG_BATCH_INTERVAL)  // 使用配置的日志批量更新间隔
+      }, UI_LOG_BATCH_INTERVAL)
     }
   }
   
