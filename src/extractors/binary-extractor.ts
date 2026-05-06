@@ -3,7 +3,6 @@
  * 支持: ppt, dps, zip, rar, 7z, tar, gz 等
  */
 
-import * as fs from 'fs';
 import { FILE_READ_TIMEOUT_STANDARD_MS } from '../scan-config';  // 【新增】导入超时配置
 import { logError } from '../error-utils';
 import type { ExtractorResult } from './types';

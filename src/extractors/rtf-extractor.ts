@@ -3,7 +3,6 @@
  * 支持: rtf
  */
 
-import * as fs from 'fs';
 import * as iconv from 'iconv-lite';
 import { FILE_READ_TIMEOUT_STANDARD_MS } from '../scan-config';  // 【新增】导入超时配置
 import { logError } from '../error-utils';
