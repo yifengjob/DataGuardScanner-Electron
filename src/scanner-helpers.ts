@@ -207,10 +207,15 @@ export function createProgressUpdater(
         
         if (!lastProgressTime || now - lastProgressTime >= adaptiveInterval) {
             if (mainWindow && !mainWindow.isDestroyed()) {
+                // 【修复】确保 totalCount 不小于 scannedCount，避免 Windows 平台因时序问题导致显示异常
+                const currentScanned = getConsumerProcessedCount();
+                const currentTotal = getWalkerTotalCount();
+                const safeTotalCount = Math.max(currentTotal, currentScanned);
+                
                 mainWindow.webContents.send('scan-progress', {
                     currentFile,
-                    scannedCount: getConsumerProcessedCount(),
-                    totalCount: getWalkerTotalCount(),
+                    scannedCount: currentScanned,
+                    totalCount: safeTotalCount,  // 【修复】使用安全值
                     filteredCount: getWalkerFilteredCount(),  // 【新增】传递过滤计数
                     skippedCount: getWalkerSkippedCount()
                 });
