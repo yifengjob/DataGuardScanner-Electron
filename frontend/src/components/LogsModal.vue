@@ -54,15 +54,19 @@ const scrollToBottom = async () => {
 }
 
 // 监听日志变化，自动滚动到底部
-// 【修复】监听数组长度变化，push 操作会触发 length 变化
+// 【修复】使用 flush: 'post' 确保在 DOM 更新后执行
 watch(
   () => logs.value.length,
   (newLength, oldLength) => {
     // 只有当日志数量增加时才滚动
     if (newLength > (oldLength || 0)) {
-      scrollToBottom()
+      // 使用 nextTick 确保 DOM 已更新
+      nextTick(() => {
+        scrollToBottom()
+      })
     }
-  }
+  },
+  { flush: 'post' }  // 在 DOM 更新后执行
 )
 
 // 组件挂载时从后端获取日志
