@@ -166,12 +166,15 @@ export const useAppStore = defineStore('app', () => {
     if (logBatchTimer === null) {
       logBatchTimer = window.setTimeout(() => {
         if (pendingLogs.length > 0) {
+          console.log('[Store] Adding', pendingLogs.length, 'logs, current count:', logs.value.length)
+          
           logs.value.push(...pendingLogs)
           
           // 【新增】限制前端日志长度，防止内存泄漏
           if (logs.value.length > MAX_FRONTEND_LOGS) {
             // 删除最旧的 100 条日志
             const removeCount = logs.value.length - MAX_FRONTEND_LOGS + 100
+            console.log('[Store] Trimming logs, removing', removeCount, 'old entries')
             logs.value.splice(0, removeCount)
           }
           
@@ -179,6 +182,7 @@ export const useAppStore = defineStore('app', () => {
           
           // 【新增】递增版本号，触发 watch
           logVersion.value++
+          console.log('[Store] logVersion incremented to:', logVersion.value)
         }
         logBatchTimer = null
       }, UI_LOG_BATCH_INTERVAL)  // 使用配置的日志批量更新间隔

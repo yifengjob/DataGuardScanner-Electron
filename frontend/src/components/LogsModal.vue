@@ -49,7 +49,15 @@ defineEmits<{
 const scrollToBottom = async () => {
   await nextTick()
   if (logsContainer.value) {
+    // 【调试】输出滚动信息
+    console.log('[LogsModal] Scrolling to bottom, scrollHeight:', logsContainer.value.scrollHeight, 'scrollTop:', logsContainer.value.scrollTop)
     logsContainer.value.scrollTop = logsContainer.value.scrollHeight
+    // 【验证】确认滚动成功
+    setTimeout(() => {
+      console.log('[LogsModal] After scroll, scrollTop:', logsContainer.value?.scrollTop)
+    }, 50)
+  } else {
+    console.warn('[LogsModal] logsContainer is null')
   }
 }
 
@@ -57,11 +65,13 @@ const scrollToBottom = async () => {
 // 【新增】使用 logVersion 触发 watch，确保即使删除旧日志也能检测到新日志
 watch(
   () => logVersion.value,
-  () => {
+  (newVersion, oldVersion) => {
+    console.log('[LogsModal] logVersion changed:', oldVersion, '->', newVersion, 'logs count:', logs.value.length)
     // 每次版本号变化（有新日志添加）时滚动到底部
-    nextTick(() => {
+    // 【优化】延迟一点执行，确保 DOM 完全渲染
+    setTimeout(() => {
       scrollToBottom()
-    })
+    }, 50)
   },
   { flush: 'post' }  // 在 DOM 更新后执行
 )
