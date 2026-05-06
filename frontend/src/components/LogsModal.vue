@@ -37,7 +37,7 @@ import { storeToRefs } from 'pinia'
 import { getLogs } from '@/utils/electron-api'
 
 const appStore = useAppStore()
-const { logs } = storeToRefs(appStore)
+const { logs, logVersion } = storeToRefs(appStore)  // 【新增】监听 logVersion
 
 const logsContainer = ref<HTMLDivElement | null>(null)
 
@@ -54,17 +54,14 @@ const scrollToBottom = async () => {
 }
 
 // 监听日志变化，自动滚动到底部
-// 【修复】使用 flush: 'post' 确保在 DOM 更新后执行
+// 【新增】使用 logVersion 触发 watch，确保即使删除旧日志也能检测到新日志
 watch(
-  () => logs.value.length,
-  (newLength, oldLength) => {
-    // 只有当日志数量增加时才滚动
-    if (newLength > (oldLength || 0)) {
-      // 使用 nextTick 确保 DOM 已更新
-      nextTick(() => {
-        scrollToBottom()
-      })
-    }
+  () => logVersion.value,
+  () => {
+    // 每次版本号变化（有新日志添加）时滚动到底部
+    nextTick(() => {
+      scrollToBottom()
+    })
   },
   { flush: 'post' }  // 在 DOM 更新后执行
 )

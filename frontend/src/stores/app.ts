@@ -137,6 +137,12 @@ export const useAppStore = defineStore('app', () => {
   const pendingLogs: string[] = []
   let logBatchTimer: number | null = null
   
+  // 【新增】日志版本号，用于触发 watch
+  const logVersion = ref(0)
+  
+  // 【新增】前端日志最大长度（防止内存泄漏）
+  const MAX_FRONTEND_LOGS = 2000
+  
   function addScanResult(item: ScanResultItem) {
     pendingResults.push(item)
     
@@ -161,7 +167,18 @@ export const useAppStore = defineStore('app', () => {
       logBatchTimer = window.setTimeout(() => {
         if (pendingLogs.length > 0) {
           logs.value.push(...pendingLogs)
+          
+          // 【新增】限制前端日志长度，防止内存泄漏
+          if (logs.value.length > MAX_FRONTEND_LOGS) {
+            // 删除最旧的 100 条日志
+            const removeCount = logs.value.length - MAX_FRONTEND_LOGS + 100
+            logs.value.splice(0, removeCount)
+          }
+          
           pendingLogs.length = 0
+          
+          // 【新增】递增版本号，触发 watch
+          logVersion.value++
         }
         logBatchTimer = null
       }, UI_LOG_BATCH_INTERVAL)  // 使用配置的日志批量更新间隔
@@ -284,6 +301,7 @@ export const useAppStore = defineStore('app', () => {
     totalCount,      // ← 导出总数
     currentFile,
     logs,
+    logVersion,      // 【新增】导出日志版本号
     config,
     selectedPaths,
     sensitiveFilesCount,
