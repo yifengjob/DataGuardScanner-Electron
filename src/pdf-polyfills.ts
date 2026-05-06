@@ -72,12 +72,70 @@ export function setupDomMatrix(context: any = global): void {
     return; // 已存在，跳过
   }
 
-  try {
-    const { DOMMatrix } = require('@napi-rs/canvas');
-    context.DOMMatrix = DOMMatrix;
-  } catch (error) {
-    // 静默失败，让 pdf.js 自己处理
-  }
+  // 【修复】移除 @napi-rs/canvas 依赖，避免 Windows 平台缺少 ffmpeg.dll 的问题
+  // pdf.js 有自己的矩阵处理逻辑，不需要额外的 DOMMatrix polyfill
+  // 如果确实需要，可以使用轻量级的替代方案
+  
+  // 简单的 DOMMatrix polyfill（仅支持基础功能）
+  context.DOMMatrix = class DOMMatrix {
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
+
+    constructor(init?: string | number[]) {
+      this.a = 1;
+      this.b = 0;
+      this.c = 0;
+      this.d = 1;
+      this.e = 0;
+      this.f = 0;
+
+      if (typeof init === 'string') {
+        const values = init.split(/[\s,]+/).map(Number);
+        if (values.length >= 6) {
+          [this.a, this.b, this.c, this.d, this.e, this.f] = values;
+        }
+      } else if (Array.isArray(init) && init.length >= 6) {
+        [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+      }
+    }
+
+    multiply(other: DOMMatrix): DOMMatrix {
+      return new DOMMatrix([
+        this.a * other.a + this.c * other.b,
+        this.b * other.a + this.d * other.b,
+        this.a * other.c + this.c * other.d,
+        this.b * other.c + this.d * other.d,
+        this.a * other.e + this.c * other.f + this.e,
+        this.b * other.e + this.d * other.f + this.f,
+      ]);
+    }
+
+    transformPoint(point: { x: number; y: number }): { x: number; y: number } {
+      return {
+        x: this.a * point.x + this.c * point.y + this.e,
+        y: this.b * point.x + this.d * point.y + this.f,
+      };
+    }
+
+    inverse(): DOMMatrix {
+      const det = this.a * this.d - this.b * this.c;
+      if (det === 0) {
+        throw new Error('Matrix is not invertible');
+      }
+      return new DOMMatrix([
+        this.d / det,
+        -this.b / det,
+        -this.c / det,
+        this.a / det,
+        (this.c * this.f - this.d * this.e) / det,
+        (this.b * this.e - this.a * this.f) / det,
+      ]);
+    }
+  };
 }
 
 /**

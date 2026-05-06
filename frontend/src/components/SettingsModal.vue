@@ -77,7 +77,8 @@
           
           <div class="setting-item">
             <button class="btn-clear-cache" @click="handleClearCache">
-              🗑️ 清理应用缓存
+              <svg class="btn-icon"><use href="#icon-delete"/></svg>
+              清理应用缓存
             </button>
             <span class="hint">（清理 Chromium 缓存和临时文件）</span>
           </div>
@@ -246,7 +247,7 @@ const handleClearCache = async () => {
     const result = await clearCache()
     const sizeMB = Math.round((result.cleanedSize || 0) / 1024 / 1024)
     // 【C2 优化】友好的成功提示
-    alert(`✅ 缓存清理完成！\n\n释放空间: ${sizeMB} MB`)
+    alert(`缓存清理完成！\n\n释放空间: ${sizeMB} MB`)
   } catch (error) {
     console.error('清理缓存失败:', error)
     alert(getFriendlyErrorMessage(error))
@@ -483,6 +484,16 @@ const handleClearCache = async () => {
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 【新增】按钮内 SVG 图标 */
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .btn-clear-cache:hover {

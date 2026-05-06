@@ -2,7 +2,8 @@
   <div class="file-type-filter">
     <div class="filter-header" @click="collapsed = !collapsed">
       <h3>文件类型</h3>
-      <span class="collapse-icon">{{ collapsed ? '▶' : '▼' }}</span>
+      <svg class="collapse-icon" v-if="collapsed"><use href="#icon-arrow-right"/></svg>
+      <svg class="collapse-icon" v-else><use href="#icon-arrow-down"/></svg>
     </div>
     
     <div v-show="!collapsed" class="filter-content">
@@ -149,7 +150,9 @@ const handleAllFilesCheck = (event: Event) => {
 }
 
 .collapse-icon {
-  font-size: 10px;
+  width: 12px;
+  height: 12px;
+  color: var(--text-secondary);
 }
 
 .filter-content {

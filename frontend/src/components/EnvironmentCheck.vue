@@ -3,42 +3,51 @@
     <div class="check-overlay">
       <div class="check-container">
         <div class="check-header">
-          <h2>🔍 系统环境检查</h2>
+          <h2>
+            <svg class="title-icon">
+              <use href="#icon-search"/>
+            </svg>
+            系统环境检查
+          </h2>
         </div>
-        
+
         <div class="check-body">
           <!-- 加载中 -->
           <div v-if="checking" class="checking-state">
             <div class="spinner"></div>
             <p>正在检查系统环境...</p>
           </div>
-          
+
           <!-- 检查结果 -->
           <div v-else class="result-state">
             <!-- 系统信息 -->
             <div class="system-info">
               <p><strong>操作系统：</strong>{{ environmentInfo?.os_version || '检测中...' }}</p>
             </div>
-            
+
             <!-- 通过 -->
             <div v-if="environmentInfo?.is_ready && environmentInfo.issues.length === 0" class="success-message">
-              <div class="success-icon">✅</div>
+              <svg class="success-icon">
+                <use href="#icon-success"/>
+              </svg>
               <h3>环境检查通过</h3>
               <p>您的系统满足所有要求，可以正常使用本应用。</p>
               <button class="btn btn-primary" @click="closeCheck">开始使用</button>
             </div>
-            
+
             <!-- 有警告但可以运行 -->
             <div v-else-if="environmentInfo?.is_ready" class="warning-message">
-              <div class="warning-icon">⚠️</div>
+              <svg class="warning-icon">
+                <use href="#icon-warning"/>
+              </svg>
               <h3>环境检查完成（存在建议项）</h3>
               <p>您的系统可以运行本应用，但以下项目可能需要关注：</p>
-              
+
               <div class="issues-list">
-                <div 
-                  v-for="(issue, index) in environmentInfo.issues" 
-                  :key="index"
-                  class="issue-item warning"
+                <div
+                    v-for="(issue, index) in environmentInfo.issues"
+                    :key="index"
+                    class="issue-item warning"
                 >
                   <div class="issue-header">
                     <span class="issue-icon">🟡</span>
@@ -48,31 +57,36 @@
                   <div class="issue-solution">
                     <strong>建议：</strong>{{ issue.solution }}
                   </div>
-                  <a 
-                    v-if="issue.download_url" 
-                    :href="issue.download_url" 
-                    target="_blank"
-                    class="download-link"
+                  <a
+                      v-if="issue.download_url"
+                      :href="issue.download_url"
+                      target="_blank"
+                      class="download-link"
                   >
-                    📥 下载链接
+                    <svg class="icon-inline">
+                      <use href="#icon-download"/>
+                    </svg>
+                    下载链接
                   </a>
                 </div>
               </div>
-              
+
               <button class="btn btn-primary" @click="closeCheck">继续使用</button>
             </div>
-            
+
             <!-- 严重问题，无法运行 -->
             <div v-else class="error-message">
-              <div class="error-icon">❌</div>
+              <svg class="error-icon-large">
+                <use href="#icon-error"/>
+              </svg>
               <h3>环境检查失败</h3>
               <p>您的系统缺少必要的组件，无法运行本应用：</p>
-              
+
               <div class="issues-list">
-                <div 
-                  v-for="(issue, index) in environmentInfo?.issues.filter(i => i.severity === 'Critical') || []" 
-                  :key="index"
-                  class="issue-item critical"
+                <div
+                    v-for="(issue, index) in environmentInfo?.issues.filter(i => i.severity === 'Critical') || []"
+                    :key="index"
+                    class="issue-item critical"
                 >
                   <div class="issue-header">
                     <span class="issue-icon">🔴</span>
@@ -82,17 +96,20 @@
                   <div class="issue-solution">
                     <strong>解决方案：</strong>{{ issue.solution }}
                   </div>
-                  <a 
-                    v-if="issue.download_url" 
-                    :href="issue.download_url" 
-                    target="_blank"
-                    class="download-link primary"
+                  <a
+                      v-if="issue.download_url"
+                      :href="issue.download_url"
+                      target="_blank"
+                      class="download-link primary"
                   >
-                    📥 立即下载
+                    <svg class="icon-inline">
+                      <use href="#icon-download"/>
+                    </svg>
+                    立即下载
                   </a>
                 </div>
               </div>
-              
+
               <div class="error-actions">
                 <p class="hint">安装完成后，请重新启动应用程序。</p>
                 <button class="btn" @click="exitApp">退出应用</button>
@@ -107,7 +124,7 @@
 
 <script setup lang="ts">
 import {onMounted, ref} from 'vue'
-import { checkSystemEnvironment } from '@/utils/electron-api'
+import {checkSystemEnvironment} from '@/utils/electron-api'
 
 interface EnvironmentIssue {
   severity: 'Critical' | 'Warning' | 'Info'
@@ -222,6 +239,17 @@ const exitApp = () => {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 【新增】SVG 图标样式 */
+.title-icon {
+  width: 28px;
+  height: 28px;
+  color: white;
+  flex-shrink: 0;
 }
 
 .check-body {
@@ -246,8 +274,12 @@ const exitApp = () => {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .system-info {
@@ -266,9 +298,22 @@ const exitApp = () => {
 
 .success-icon,
 .warning-icon,
-.error-icon {
-  font-size: 64px;
+.error-icon-large {
+  width: 64px;
+  height: 64px;
   margin-bottom: 16px;
+}
+
+.success-icon {
+  color: #52c41a;
+}
+
+.warning-icon {
+  color: #faad14;
+}
+
+.error-icon-large {
+  color: #ff4d4f;
 }
 
 .success-message h3,
@@ -349,7 +394,9 @@ const exitApp = () => {
 }
 
 .download-link {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 12px;
   padding: 8px 16px;
   background-color: #1890ff;
@@ -358,6 +405,13 @@ const exitApp = () => {
   border-radius: 4px;
   font-size: 14px;
   transition: all 0.3s;
+}
+
+/* 【新增】内联小图标 */
+.icon-inline {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .download-link:hover {

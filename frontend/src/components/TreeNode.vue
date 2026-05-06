@@ -10,7 +10,8 @@
         class="expand-icon"
         @click="handleExpand"
       >
-        {{ isExpanded ? '▼' : '▶' }}
+        <svg v-if="isExpanded"><use href="#icon-arrow-down"/></svg>
+        <svg v-else><use href="#icon-arrow-right"/></svg>
       </span>
       <span v-else class="expand-icon-placeholder"></span>
       
@@ -133,12 +134,17 @@ const handleCheck = () => {
 .expand-icon {
   width: 16px;
   text-align: center;
-  font-size: 10px;
   cursor: pointer;
   margin-right: 4px;
 }
 
-.expand-icon:hover {
+.expand-icon svg {
+  width: 12px;
+  height: 12px;
+  color: var(--text-secondary);
+}
+
+.expand-icon:hover svg {
   color: var(--primary-color);
 }
 

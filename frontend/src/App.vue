@@ -108,7 +108,8 @@
             @click="isSidebarCollapsed = !isSidebarCollapsed"
             :title="isSidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
         >
-          {{ isSidebarCollapsed ? '▶' : '◀' }}
+          <svg v-if="isSidebarCollapsed"><use href="#icon-arrow-right"/></svg>
+          <svg v-else><use href="#icon-arrow-left"/></svg>
         </div>
       </div>
 
@@ -157,8 +158,8 @@
       <!-- 【新增】电源管理状态提示 -->
       <div v-if="isScanning" class="status-divider"></div>
       <div v-if="isScanning" class="status-item power-save-indicator" title="扫描进行中，系统已阻止休眠">
-        <span class="power-icon">⚡</span>
-        <span class="power-text">防休眠</span>
+        <svg class="power-icon"><use href="#icon-power"/></svg>
+        <span class="power-text">防休眠已开启</span>
       </div>
     </div>
 
@@ -607,6 +608,11 @@ const getThemeTooltip = () => {
   transform: translateY(-50%) scale(1.1);
 }
 
+.sidebar-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+
 .results-panel {
   flex: 1;
   overflow: hidden;
@@ -714,14 +720,19 @@ const getThemeTooltip = () => {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background-color: rgba(255, 193, 7, 0.1);
+  /* 【优化】使用主题色，自动适配明暗主题 */
+  /* 注：如果浏览器不支持 rgb(from ...), 会使用 fallback 值 */
+  background-color: rgba(250, 173, 20, 0.1);  /* fallback: 亮色主题 */
+  background-color: rgb(from var(--warning-color) r g b / 0.1);  /* 现代浏览器 */
   border-radius: 4px;
-  animation: power-pulse 2s ease-in-out infinite;
 }
 
 .power-icon {
-  font-size: 14px;
-  line-height: 1;
+  width: 16px;
+  height: 16px;
+  color: var(--warning-color);
+  /* 【优化】闪电图标呼吸效果，类似扫描状态 */
+  animation: power-breathe 1.5s ease-in-out infinite;
 }
 
 .power-text {
@@ -730,12 +741,15 @@ const getThemeTooltip = () => {
   font-size: 12px;
 }
 
-@keyframes power-pulse {
+/* 【优化】闪电图标呼吸动画 */
+@keyframes power-breathe {
   0%, 100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.7;
+    opacity: 0.6;
+    transform: scale(0.9);
   }
 }
 

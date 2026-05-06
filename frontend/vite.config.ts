@@ -7,9 +7,11 @@ export default defineConfig({
     plugins: [
         vue(),
         createSvgIconsPlugin({
-            // 指定需要缓存的图标文件夹
-            iconDirs: [path.resolve(process.cwd(), 'src/assets')],
-            // 指定symbolId格式
+            // 指定需要缓存的图标文件夹（支持子目录）
+            iconDirs: [path.resolve(process.cwd(), 'src/assets/icons')],
+            // 指定symbolId格式：统一为 icon-[name]，文件名需唯一
+            // 例如：src/assets/icons/info.svg → icon-info
+            //       src/assets/delete.svg → icon-delete
             symbolId: 'icon-[name]',
         }),
     ],

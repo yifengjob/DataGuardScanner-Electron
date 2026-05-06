@@ -13,7 +13,9 @@
           <div class="loading-hint">正在读取文件内容，请稍候</div>
         </div>
         <div v-else-if="error" class="error" :class="errorSeverity">
-          <div class="error-icon">{{ errorIcon }}</div>
+          <svg class="error-icon-svg">
+            <use :href="errorIconId"/>
+          </svg>
           <div class="error-title">{{ errorTitle }}</div>
           <div class="error-text">{{ errorSuggestion }}</div>
           <!-- 【方案 C】文件过大时显示“打开文件”按钮 -->
@@ -40,9 +42,20 @@
       </div>
       
       <div class="modal-footer">
-        <button class="btn" :disabled="loading" @click="handleOpenFile">打开文件</button>
-        <button class="btn" :disabled="loading" @click="handleCopyContent">复制内容</button>
-        <button class="btn btn-primary" @click="handleClose">{{ loading ? '取消' : '关闭' }}</button>
+        <!-- 【新增】左侧提示信息 -->
+        <div class="footer-hint">
+          <svg class="hint-icon">
+            <use href="#icon-info"/>
+          </svg>
+          <span class="hint-text">预览内容仅供参考，请打开原文件以确保准确性</span>
+        </div>
+        
+        <!-- 右侧按钮组 -->
+        <div class="footer-actions">
+          <button class="btn" :disabled="loading" @click="handleOpenFile">打开文件</button>
+          <button class="btn" :disabled="loading" @click="handleCopyContent">复制内容</button>
+          <button class="btn btn-primary" @click="handleClose">{{ loading ? '取消' : '关闭' }}</button>
+        </div>
       </div>
     </div>
   </div>
@@ -104,13 +117,13 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const visibleContent = ref('')  // 可见区域的 HTML
 let renderScheduled = false
 
-// 【C2优化】错误图标
-const errorIcon = computed(() => {
+// 【C2优化】错误图标 ID
+const errorIconId = computed(() => {
   switch (errorSeverity.value) {
-    case 'info': return 'ℹ️'
-    case 'warning': return '⚠️'
-    case 'error': return '❌'
-    default: return '⚠️'
+    case 'info': return '#icon-info'      // ℹ️
+    case 'warning': return '#icon-warning'  // ⚠️
+    case 'error': return '#icon-error'      // ❌
+    default: return '#icon-warning'         // ⚠️
   }
 })
 
@@ -420,7 +433,7 @@ const handleCopyContent = async () => {
     }
     
     await navigator.clipboard.writeText(fullText)
-    await showMessage('✅ 已复制到剪贴板', { type: 'info' })
+    await showMessage('已复制到剪贴板', { type: 'info' })
   } catch (err) {
     await showMessage(getFriendlyErrorMessage(err), { type: 'error' })
   }
@@ -616,8 +629,10 @@ useEventListener(scrollContainer, 'scroll', {
   color: var(--error-color);
 }
 
-.error-icon {
-  font-size: 48px;
+.error-icon-svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
 }
 
 .error-title {
@@ -689,10 +704,41 @@ useEventListener(scrollContainer, 'scroll', {
 
 .modal-footer {
   display: flex;
-  gap: 10px;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;  /* 【优化】左右分布 */
   padding: 12px 20px;
   border-top: 1px solid var(--border-color);
+}
+
+/* 【新增】左侧提示信息样式 */
+.footer-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;  /* 占据剩余空间 */
+  min-width: 0;  /* 允许文本截断 */
+}
+
+.hint-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.hint-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 【新增】右侧按钮组 */
+.footer-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;  /* 按钮不被压缩 */
 }
 
 .btn {

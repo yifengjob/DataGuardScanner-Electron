@@ -9,7 +9,10 @@
       <div class="modal-body">
         <!-- 无数据提示 -->
         <div v-if="results.length === 0" class="no-data-hint">
-          <p>⚠️ 暂无扫描结果，无法导出报告</p>
+          <p>
+            <svg class="warning-icon-inline"><use href="#icon-warning"/></svg>
+            暂无扫描结果，无法导出报告
+          </p>
           <p class="hint-text">请先执行扫描，待发现敏感文件后再导出</p>
         </div>
 
@@ -241,6 +244,17 @@ const handleExport = async () => {
 .no-data-hint p {
   margin: 8px 0;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 【新增】内联警告图标 */
+.warning-icon-inline {
+  width: 20px;
+  height: 20px;
+  color: #faad14;
+  flex-shrink: 0;
 }
 
 .no-data-hint .hint-text {
