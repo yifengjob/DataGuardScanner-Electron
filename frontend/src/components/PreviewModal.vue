@@ -275,7 +275,8 @@ function highlightLine(text: string, highlights: LineHighlight[]): string {
     
     const highlightedText = escapeHtml(text.substring(highlight.localStart, highlight.localEnd))
     const colorClass = getColorClass(highlight.typeId)
-    result += `<mark class="${colorClass}" title="${highlight.typeName}">${highlightedText}</mark>`
+    const safeTypeName = escapeHtml(highlight.typeName)  // 【P1修复】转义 typeName，防止 XSS
+    result += `<mark class="${colorClass}" title="${safeTypeName}">${highlightedText}</mark>`
     
     lastIndex = highlight.localEnd
   }

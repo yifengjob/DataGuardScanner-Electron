@@ -457,6 +457,7 @@ function setupIpcHandlers() {
 
             return new Promise((resolve) => {
                 let messageReceived = false;
+                let isResolved = false;  // 【P0修复】防止重复 resolve
                 let timeout: NodeJS.Timeout | null = null; // 【重构】提升 timeout 到外层作用域
 
                 // 【重构】根据文件大小智能计算预览超时
@@ -472,7 +473,8 @@ function setupIpcHandlers() {
 
                 getTimeout().then((timeoutMs) => {
                     timeout = setTimeout(() => {
-                        if (!messageReceived) {
+                        if (!messageReceived && !isResolved) {  // 【P0修复】防止重复处理
+                            isResolved = true;
                             worker.terminate();
                             previewWorkers.delete(taskId);
                             resolve({error: '预览超时，文件可能太大或太复杂'});
@@ -485,6 +487,9 @@ function setupIpcHandlers() {
                     if (result.type === 'ready') {
                         return;
                     }
+
+                    // 【P0修复】防止重复处理
+                    if (isResolved) return;
 
                     // 【方案 D3】处理流式数据块
                     if (result.type === 'chunk') {
@@ -502,6 +507,7 @@ function setupIpcHandlers() {
                     // 处理完成消息
                     if (result.type === 'complete') {
                         messageReceived = true;
+                        isResolved = true;  // 【P0修复】标记已解决
                         if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         worker.terminate();
@@ -512,6 +518,7 @@ function setupIpcHandlers() {
                     // 处理错误
                     if (result.error) {
                         messageReceived = true;
+                        isResolved = true;  // 【P0修复】标记已解决
                         if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         worker.terminate();
@@ -521,13 +528,21 @@ function setupIpcHandlers() {
                 });
 
                 worker.on('error', (error: any) => {
+                    // 【P0修复】防止重复处理
+                    if (isResolved) return;
+                    isResolved = true;
+                    
                     if (timeout) clearTimeout(timeout);
                     previewWorkers.delete(taskId);
                     resolve({error: '预览失败：' + error.message});
                 });
 
                 worker.on('exit', (code: number) => {
+                    // 【P0修复】防止重复处理
+                    if (isResolved) return;
+                    
                     if (code !== 0 && !messageReceived) {
+                        isResolved = true;  // 【P0修复】标记已解决
                         if (timeout) clearTimeout(timeout);
                         previewWorkers.delete(taskId);
                         resolve({error: `预览异常退出 (代码: ${code})`});
