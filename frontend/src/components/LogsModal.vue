@@ -37,7 +37,7 @@ import { storeToRefs } from 'pinia'
 import { getLogs } from '@/utils/electron-api'
 
 const appStore = useAppStore()
-const { logs, logVersion } = storeToRefs(appStore)  // 【新增】监听 logVersion
+const { logs } = storeToRefs(appStore)
 
 const logsContainer = ref<HTMLDivElement | null>(null)
 
@@ -62,21 +62,24 @@ const scrollToBottom = async () => {
 }
 
 // 监听日志变化，自动滚动到底部
-// 【修复】同时监听 logs 数组长度和 logVersion，确保可靠触发
+// 【修复】直接监听 logs 数组，使用 deep 和 flush: 'post'
 watch(
-  [() => logs.value.length, () => logVersion.value],
-  ([newLength, newVersion], [oldLength, oldVersion]) => {
-    console.log('[LogsModal] Watch triggered - length:', oldLength, '->', newLength, ', version:', oldVersion, '->', newVersion)
+  () => logs.value,
+  (newLogs, oldLogs) => {
+    console.log('[LogsModal] Watch triggered - length:', oldLogs?.length, '->', newLogs.length)
     
-    // 只有当日志数量增加或版本号变化时才滚动
-    if (newLength > (oldLength || 0) || newVersion !== oldVersion) {
+    // 只要有新日志就滚动
+    if (newLogs.length > (oldLogs?.length || 0)) {
       // 延迟一点执行，确保 DOM 完全渲染
       setTimeout(() => {
         scrollToBottom()
       }, 50)
     }
   },
-  { flush: 'post' }  // 在 DOM 更新后执行
+  { 
+    deep: true,  // 深度监听数组变化
+    flush: 'post'  // 在 DOM 更新后执行
+  }
 )
 
 // 组件挂载时从后端获取日志
