@@ -50,7 +50,7 @@ GitHub Actions 在不同平台使用不同的默认 shell：
     # 【新增】Windows 平台跳过 canvas 可选依赖编译
     if [[ "${{ matrix.platform }}" == windows-* ]]; then
       echo "Skipping canvas optional dependency for Windows..."
-      pnpm install --ignore-optional
+      pnpm install --no-optional  # ← 使用 --no-optional 而非 --ignore-optional
     else
       pnpm install
     fi

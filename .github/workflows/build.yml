@@ -99,7 +99,7 @@ jobs:
           # 【新增】Windows 平台跳过 canvas 可选依赖编译
           if [[ "${{ matrix.platform }}" == windows-* ]]; then
             echo "Skipping canvas optional dependency for Windows..."
-            pnpm install --ignore-optional
+            pnpm install --no-optional
           else
             pnpm install
           fi
