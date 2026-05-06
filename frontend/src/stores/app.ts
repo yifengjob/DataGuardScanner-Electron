@@ -195,7 +195,8 @@ export const useAppStore = defineStore('app', () => {
     scannedCount.value = 0
     totalCount.value = 0      // ← 重置总数
     errorCount.value = 0  // ← 重置跳过文件数
-    logs.value.splice(0, logs.value.length)
+    logs.value.splice(0, logs.value.length)  // 清空日志
+    logVersion.value = 0  // 【新增】重置版本号
     scanStartTime.value = null  // 【UI优化】重置扫描开始时间
     stopElapsedTimeTimer()  // 【UI优化】停止耗时更新定时器
     scanElapsedTime.value = '00:00:00'  // 【UI优化】重置耗时显示

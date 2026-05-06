@@ -325,8 +325,7 @@ const handleStartScan = async () => {
   // 获取有效的扫描路径（只保留叶子节点）
   const effectivePaths = appStore.getEffectiveScanPaths()
 
-  appStore.clearScanResults()
-  appStore.logs = [] // 清空旧日志
+  appStore.clearScanResults()  // 这会清空 logs 和 logVersion
   isScanning.value = true
   scanStartTime.value = Date.now()  // 【UI优化】记录扫描开始时间
   startElapsedTimeTimer()  // 【UI优化】启动耗时更新定时器
