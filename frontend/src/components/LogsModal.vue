@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, nextTick } from 'vue'
+import { onMounted, onUnmounted, ref, watch, nextTick } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { storeToRefs } from 'pinia'
 import { getLogs } from '@/utils/electron-api'
@@ -43,6 +43,9 @@ const logsContainer = ref<HTMLDivElement | null>(null)
 
 // 【修复】保存上一次的日志长度，用于比较
 const previousLength = ref(0)
+
+// 【调试】定期检查 logs 数组长度，确认是否有新数据
+let debugInterval: number | null = null
 
 defineEmits<{
   close: []
@@ -91,6 +94,11 @@ watch(
 
 // 组件挂载时从后端获取日志
 onMounted(async () => {
+  // 【调试】启动定期检查
+  debugInterval = window.setInterval(() => {
+    console.log('[LogsModal DEBUG] Current logs.length:', logs.value.length, ', previousLength:', previousLength.value)
+  }, 2000)  // 每 2 秒输出一次
+  
   try {
     // 【优化】只在 logs 为空时才从后端加载
     // 如果窗口在扫描中途打开，store 中已经有实时更新的日志
@@ -109,6 +117,14 @@ onMounted(async () => {
     await scrollToBottom()
   } catch (error) {
     console.error('获取日志失败:', error)
+  }
+})
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  if (debugInterval) {
+    clearInterval(debugInterval)
+    debugInterval = null
   }
 })
 
