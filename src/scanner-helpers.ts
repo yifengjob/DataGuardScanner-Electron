@@ -28,13 +28,13 @@ interface LogConfig {
 
 /**
  * 默认日志配置
- * - 文件：记录 INFO 及以上（减少磁盘 I/O）
- * - 前端：记录 WARN 及以上（减少 IPC 拥堵）
+ * - 文件：记录 WARN 及以上（减少磁盘 I/O）
+ * - 前端：记录 INFO 及以上（实时显示扫描进度）
  * - 内存：记录 INFO 及以上（保留必要历史）
  */
 const DEFAULT_LOG_CONFIG: LogConfig = {
     fileLevel: LogLevel.WARN,
-    frontendLevel: LogLevel.WARN,
+    frontendLevel: LogLevel.INFO,  // 【修复】改为 INFO，让前端能收到实时日志
     memoryLevel: LogLevel.INFO
 };
 
