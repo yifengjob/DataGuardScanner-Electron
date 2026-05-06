@@ -131,8 +131,13 @@
       </div>
       <div class="status-divider"></div>
       <div class="status-item">
-        <span class="status-label">非文档：</span>
-        <span class="status-value error mono-font">{{ formatNumber(errorCount) }}</span>
+        <span class="status-label">已过滤：</span>
+        <span class="status-value mono-font">{{ formatNumber(filteredCount) }}</span>
+      </div>
+      <div class="status-divider"></div>
+      <div class="status-item">
+        <span class="status-label">跳过/错误：</span>
+        <span class="status-value error mono-font">{{ formatNumber(skippedCount) }}</span>
       </div>
       <div class="status-divider"></div>
       <div class="status-item">
@@ -217,8 +222,9 @@ const {
   isScanning,
   scannedCount,
   totalCount,
+  filteredCount,   // 【新增】过滤计数
+  skippedCount,    // 【修改】跳过计数（原 errorCount）
   sensitiveFilesCount,
-  errorCount,
   totalSensitiveItems,
   scanStartTime,   // 【UI优化】扫描开始时间
   scanElapsedTime, // 【UI优化】扫描耗时
@@ -271,9 +277,12 @@ onMounted(async () => {
       totalCount.value = data.totalCount  // ← 更新总数
     }
     appStore.currentFile = data.currentFile
-    // ← 新增：更新跳过文件数
+    // 【方案一】分别更新过滤和跳过计数
+    if (data.filteredCount !== undefined) {
+      appStore.filteredCount = data.filteredCount
+    }
     if (data.skippedCount !== undefined) {
-      appStore.errorCount = data.skippedCount
+      appStore.skippedCount = data.skippedCount
     }
   })
 

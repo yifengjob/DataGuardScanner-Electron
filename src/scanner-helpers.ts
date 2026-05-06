@@ -165,6 +165,7 @@ export function createLogger(
  * @param mainWindow 主窗口
  * @param getConsumerProcessedCount 获取已处理文件数的回调
  * @param getWalkerTotalCount 获取总文件数的回调
+ * @param getWalkerFilteredCount 【新增】获取过滤文件数的回调
  * @param getWalkerSkippedCount 获取跳过文件数的回调
  * @param baseThrottleInterval 基础节流间隔（毫秒）
  * @returns 进度更新函数
@@ -173,6 +174,7 @@ export function createProgressUpdater(
     mainWindow: BrowserWindow | null,
     getConsumerProcessedCount: () => number,
     getWalkerTotalCount: () => number,
+    getWalkerFilteredCount: () => number,  // 【新增】过滤计数回调
     getWalkerSkippedCount: () => number,
     baseThrottleInterval: number = 500
 ): (currentFile?: string) => void {
@@ -209,6 +211,7 @@ export function createProgressUpdater(
                     currentFile,
                     scannedCount: getConsumerProcessedCount(),
                     totalCount: getWalkerTotalCount(),
+                    filteredCount: getWalkerFilteredCount(),  // 【新增】传递过滤计数
                     skippedCount: getWalkerSkippedCount()
                 });
             }

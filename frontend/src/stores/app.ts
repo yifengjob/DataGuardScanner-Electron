@@ -12,7 +12,8 @@ export const useAppStore = defineStore('app', () => {
   const isScanning = ref(false)
   const scannedCount = ref(0)
   const totalCount = ref(0)      // ← 新增：遍历的文件总数
-  const errorCount = ref(0)  // ← 修改为 ref，用于记录跳过文件数
+  const filteredCount = ref(0)   // 【新增】用户主动过滤的文件数
+  const skippedCount = ref(0)    // 【修改】系统跳过的文件数（原 errorCount）
   const currentFile = ref('')
   const logs = ref<string[]>([])
   const scanStartTime = ref<number | null>(null)  // 【UI优化】扫描开始时间
@@ -189,7 +190,8 @@ export const useAppStore = defineStore('app', () => {
     scanResults.value.splice(0, scanResults.value.length)
     scannedCount.value = 0
     totalCount.value = 0      // ← 重置总数
-    errorCount.value = 0  // ← 重置跳过文件数
+    filteredCount.value = 0   // 【新增】重置过滤计数
+    skippedCount.value = 0    // 【修改】重置跳过计数
     logs.value.splice(0, logs.value.length)  // 清空日志
     logVersion.value = 0  // 【新增】重置版本号
     scanStartTime.value = null  // 【UI优化】重置扫描开始时间
@@ -299,13 +301,14 @@ export const useAppStore = defineStore('app', () => {
     isScanning,
     scannedCount,
     totalCount,      // ← 导出总数
+    filteredCount,   // 【新增】导出过滤计数
+    skippedCount,    // 【修改】导出跳过计数（原 errorCount）
     currentFile,
     logs,
     logVersion,      // 【新增】导出日志版本号
     config,
     selectedPaths,
     sensitiveFilesCount,
-    errorCount,
     totalSensitiveItems,
     scanStartTime,   // 【UI优化】导出扫描开始时间
     scanElapsedTime, // 【UI优化】导出扫描耗时

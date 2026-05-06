@@ -135,7 +135,8 @@ async function startWalking(config: WalkerConfig) {
       });
 
       let fileCount = 0;
-      let skippedCount = 0;
+      let filteredCount = 0;  // 【新增】用户主动过滤的文件数
+      let skippedCount = 0;   // 【修改】系统跳过的文件数
       
       // 【新增】去重集合，防止同一文件被多次报告
       const seenFiles = new Set<string>();
@@ -198,13 +199,13 @@ async function startWalking(config: WalkerConfig) {
       // 如果用户选择了 '*'，只扫描支持的文件类型
       if (selectedExtensions.includes('*')) {
         if (!SUPPORTED_EXTENSIONS.includes(ext)) {
-          skippedCount++;
+          filteredCount++;  // 【修改】用户配置过滤
           return;
         }
       } else {
         // 用户指定了具体类型，按指定类型过滤
         if (!selectedExtensions.includes(ext)) {
-          skippedCount++;
+          filteredCount++;  // 【修改】用户配置过滤
           return;
         }
       }
@@ -214,7 +215,7 @@ async function startWalking(config: WalkerConfig) {
       
       // 跳过 0 字节文件
       if (fileSize === 0) {
-        skippedCount++;
+        filteredCount++;  // 【修改】空文件视为用户过滤
         return;
       }
 
@@ -223,7 +224,7 @@ async function startWalking(config: WalkerConfig) {
         : maxFileSizeMb * BYTES_TO_MB;
 
       if (fileSize > maxSize) {
-        skippedCount++;
+        skippedCount++;  // 【保持】文件过大属于系统跳过
         return;
       }
 
@@ -237,7 +238,7 @@ async function startWalking(config: WalkerConfig) {
           fs.closeSync(fd);
         }
       } catch (accessError: any) {
-        skippedCount++;
+        skippedCount++;  // 【保持】权限问题属于系统跳过
         return;
       }
 
@@ -266,11 +267,12 @@ async function startWalking(config: WalkerConfig) {
       clearTimeout(timeoutId); // 【新增】清除超时定时器
       parentPort?.postMessage({
         type: 'walker-log',
-        message: `[Walker] walker 'end' 事件触发: ${rootPath}, fileCount=${fileCount}, skippedCount=${skippedCount}`
+        message: `[Walker] walker 'end' 事件触发: ${rootPath}, fileCount=${fileCount}, filteredCount=${filteredCount}, skippedCount=${skippedCount}`
       });
       parentPort?.postMessage({
         type: 'walking-complete',
         fileCount,
+        filteredCount,  // 【新增】传递过滤计数
         skippedCount
       });
       parentPort?.postMessage({

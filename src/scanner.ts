@@ -68,7 +68,8 @@ export async function startScan(
 
     // 统计信息
     let walkerTotalCount = 0;      // Walker 找到的文件总数
-    let walkerSkippedCount = 0;    // Walker 跳过的文件数
+    let walkerFilteredCount = 0;   // 【新增】Walker 过滤的文件数（用户配置）
+    let walkerSkippedCount = 0;    // 【修改】Walker 跳过的文件数（系统原因）
     let consumerProcessedCount = 0; // Consumer 已处理的文件数
     let resultCount = 0;            // 发现的敏感文件数
     let totalSensitiveItems = 0;    // 【新增】发现的敏感信息总条数
@@ -101,7 +102,8 @@ export async function startScan(
         mainWindow,
         () => consumerProcessedCount,
         () => walkerTotalCount,
-        () => walkerSkippedCount,
+        () => walkerFilteredCount,  // 【修改】传递过滤计数
+        () => walkerSkippedCount,   // 【保持】传递跳过计数
         PROGRESS_THROTTLE_INTERVAL
     );
 
@@ -541,7 +543,9 @@ export async function startScan(
         }
 
         if (message.type === 'walking-complete') {
-            log.info(`Walker 完成: 找到 ${message.fileCount} 个文件, 跳过 ${message.skippedCount} 个`);
+            log.info(`Walker 完成: 找到 ${message.fileCount} 个文件, 过滤 ${message.filteredCount || 0} 个, 跳过 ${message.skippedCount} 个`);
+            walkerTotalCount += message.fileCount;
+            walkerFilteredCount += message.filteredCount || 0;  // 【新增】累加过滤计数
             walkerSkippedCount += message.skippedCount;
             walkerCompletedCount++; // 【修复】增加完成计数
 
@@ -638,6 +642,7 @@ export async function startScan(
     let lastStagnationCheckState = {
         processed: consumerProcessedCount,
         total: walkerTotalCount,
+        filtered: walkerFilteredCount,  // 【新增】过滤计数
         skipped: walkerSkippedCount,
         results: resultCount,
         sensitiveItems: totalSensitiveItems,  // 【新增】敏感信息总条数
@@ -685,6 +690,7 @@ export async function startScan(
         const hasRealProgress =
             consumerProcessedCount !== lastStagnationCheckState.processed ||
             walkerTotalCount !== lastStagnationCheckState.total ||
+            walkerFilteredCount !== lastStagnationCheckState.filtered ||  // 【新增】过滤计数变化
             walkerSkippedCount !== lastStagnationCheckState.skipped ||
             resultCount !== lastStagnationCheckState.results ||
             totalSensitiveItems !== lastStagnationCheckState.sensitiveItems ||  // 敏感信息条数变化
@@ -697,6 +703,7 @@ export async function startScan(
             lastStagnationCheckState = {
                 processed: consumerProcessedCount,
                 total: walkerTotalCount,
+                filtered: walkerFilteredCount,  // 【新增】过滤计数
                 skipped: walkerSkippedCount,
                 results: resultCount,
                 sensitiveItems: totalSensitiveItems,
@@ -718,7 +725,7 @@ export async function startScan(
 
             // 第二层：长时间停滞强制结束（2分钟）
             if (idleTime > MAX_IDLE_TIME) {
-                log.error(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），强制结束`);
+                log.error(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 过滤:${walkerFilteredCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），强制结束`);
                 // 先清理所有 pendingTasks
                 for (const [_taskId, pending] of pendingTasks.entries()) {
                     clearTimeout(pending.timeoutId);
