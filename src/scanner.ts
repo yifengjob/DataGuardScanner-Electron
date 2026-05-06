@@ -528,6 +528,9 @@ export async function startScan(
             // 【事件驱动】更新最后活动时间
             lastActivityTime = Date.now();
 
+            // 【新增】记录最后任务入队时间
+            lastTaskEnqueueTime = Date.now();
+
             // 【优化】使用统一的进度更新函数
             sendProgressUpdate(message.filePath);
 
@@ -648,9 +651,11 @@ export async function startScan(
         sensitiveItems: totalSensitiveItems,  // 【新增】敏感信息总条数
         taskQueueLength: taskQueue.length,     // 【新增】任务队列长度
         pendingTasksSize: pendingTasks.size,   // 【新增】待处理任务数
-        activeWorkers: activeWorkerCount       // 【新增】活跃 Worker 数
+        activeWorkers: activeWorkerCount,      // 【新增】活跃 Worker 数
+        lastEnqueueTime: Date.now()            // 【新增】最后入队时间
     };
     let lastStagnationCheckTime = Date.now();
+    let lastTaskEnqueueTime = Date.now();  // 【新增】记录最后任务入队时间
 
     function checkAndComplete() {
         // 检查是否取消
@@ -696,7 +701,8 @@ export async function startScan(
             totalSensitiveItems !== lastStagnationCheckState.sensitiveItems ||  // 敏感信息条数变化
             taskQueue.length !== lastStagnationCheckState.taskQueueLength ||    // 任务队列变化
             pendingTasks.size !== lastStagnationCheckState.pendingTasksSize ||  // 待处理任务变化
-            activeWorkerCount !== lastStagnationCheckState.activeWorkers;       // 活跃 Worker 变化
+            activeWorkerCount !== lastStagnationCheckState.activeWorkers ||     // 活跃 Worker 变化
+            lastTaskEnqueueTime !== lastStagnationCheckState.lastEnqueueTime;   // 【新增】任务入队时间变化
 
         if (hasRealProgress) {
             // 有进展，更新状态快照和时间
@@ -709,7 +715,8 @@ export async function startScan(
                 sensitiveItems: totalSensitiveItems,
                 taskQueueLength: taskQueue.length,
                 pendingTasksSize: pendingTasks.size,
-                activeWorkers: activeWorkerCount
+                activeWorkers: activeWorkerCount,
+                lastEnqueueTime: lastTaskEnqueueTime  // 【新增】最后入队时间
             };
             lastStagnationCheckTime = now;
         } else {
@@ -725,7 +732,8 @@ export async function startScan(
 
             // 第二层：长时间停滞强制结束（2分钟）
             if (idleTime > MAX_IDLE_TIME) {
-                log.error(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 过滤:${walkerFilteredCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}），强制结束`);
+                const timeSinceLastEnqueue = now - lastTaskEnqueueTime;
+                log.error(`警告: ${MAX_IDLE_TIME / 1000}秒内无任何进展（已处理:${consumerProcessedCount}, 总数:${walkerTotalCount}, 过滤:${walkerFilteredCount}, 跳过:${walkerSkippedCount}, 敏感文件:${resultCount}, 敏感信息:${totalSensitiveItems}, 活跃Worker:${activeWorkerCount}, 队列:${taskQueue.length}, 待处理:${pendingTasks.size}, 最后入队:${(timeSinceLastEnqueue/1000).toFixed(1)}秒前），强制结束`);
                 // 先清理所有 pendingTasks
                 for (const [_taskId, pending] of pendingTasks.entries()) {
                     clearTimeout(pending.timeoutId);

@@ -95,7 +95,14 @@ jobs:
 
       # Install dependencies
       - name: Install root dependencies
-        run: pnpm install
+        run: |
+          # 【新增】Windows 平台跳过 canvas 可选依赖编译
+          if [[ "${{ matrix.platform }}" == windows-* ]]; then
+            echo "Skipping canvas optional dependency for Windows..."
+            pnpm install --ignore-optional
+          else
+            pnpm install
+          fi
 
       - name: Install frontend dependencies
         run: cd frontend && pnpm install
