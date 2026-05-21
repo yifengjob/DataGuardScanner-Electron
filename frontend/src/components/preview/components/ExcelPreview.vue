@@ -3,6 +3,12 @@
   import VueOfficeExcel from '@vue-office/excel';
   import '@vue-office/excel/lib/index.css';
   import { readFileAsBlob } from '../utils/file-reader';
+  import {
+    EXCEL_COL_WIDTH_OFFSET,
+    EXCEL_MIN_COL_LENGTH,
+    EXCEL_MIN_ROW_LENGTH,
+    EXCEL_ROW_HEIGHT_OFFSET,
+  } from '@/config/ui-config.ts';
 
   const props = defineProps<{
     filePath: string;
@@ -23,10 +29,10 @@
   // Excel 配置选项
   const excelOptions = {
     xls: props.filePath.toLowerCase().endsWith('.xls'), // 是否为 .xls 格式
-    minColLength: 0, // 最小列数
-    maxColLength: 100, // 最大列数
-    minRowLength: 0, // 最小行数
-    maxRowLength: 1000, // 最大行数
+    minColLength: EXCEL_MIN_COL_LENGTH, // 最小列数
+    minRowLength: EXCEL_MIN_ROW_LENGTH, // 最小行数
+    widthOffset: EXCEL_COL_WIDTH_OFFSET, //在默认渲染的列表宽度上再加10px宽
+    heightOffset: EXCEL_ROW_HEIGHT_OFFSET, //在默认渲染的列表高度上再加10px高
   };
 
   /**
@@ -41,7 +47,8 @@
       const result = await readFileAsBlob(filePath);
 
       if (!result.success || !result.data) {
-        throw new Error(result.error || '读取文件失败');
+        emit('error', '读取文件失败');
+        return;
       }
 
       // Excel 组件可以直接使用 ArrayBuffer
